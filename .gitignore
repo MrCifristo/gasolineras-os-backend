@@ -1,0 +1,92 @@
+# --- Dependencias y build (NestJS / Node / pnpm) ---
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Variables de entorno y secretos ---
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# --- Drizzle (migraciones en ./drizzle se versionan; esto es caché local) ---
+.drizzle/
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+
+# --- IDEs y editores ---
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# --- Archivos temporales / borradores de agentes ---
+Untitled.*
+*.tmp
+*.bak
+
+# =============================================================================
+# Agentes de IA — estado local, sesiones y caché
+# (Puedes versionar CLAUDE.md, AGENTS.md, .cursor/rules/, prompt.md, etc.)
+# =============================================================================
+
+# Cursor
+.cursor/plans/
+.cursor/debug/
+.cursor/terminals/
+.cursor/**/*.log
+.cursor/**/*.db
+.cursor/**/*.sqlite
+
+# Claude Code
+.claude/
+!.claude/CLAUDE.md
+
+# OpenAI Codex
+.codex/
+
+# Windsurf / Codeium
+.windsurf/
+
+# Cline / Roo Code
+.cline/
+.roo/
+
+# Continue.dev
+.continue/
+
+# Google Gemini
+.gemini/
+
+# Amazon Q Developer
+.amazonq/
+
+# Aider
+.aider*
+.aider.tags.cache.v4/
+
+# GitHub Copilot (artefactos locales en workspace)
+.copilot/
+
+# Worktrees y sandboxes de agentes (superpowers, best-of-n, etc.)
+.worktrees/
+.agent-worktrees/
+
+# Transcripts y dumps de conversación (si algún agente los escribe en el repo)
+agent-transcripts/
+*.jsonl.transcript

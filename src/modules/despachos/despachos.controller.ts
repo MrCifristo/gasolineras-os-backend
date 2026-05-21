@@ -1,0 +1,60 @@
+import { Body, Controller, Get, Param, Patch, Post, Query, Request } from '@nestjs/common';
+import { Auth } from '../../auth/roles.decorator';
+import { DespachosService } from './despachos.service';
+import { CreateDespachoDto } from './dto/create-despacho.dto';
+import { UpdateDespachoDto } from './dto/update-despacho.dto';
+
+@Controller('despachos')
+export class DespachosController {
+  constructor(private readonly service: DespachosService) {}
+
+  @Get()
+  @Auth('admin', 'operario', 'cliente')
+  findAll(
+    @Request() req: any,
+    @Query('gasolinera_id') gasolineraId?: string,
+    @Query('cliente_id') clienteId?: string,
+    @Query('vehiculo_id') vehiculoId?: string,
+    @Query('piloto_id') pilotoId?: string,
+    @Query('fecha_desde') fechaDesde?: string,
+    @Query('fecha_hasta') fechaHasta?: string,
+    @Query('turno') turno?: string,
+    @Query('tipo_combustible') tipoCombustible?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.findAll(
+      {
+        gasolinera_id: gasolineraId,
+        cliente_id: clienteId,
+        vehiculo_id: vehiculoId,
+        piloto_id: pilotoId,
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+        turno,
+        tipo_combustible: tipoCombustible,
+        page: page ? parseInt(page) : undefined,
+        limit: limit ? parseInt(limit) : undefined,
+      },
+      req.user,
+    );
+  }
+
+  @Get(':id')
+  @Auth('admin', 'operario', 'cliente')
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
+  }
+
+  @Post()
+  @Auth('admin', 'operario')
+  create(@Body() dto: CreateDespachoDto, @Request() req: any) {
+    return this.service.create(dto, req.user);
+  }
+
+  @Patch(':id')
+  @Auth('admin')
+  update(@Param('id') id: string, @Body() dto: UpdateDespachoDto) {
+    return this.service.update(id, dto);
+  }
+}
