@@ -1,0 +1,106 @@
+Table gasolineras {
+  id uuid [pk]
+  nombre varchar
+  direccion varchar
+  ciudad varchar
+  activo boolean
+  created_at timestamp
+}
+
+Table clientes {
+  id uuid [pk]
+  nombre varchar
+  nit varchar
+  contacto_email varchar
+  activo boolean
+}
+
+Table vehiculos {
+  id uuid [pk]
+  cliente_id uuid [ref: > clientes.id]
+  placa varchar [unique]
+  marca varchar
+  modelo varchar
+  ruta varchar
+  tipo_vehiculo varchar
+  activo boolean
+}
+
+Table pilotos {
+  id uuid [pk]
+  cliente_id uuid [ref: > clientes.id]
+  nombre_completo varchar
+  codigo varchar
+  activo boolean
+}
+
+Table pilotos_vehiculos {
+  piloto_id uuid [ref: > pilotos.id]
+  vehiculo_id uuid [ref: > vehiculos.id]
+
+  indexes {
+    (piloto_id, vehiculo_id) [pk]
+  }
+}
+
+Table precios_combustible {
+  id uuid [pk]
+  gasolinera_id uuid [ref: > gasolineras.id]
+  fecha date
+  tipo_combustible varchar [note: 'diesel | super | regular | gas_lp']
+  precio_galon decimal
+
+  indexes {
+    (gasolinera_id, fecha, tipo_combustible) [unique]
+  }
+}
+
+Table usuarios {
+  id uuid [pk]
+  gasolinera_id uuid [ref: > gasolineras.id, null, note: 'null = acceso a todas las gasolineras']
+  email varchar [unique]
+  nombre varchar
+  rol varchar [note: 'admin | operario | cliente']
+  activo boolean
+}
+
+Table despachos {
+  id uuid [pk]
+  gasolinera_id uuid [ref: > gasolineras.id]
+  cliente_id uuid [ref: > clientes.id]
+  vehiculo_id uuid [ref: > vehiculos.id]
+  piloto_id uuid [ref: > pilotos.id]
+  despachador_id uuid [ref: > usuarios.id]
+  precio_id uuid [ref: > precios_combustible.id]
+  numero_vale varchar
+  serie_vale varchar
+  turno varchar [note: 'manana | tarde']
+  bomba_numero int
+  kilometraje decimal
+  galones decimal
+  monto_total decimal
+  firma_piloto_base64 text
+  despachado_at timestamp
+
+  indexes {
+    (gasolinera_id, serie_vale, numero_vale) [unique]
+  }
+}
+
+Table saldos_cliente {
+  id uuid [pk]
+  cliente_id uuid [ref: - clientes.id]
+  saldo_actual decimal
+  updated_at timestamp
+}
+
+Table movimientos_saldo {
+  id uuid [pk]
+  cliente_id uuid [ref: > clientes.id]
+  gasolinera_id uuid [ref: > gasolineras.id]
+  despacho_id uuid [ref: > despachos.id, null]
+  tipo varchar [note: 'debito | abono']
+  monto decimal
+  descripcion text
+  created_at timestamp
+}
