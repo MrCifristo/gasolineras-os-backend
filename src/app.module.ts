@@ -1,14 +1,16 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { DbModule } from './db/db.module';
-import { AuthModule } from './auth/auth.module';
-import { GasolinerasModule } from './modules/gasolineras/gasolineras.module';
-import { ClientesModule } from './modules/clientes/clientes.module';
-import { VehiculosModule } from './modules/vehiculos/vehiculos.module';
-import { PilotosModule } from './modules/pilotos/pilotos.module';
-import { PreciosCombustibleModule } from './modules/precios-combustible/precios-combustible.module';
-import { DespachosModule } from './modules/despachos/despachos.module';
-import { ReportesModule } from './modules/reportes/reportes.module';
+import { Module } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
+import { DbModule } from "./db/db.module";
+import { AuthModule } from "./auth/auth.module";
+import { GasolinerasModule } from "./modules/gasolineras/gasolineras.module";
+import { ClientesModule } from "./modules/clientes/clientes.module";
+import { VehiculosModule } from "./modules/vehiculos/vehiculos.module";
+import { PilotosModule } from "./modules/pilotos/pilotos.module";
+import { PreciosCombustibleModule } from "./modules/precios-combustible/precios-combustible.module";
+import { DespachosModule } from "./modules/despachos/despachos.module";
+import { ReportesModule } from "./modules/reportes/reportes.module";
+import { UsuariosModule } from "./modules/usuarios/usuarios.module";
+import { SaldosModule } from "./modules/saldos/saldos.module";
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { ReportesModule } from './modules/reportes/reportes.module';
     PreciosCombustibleModule,
     DespachosModule,
     ReportesModule,
+    UsuariosModule,
+    SaldosModule,
   ],
 })
 export class AppModule {}
