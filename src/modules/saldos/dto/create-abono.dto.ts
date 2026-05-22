@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
-  IsNotEmpty,
   IsNumberString,
   IsOptional,
   IsString,
@@ -21,7 +20,6 @@ export class CreateAbonoDto {
     description: "Monto en quetzales, mayor a cero",
   })
   @IsNumberString()
-  @IsNotEmpty()
   monto: string;
 
   @ApiPropertyOptional({ example: "Pago transferencia bancaria" })
