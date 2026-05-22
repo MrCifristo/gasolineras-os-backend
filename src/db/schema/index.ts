@@ -8,3 +8,4 @@ export * from './usuarios.schema';
 export * from './despachos.schema';
 export * from './saldos-cliente.schema';
 export * from './movimientos-saldo.schema';
+export * from './cuadres.schema';
