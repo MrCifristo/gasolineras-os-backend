@@ -21,6 +21,7 @@ export class CreateCuadreDto {
     example: "550e8400-e29b-41d4-a716-446655440000",
     description: 'Requerido cuando tipo = "cliente"',
   })
+  @IsOptional()
   @ValidateIf((o) => o.tipo === "cliente")
   @IsUUID()
   cliente_id?: string;

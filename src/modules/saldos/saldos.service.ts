@@ -70,15 +70,15 @@ export class SaldosService {
       throw new BadRequestException("El monto debe ser mayor a cero");
     }
 
-    const [saldo] = await this.db.db
-      .select()
-      .from(saldosCliente)
-      .where(eq(saldosCliente.cliente_id, dto.cliente_id))
-      .limit(1);
-
-    if (!saldo) throw new NotFoundException("Cliente no encontrado");
-
     return this.db.db.transaction(async (tx) => {
+      const [saldo] = await tx
+        .select()
+        .from(saldosCliente)
+        .where(eq(saldosCliente.cliente_id, dto.cliente_id))
+        .limit(1);
+
+      if (!saldo) throw new NotFoundException("Cliente no encontrado");
+
       const [movimiento] = await tx
         .insert(movimientosSaldo)
         .values({

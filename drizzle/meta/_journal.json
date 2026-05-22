@@ -15,6 +15,13 @@
       "when": 1779468337593,
       "tag": "0001_minor_barracuda",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779469578474,
+      "tag": "0002_misty_professor_monster",
+      "breakpoints": true
     }
   ]
 }
