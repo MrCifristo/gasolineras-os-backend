@@ -5,5 +5,12 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
-  }
+  },
+  "moduleNameMapper": {
+    "^puppeteer$": "<rootDir>/__mocks__/puppeteer.js",
+    "^puppeteer-core$": "<rootDir>/__mocks__/puppeteer.js"
+  },
+  "testTimeout": 30000,
+  "verbose": true,
+  "forceExit": true
 }
