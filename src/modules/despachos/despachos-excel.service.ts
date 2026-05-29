@@ -121,7 +121,7 @@ export class DespachosExcelService {
     });
 
     // Título
-    ws.mergeCells("A1:R1");
+    ws.mergeCells("A1:S1");
     const title = ws.getCell("A1");
     title.value = "⛽  GasFuel OS — Reporte de Despachos";
     title.font = {
@@ -139,7 +139,7 @@ export class DespachosExcelService {
     ws.getRow(1).height = 30;
 
     // Subtítulo con fecha de generación
-    ws.mergeCells("A2:R2");
+    ws.mergeCells("A2:S2");
     const sub = ws.getCell("A2");
     sub.value = `Generado el ${new Date().toLocaleString("es-GT", { dateStyle: "long", timeStyle: "short" })}   ·   ${rows.length} registro${rows.length !== 1 ? "s" : ""}`;
     sub.font = {
@@ -168,8 +168,14 @@ export class DespachosExcelService {
       {
         header: "Fecha",
         key: "despachado_at",
-        width: 18,
-        numFmt: "DD/MM/YYYY HH:MM",
+        width: 14,
+        numFmt: "DD/MM/YYYY",
+      },
+      {
+        header: "Hora",
+        key: "hora_despacho",
+        width: 8,
+        numFmt: "HH:mm",
       },
       { header: "Turno", key: "turno", width: 10 },
       { header: "Bomba", key: "bomba_numero", width: 8 },
@@ -231,10 +237,14 @@ export class DespachosExcelService {
 
     // Filas de datos
     rows.forEach((r, idx) => {
+      const gtDate = r.despachado_at
+        ? new Date(new Date(r.despachado_at).getTime() - 6 * 3600 * 1000)
+        : null;
       const row = ws.addRow({
         numero_vale: r.numero_vale,
         serie_vale: r.serie_vale,
-        despachado_at: r.despachado_at ? new Date(r.despachado_at) : null,
+        despachado_at: gtDate,
+        hora_despacho: gtDate,
         turno: r.turno,
         bomba_numero: r.bomba_numero,
         gasolinera: r.gasolinera,

@@ -9,6 +9,19 @@ import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 export class VehiculosService {
   constructor(private db: DbService) {}
 
+  private readonly DECIMAL_FIELDS = [
+    "limite_monto_transaccion", "limite_monto_dia", "limite_monto_semana", "limite_monto_mes",
+    "limite_volumen_transaccion", "limite_volumen_dia", "limite_volumen_semana", "limite_volumen_mes",
+  ] as const;
+
+  private coerceDecimals(dto: Record<string, any>) {
+    const out: Record<string, any> = { ...dto };
+    for (const f of this.DECIMAL_FIELDS) {
+      if (out[f] != null) out[f] = String(out[f]);
+    }
+    return out;
+  }
+
   findAll(clienteId?: string, activo?: boolean) {
     const conditions = [eq(vehiculos.activo, activo ?? true)];
     if (clienteId) conditions.push(eq(vehiculos.cliente_id, clienteId));
@@ -29,7 +42,10 @@ export class VehiculosService {
   }
 
   async create(dto: CreateVehiculoDto) {
-    const [row] = await this.db.db.insert(vehiculos).values(dto).returning();
+    const [row] = await this.db.db
+      .insert(vehiculos)
+      .values(this.coerceDecimals(dto) as any)
+      .returning();
     return row;
   }
 
@@ -37,7 +53,7 @@ export class VehiculosService {
     await this.findOne(id);
     const [row] = await this.db.db
       .update(vehiculos)
-      .set(dto)
+      .set(this.coerceDecimals(dto) as any)
       .where(eq(vehiculos.id, id))
       .returning();
     return row;
