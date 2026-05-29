@@ -1,0 +1,146 @@
+<h2>¿Quién renderiza las gráficas?</h2>
+<p class="subtitle">Esta es la decisión arquitectónica clave — cambia cómo frontend y backend se coordinan</p>
+
+<div class="options">
+
+  <div class="option" data-choice="frontend-captures" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Frontend renderiza → captura → envía al backend</h3>
+      <p style="margin:8px 0 4px">
+        <strong>Flujo:</strong> El usuario ve las gráficas en el sitio con Recharts/Chart.js.
+        Al hacer clic en "Descargar PDF", el frontend exporta cada gráfica como imagen
+        PNG/SVG (con <code>html2canvas</code> o el método nativo de la librería),
+        las empaqueta junto con los filtros activos y hace un
+        <code>POST /api/v1/reportes/pdf</code> con todo eso en el body.
+        El backend recibe las imágenes, las inserta en el HTML template, Puppeteer renderiza y devuelve el PDF.
+      </p>
+      <div style="background:#f0fdf4;border-radius:6px;padding:10px;margin-top:8px;font-size:13px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>Las gráficas del PDF son <strong>exactamente las mismas</strong> que ve el usuario — mismo color, mismo estilo, misma librería</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>No hay duplicación de lógica de gráficas entre frontend y backend</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>Backend solo maneja layout del PDF y datos tabulares — clara separación de responsabilidades</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#f59e0b;font-size:16px;margin-top:1px">⚠</span>
+          <span>El frontend necesita implementar la lógica de captura (html2canvas o similar) antes de que exista el endpoint del PDF</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <span style="color:#f59e0b;font-size:16px;margin-top:1px">⚠</span>
+          <span>El POST puede ser pesado si hay muchas gráficas en base64 — mitigable con compresión PNG</span>
+        </div>
+      </div>
+
+      <!-- Diagrama del flujo -->
+      <div style="margin-top:12px;display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap;">
+        <div style="background:#dbeafe;border-radius:4px;padding:5px 8px;border:1px solid #93c5fd"><strong>Frontend</strong><br/>Recharts renderiza</div>
+        <div style="color:#94a3b8">→</div>
+        <div style="background:#dbeafe;border-radius:4px;padding:5px 8px;border:1px solid #93c5fd"><strong>Frontend</strong><br/>html2canvas captura</div>
+        <div style="color:#94a3b8">→</div>
+        <div style="background:#dcfce7;border-radius:4px;padding:5px 8px;border:1px solid #86efac"><strong>POST /pdf</strong><br/>{ filtros + imgs }</div>
+        <div style="color:#94a3b8">→</div>
+        <div style="background:#dcfce7;border-radius:4px;padding:5px 8px;border:1px solid #86efac"><strong>Backend</strong><br/>Puppeteer → PDF</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="backend-independent" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Backend renderiza sus propias gráficas independientemente</h3>
+      <p style="margin:8px 0 4px">
+        El frontend y el backend tienen gráficas separadas. El usuario hace clic en
+        "Descargar PDF" y el frontend hace un <code>GET /api/v1/reportes/pdf?...</code>
+        pasando solo los filtros. El backend genera los datos, construye las gráficas
+        como SVG propio, Puppeteer renderiza todo y devuelve el PDF.
+      </p>
+      <div style="background:#fef2f2;border-radius:6px;padding:10px;margin-top:8px;font-size:13px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>Más simple de integrar desde el frontend — solo un <code>GET</code> con query params</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>Backend completamente autónomo, funciona sin que exista el frontend</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#ef4444;font-size:16px;margin-top:1px">✗</span>
+          <span><strong>Las gráficas del PDF lucen diferentes</strong> a las del frontend — doble esfuerzo de diseño</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#ef4444;font-size:16px;margin-top:1px">✗</span>
+          <span>Si cambias colores o tipos de gráfica en el frontend, el PDF queda desactualizado automáticamente</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <span style="color:#ef4444;font-size:16px;margin-top:1px">✗</span>
+          <span>Duplicas lógica de gráficas — la mantienes dos veces</span>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap;">
+        <div style="background:#dbeafe;border-radius:4px;padding:5px 8px;border:1px solid #93c5fd"><strong>Frontend</strong><br/>GET /pdf?filtros</div>
+        <div style="color:#94a3b8">→</div>
+        <div style="background:#dcfce7;border-radius:4px;padding:5px 8px;border:1px solid #86efac"><strong>Backend</strong><br/>genera SVG propio</div>
+        <div style="color:#94a3b8">→</div>
+        <div style="background:#dcfce7;border-radius:4px;padding:5px 8px;border:1px solid #86efac"><strong>Backend</strong><br/>Puppeteer → PDF</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="puppeteer-frontend" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Puppeteer navega directamente la página del frontend ⚡</h3>
+      <p style="margin:8px 0 4px">
+        El backend lanza Puppeteer, navega a una ruta especial del frontend
+        (ej. <code>http://frontend/reportes/print?token=...&filtros=...</code>),
+        espera a que las gráficas terminen de renderizar, y "imprime" esa página a PDF.
+        El PDF es literalmente una foto de la UI real.
+      </p>
+      <div style="background:#fffbeb;border-radius:6px;padding:10px;margin-top:8px;font-size:13px;">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>PDF = exactamente la UI, sin trabajo extra de exportación</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#10b981;font-size:16px;margin-top:1px">✓</span>
+          <span>Una sola fuente de verdad para el diseño visual</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#ef4444;font-size:16px;margin-top:1px">✗</span>
+          <span>El backend necesita acceso de red al frontend en tiempo de ejecución — problema en producción si están en servidores distintos</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+          <span style="color:#ef4444;font-size:16px;margin-top:1px">✗</span>
+          <span>Pasar el JWT de auth al Puppeteer es delicado y riesgoso</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px">
+          <span style="color:#ef4444;font-size:16px;margin-top:1px">✗</span>
+          <span>Más frágil — si el frontend tarda en cargar, el PDF falla</span>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap;">
+        <div style="background:#dbeafe;border-radius:4px;padding:5px 8px;border:1px solid #93c5fd"><strong>Frontend</strong><br/>/reportes/print</div>
+        <div style="color:#94a3b8">←navega→</div>
+        <div style="background:#dcfce7;border-radius:4px;padding:5px 8px;border:1px solid #86efac"><strong>Puppeteer</strong><br/>screenshot → PDF</div>
+        <div style="color:#94a3b8">→</div>
+        <div style="background:#dbeafe;border-radius:4px;padding:5px 8px;border:1px solid #93c5fd"><strong>Frontend</strong><br/>descarga PDF</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;background:#f0f9ff;border-radius:8px;padding:14px;border-left:4px solid #0ea5e9;font-size:13px;">
+  <strong>💡 Mi recomendación: A</strong> — el frontend captura y envía las gráficas.<br/>
+  Las gráficas del PDF serán idénticas a la UI, no se duplica lógica, y el contrato entre frontend y backend es claro: <code>POST /reportes/pdf</code> con <code>{ filtros, graficas: { donut, linea, vehiculos, pilotos } }</code>.
+  El único costo es implementar la captura con <code>html2canvas</code> en el frontend — cosa que de todas formas necesitarías si quisieras un "botón de compartir captura".
+</div>

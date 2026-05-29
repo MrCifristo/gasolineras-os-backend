@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
-import { DbService } from '../../db/db.service';
-import { vehiculos, pilotosVehiculos, pilotos } from '../../db/schema';
-import { CreateVehiculoDto } from './dto/create-vehiculo.dto';
-import { UpdateVehiculoDto } from './dto/update-vehiculo.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { and, eq } from "drizzle-orm";
+import { DbService } from "../../db/db.service";
+import { vehiculos, pilotosVehiculos, pilotos } from "../../db/schema";
+import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
+import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 
 @Injectable()
 export class VehiculosService {
@@ -12,7 +12,10 @@ export class VehiculosService {
   findAll(clienteId?: string, activo?: boolean) {
     const conditions = [eq(vehiculos.activo, activo ?? true)];
     if (clienteId) conditions.push(eq(vehiculos.cliente_id, clienteId));
-    return this.db.db.select().from(vehiculos).where(and(...conditions));
+    return this.db.db
+      .select()
+      .from(vehiculos)
+      .where(and(...conditions));
   }
 
   async findOne(id: string) {
@@ -21,7 +24,7 @@ export class VehiculosService {
       .from(vehiculos)
       .where(eq(vehiculos.id, id))
       .limit(1);
-    if (!row) throw new NotFoundException('Vehículo no encontrado');
+    if (!row) throw new NotFoundException("Vehículo no encontrado");
     return row;
   }
 
@@ -69,7 +72,7 @@ export class VehiculosService {
           eq(pilotosVehiculos.piloto_id, pilotoId),
         ),
       );
-    return { message: 'Piloto desasignado' };
+    return { message: "Piloto desasignado" };
   }
 
   async getPilotos(vehiculoId: string) {

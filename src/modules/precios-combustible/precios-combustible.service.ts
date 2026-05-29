@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
-import { DbService } from '../../db/db.service';
-import { preciosCombustible } from '../../db/schema';
-import { CreatePrecioDto } from './dto/create-precio.dto';
-import { UpdatePrecioDto } from './dto/update-precio.dto';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { and, eq, sql } from "drizzle-orm";
+import { DbService } from "../../db/db.service";
+import { preciosCombustible } from "../../db/schema";
+import { CreatePrecioDto } from "./dto/create-precio.dto";
+import { UpdatePrecioDto } from "./dto/update-precio.dto";
 
 @Injectable()
 export class PreciosCombustibleService {
@@ -11,15 +15,19 @@ export class PreciosCombustibleService {
 
   findAll(gasolineraId?: string, fecha?: string) {
     const conditions: ReturnType<typeof eq>[] = [];
-    if (gasolineraId) conditions.push(eq(preciosCombustible.gasolinera_id, gasolineraId));
+    if (gasolineraId)
+      conditions.push(eq(preciosCombustible.gasolinera_id, gasolineraId));
     if (fecha) conditions.push(eq(preciosCombustible.fecha, fecha));
     return conditions.length
-      ? this.db.db.select().from(preciosCombustible).where(and(...conditions))
+      ? this.db.db
+          .select()
+          .from(preciosCombustible)
+          .where(and(...conditions))
       : this.db.db.select().from(preciosCombustible);
   }
 
   findHoy(gasolineraId: string) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     return this.db.db
       .select()
       .from(preciosCombustible)
@@ -37,11 +45,15 @@ export class PreciosCombustibleService {
       .from(preciosCombustible)
       .where(eq(preciosCombustible.id, id))
       .limit(1);
-    if (!row) throw new NotFoundException('Precio no encontrado');
+    if (!row) throw new NotFoundException("Precio no encontrado");
     return row;
   }
 
-  async findByGasolineraFechaTipo(gasolineraId: string, fecha: string, tipo: string) {
+  async findByGasolineraFechaTipo(
+    gasolineraId: string,
+    fecha: string,
+    tipo: string,
+  ) {
     const [row] = await this.db.db
       .select()
       .from(preciosCombustible)
@@ -57,8 +69,20 @@ export class PreciosCombustibleService {
   }
 
   async create(dto: CreatePrecioDto) {
-    const [row] = await this.db.db.insert(preciosCombustible).values(dto).returning();
-    return row;
+    try {
+      const [row] = await this.db.db
+        .insert(preciosCombustible)
+        .values(dto)
+        .returning();
+      return row;
+    } catch (e: any) {
+      if (e?.cause?.code === "23505" || e?.code === "23505") {
+        throw new ConflictException(
+          `Ya existe un precio para ${dto.tipo_combustible} en esta gasolinera para la fecha ${dto.fecha}`,
+        );
+      }
+      throw e;
+    }
   }
 
   async update(id: string, dto: UpdatePrecioDto) {

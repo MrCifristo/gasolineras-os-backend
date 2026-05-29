@@ -1,0 +1,203 @@
+<h2>¿Cómo organizamos las páginas del PDF?</h2>
+<p class="subtitle">Elige la estructura que mejor se adapta a lo que quieren ver tus clientes</p>
+
+<div class="cards">
+
+  <!-- OPCIÓN A: 3 páginas compactas -->
+  <div class="card" data-choice="compact" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:flex;gap:6px;padding:8px;justify-content:center;background:#f1f5f9;border-radius:8px;">
+
+      <!-- Página 1 -->
+      <div style="flex:1;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;">
+        <div style="background:linear-gradient(135deg,#0f2044,#2563eb);height:52px;padding:6px 8px;color:white;">
+          <div style="font-size:6px;opacity:0.6;letter-spacing:1px">⛽ GASFUEL OS</div>
+          <div style="font-size:8px;font-weight:800;margin-top:2px">Reporte de Consumo</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-top:4px;">
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:2px;text-align:center;"><div style="font-size:7px;font-weight:700">1,234</div><div style="font-size:5px;opacity:0.6">GALONES</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:2px;text-align:center;"><div style="font-size:7px;font-weight:700">Q45K</div><div style="font-size:5px;opacity:0.6">MONTO</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:2px;text-align:center;"><div style="font-size:7px;font-weight:700">89</div><div style="font-size:5px;opacity:0.6">DESP.</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:2px;text-align:center;"><div style="font-size:7px;font-weight:700">13.9</div><div style="font-size:5px;opacity:0.6">G/D</div></div>
+          </div>
+        </div>
+        <div style="padding:5px 6px;">
+          <div style="display:flex;gap:4px;margin-bottom:4px;">
+            <div style="flex:1;background:#f8fafc;border-radius:3px;padding:4px;text-align:center;">
+              <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="9" fill="none" stroke="#e2e8f0" stroke-width="5"/><circle cx="14" cy="14" r="9" fill="none" stroke="#1a3a6b" stroke-width="5" stroke-dasharray="33 24" stroke-dashoffset="0" transform="rotate(-90,14,14)"/><circle cx="14" cy="14" r="9" fill="none" stroke="#f59e0b" stroke-width="5" stroke-dasharray="14 43" stroke-dashoffset="-33" transform="rotate(-90,14,14)"/><circle cx="14" cy="14" r="9" fill="none" stroke="#10b981" stroke-width="5" stroke-dasharray="9 48" stroke-dashoffset="-47" transform="rotate(-90,14,14)"/></svg>
+              <div style="font-size:5px;color:#64748b;margin-top:2px">Por tipo</div>
+            </div>
+            <div style="flex:2;background:#f8fafc;border-radius:3px;padding:4px;">
+              <svg width="100%" height="28" viewBox="0 0 60 28"><polyline points="2,22 12,17 22,20 32,12 42,15 52,8" fill="none" stroke="#2563eb" stroke-width="1.2"/><path d="M2,22 L12,17 L22,20 L32,12 L42,15 L52,8 L52,26 L2,26Z" fill="#2563eb" opacity="0.08"/></svg>
+              <div style="font-size:5px;color:#64748b">Tendencia mensual</div>
+            </div>
+          </div>
+          <div style="background:#f8fafc;border-radius:3px;padding:4px;margin-bottom:3px;">
+            <div style="font-size:5px;color:#64748b;margin-bottom:2px">Top vehículos</div>
+            <div style="height:4px;background:#e2e8f0;border-radius:1px;margin-bottom:2px"><div style="width:80%;height:100%;background:#1a3a6b;border-radius:1px"></div></div>
+            <div style="height:4px;background:#e2e8f0;border-radius:1px"><div style="width:50%;height:100%;background:#1a3a6b;border-radius:1px"></div></div>
+          </div>
+          <div style="background:#f8fafc;border-radius:3px;padding:4px;">
+            <div style="font-size:5px;color:#64748b;margin-bottom:2px">Top pilotos</div>
+            <div style="height:4px;background:#e2e8f0;border-radius:1px;margin-bottom:2px"><div style="width:70%;height:100%;background:#2563eb;border-radius:1px"></div></div>
+            <div style="height:4px;background:#e2e8f0;border-radius:1px"><div style="width:40%;height:100%;background:#2563eb;border-radius:1px"></div></div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Pág. 1</div>
+      </div>
+
+      <!-- Página 2 -->
+      <div style="flex:1;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;">
+        <div style="background:#0f2044;height:12px;padding:3px 6px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:5px;color:rgba(255,255,255,0.5)">⛽ GASFUEL OS</div>
+          <div style="font-size:5px;color:rgba(255,255,255,0.5)">Consolidado</div>
+        </div>
+        <div style="padding:5px 6px;">
+          <div style="font-size:6px;font-weight:700;color:#1e3a5f;margin-bottom:3px">CONSOLIDADO DE DESPACHOS</div>
+          <table style="width:100%;border-collapse:collapse;font-size:5px;">
+            <tr style="background:#f1f5f9;"><td style="padding:2px 3px;color:#475569;font-weight:600">Vale</td><td style="padding:2px 3px;color:#475569">Vehículo</td><td style="padding:2px 3px;color:#475569">Piloto</td><td style="padding:2px 3px;color:#475569;text-align:right">Gal.</td><td style="padding:2px 3px;color:#475569;text-align:right">Monto</td></tr>
+            <tr><td style="padding:2px 3px">A-000001</td><td style="padding:2px 3px">ABC-123</td><td style="padding:2px 3px">López C.</td><td style="padding:2px 3px;text-align:right">80</td><td style="padding:2px 3px;text-align:right">Q2,280</td></tr>
+            <tr style="background:#f8fafc"><td style="padding:2px 3px">A-000002</td><td style="padding:2px 3px">XYZ-789</td><td style="padding:2px 3px">García A.</td><td style="padding:2px 3px;text-align:right">15.5</td><td style="padding:2px 3px;text-align:right">Q539</td></tr>
+            <tr><td style="padding:2px 3px">A-000003</td><td style="padding:2px 3px">DEF-456</td><td style="padding:2px 3px">Pérez J.</td><td style="padding:2px 3px;text-align:right">60</td><td style="padding:2px 3px;text-align:right">Q1,710</td></tr>
+            <tr style="background:#f8fafc"><td style="padding:2px 3px">A-000004</td><td style="padding:2px 3px">GHI-012</td><td style="padding:2px 3px">Ruiz M.</td><td style="padding:2px 3px;text-align:right">45</td><td style="padding:2px 3px;text-align:right">Q1,283</td></tr>
+            <tr><td style="padding:2px 3px;color:#94a3b8" colspan="5">… +85 despachos más</td></tr>
+          </table>
+          <div style="margin-top:6px;padding-top:4px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;font-size:5px;font-weight:600;color:#1e3a5f;">
+            <span>TOTAL GALONES: 1,234</span>
+            <span>TOTAL MONTO: Q45,200</span>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Pág. 2</div>
+      </div>
+
+    </div>
+    <div class="card-body">
+      <h3>A — Compacto (2 páginas)</h3>
+      <p>KPIs + 4 gráficas en la primera página. Tabla consolidada en la segunda. Rápido de revisar, ideal para resúmenes ejecutivos.</p>
+    </div>
+  </div>
+
+  <!-- OPCIÓN B: 4 páginas estructuradas -->
+  <div class="card" data-choice="structured" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:flex;gap:5px;padding:8px;justify-content:center;background:#f1f5f9;border-radius:8px;">
+
+      <!-- P1: Portada KPIs -->
+      <div style="flex:1;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;">
+        <div style="background:linear-gradient(135deg,#0f2044,#2563eb);height:70px;padding:8px;color:white;">
+          <div style="font-size:6px;opacity:0.6">⛽ GASFUEL OS</div>
+          <div style="font-size:9px;font-weight:800;margin:2px 0">REPORTE DE CONSUMO</div>
+          <div style="font-size:5px;opacity:0.5">TRANSPORTES GUATEMALA SA · MAYO 2026</div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:3px;margin-top:5px;">
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:3px;"><div style="font-size:9px;font-weight:800">1,234</div><div style="font-size:5px;opacity:0.6">GALONES</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:3px;"><div style="font-size:9px;font-weight:800">Q45.2K</div><div style="font-size:5px;opacity:0.6">MONTO</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:3px;"><div style="font-size:9px;font-weight:800">89</div><div style="font-size:5px;opacity:0.6">DESPACHOS</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:2px;padding:3px;"><div style="font-size:9px;font-weight:800">13.9</div><div style="font-size:5px;opacity:0.6">GAL/DESP</div></div>
+          </div>
+        </div>
+        <div style="padding:4px 5px;font-size:5px;color:#64748b;text-align:center">KPIs ejecutivos · resumen</div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Pág. 1</div>
+      </div>
+
+      <!-- P2: Gráficas combustible -->
+      <div style="flex:1;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;">
+        <div style="background:#0f2044;height:10px;padding:2px 5px;display:flex;align-items:center;justify-content:space-between;"><div style="font-size:5px;color:rgba(255,255,255,0.5)">Combustible</div></div>
+        <div style="padding:5px;">
+          <div style="font-size:5px;font-weight:700;color:#1e3a5f;margin-bottom:3px">ANÁLISIS DE COMBUSTIBLE</div>
+          <div style="display:flex;gap:3px;margin-bottom:4px;">
+            <svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="10" fill="none" stroke="#e2e8f0" stroke-width="6"/><circle cx="16" cy="16" r="10" fill="none" stroke="#1a3a6b" stroke-width="6" stroke-dasharray="37 26" stroke-dashoffset="0" transform="rotate(-90,16,16)"/><circle cx="16" cy="16" r="10" fill="none" stroke="#f59e0b" stroke-width="6" stroke-dasharray="16 47" stroke-dashoffset="-37" transform="rotate(-90,16,16)"/><circle cx="16" cy="16" r="10" fill="none" stroke="#10b981" stroke-width="6" stroke-dasharray="10 53" stroke-dashoffset="-53" transform="rotate(-90,16,16)"/></svg>
+            <div style="font-size:5px;color:#475569;padding-top:2px;line-height:1.8">Diesel 59%<br/>Super 25%<br/>Regular 16%</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:3px;padding:3px;margin-bottom:3px;">
+            <div style="font-size:5px;color:#64748b;margin-bottom:2px">Tendencia mensual (12 meses)</div>
+            <svg width="100%" height="22" viewBox="0 0 70 22"><polyline points="2,18 10,14 18,16 26,10 34,12 42,7 50,9 58,4 66,6" fill="none" stroke="#2563eb" stroke-width="1.2"/><path d="M2,18 L10,14 L18,16 L26,10 L34,12 L42,7 L50,9 L58,4 L66,6 L66,20 L2,20Z" fill="#2563eb" opacity="0.08"/></svg>
+          </div>
+          <div style="font-size:5px;color:#94a3b8">+ tabla por tipo detallada</div>
+        </div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Pág. 2</div>
+      </div>
+
+      <!-- P3: Vehículos + Pilotos -->
+      <div style="flex:1;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;">
+        <div style="background:#0f2044;height:10px;padding:2px 5px;display:flex;align-items:center;justify-content:space-between;"><div style="font-size:5px;color:rgba(255,255,255,0.5)">Análisis</div></div>
+        <div style="padding:4px 5px;">
+          <div style="font-size:5px;font-weight:700;color:#1e3a5f;margin-bottom:2px">TOP VEHÍCULOS</div>
+          <div style="margin-bottom:3px;">
+            <div style="display:flex;align-items:center;gap:2px;margin-bottom:1px;"><div style="font-size:5px;color:#475569;width:22px">ABC-123</div><div style="flex:1;height:4px;background:#e2e8f0;border-radius:1px"><div style="width:80%;height:100%;background:#1a3a6b;border-radius:1px"></div></div><div style="font-size:5px;color:#64748b;width:14px;text-align:right">450</div></div>
+            <div style="display:flex;align-items:center;gap:2px;margin-bottom:1px;"><div style="font-size:5px;color:#475569;width:22px">XYZ-789</div><div style="flex:1;height:4px;background:#e2e8f0;border-radius:1px"><div style="width:50%;height:100%;background:#1a3a6b;border-radius:1px"></div></div><div style="font-size:5px;color:#64748b;width:14px;text-align:right">280</div></div>
+            <div style="display:flex;align-items:center;gap:2px;"><div style="font-size:5px;color:#475569;width:22px">DEF-456</div><div style="flex:1;height:4px;background:#e2e8f0;border-radius:1px"><div style="width:30%;height:100%;background:#1a3a6b;border-radius:1px"></div></div><div style="font-size:5px;color:#64748b;width:14px;text-align:right">170</div></div>
+          </div>
+          <div style="height:1px;background:#e2e8f0;margin:3px 0"></div>
+          <div style="font-size:5px;font-weight:700;color:#1e3a5f;margin-bottom:2px">TOP PILOTOS</div>
+          <div>
+            <div style="display:flex;align-items:center;gap:2px;margin-bottom:1px;"><div style="font-size:5px;color:#475569;width:22px">C. López</div><div style="flex:1;height:4px;background:#e2e8f0;border-radius:1px"><div style="width:75%;height:100%;background:#2563eb;border-radius:1px"></div></div><div style="font-size:5px;color:#64748b;width:14px;text-align:right">430</div></div>
+            <div style="display:flex;align-items:center;gap:2px;"><div style="font-size:5px;color:#475569;width:22px">A. García</div><div style="flex:1;height:4px;background:#e2e8f0;border-radius:1px"><div style="width:40%;height:100%;background:#2563eb;border-radius:1px"></div></div><div style="font-size:5px;color:#64748b;width:14px;text-align:right">230</div></div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Pág. 3</div>
+      </div>
+
+      <!-- P4: Consolidado -->
+      <div style="flex:1;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;">
+        <div style="background:#0f2044;height:10px;padding:2px 5px;display:flex;align-items:center;"><div style="font-size:5px;color:rgba(255,255,255,0.5)">Despachos</div></div>
+        <div style="padding:4px 5px;">
+          <div style="font-size:5px;font-weight:700;color:#1e3a5f;margin-bottom:3px">CONSOLIDADO DE DESPACHOS</div>
+          <table style="width:100%;border-collapse:collapse;font-size:4.5px;">
+            <tr style="background:#f1f5f9;"><td style="padding:2px">Vale</td><td style="padding:2px">Vehículo</td><td style="padding:2px">Piloto</td><td style="padding:2px;text-align:right">Gal</td><td style="padding:2px;text-align:right">Q</td></tr>
+            <tr><td style="padding:1.5px">A-000001</td><td>ABC-123</td><td>López</td><td style="text-align:right">80</td><td style="text-align:right">2,280</td></tr>
+            <tr style="background:#f8fafc"><td style="padding:1.5px">A-000002</td><td>XYZ-789</td><td>García</td><td style="text-align:right">15.5</td><td style="text-align:right">539</td></tr>
+            <tr><td style="padding:1.5px">A-000003</td><td>DEF-456</td><td>Pérez</td><td style="text-align:right">60</td><td style="text-align:right">1,710</td></tr>
+            <tr><td style="padding:1.5px;color:#94a3b8" colspan="5">… +86 más</td></tr>
+          </table>
+        </div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Pág. 4</div>
+      </div>
+
+    </div>
+    <div class="card-body">
+      <h3>B — Estructurado (4 páginas) ⭐ Recomendado</h3>
+      <p>Portada con KPIs grandes → página de gráficas de combustible → página de vehículos y pilotos → tabla consolidada. Cada sección tiene espacio para respirar.</p>
+    </div>
+  </div>
+
+  <!-- OPCIÓN C: Una sola página larga -->
+  <div class="card" data-choice="single" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:8px;background:#f1f5f9;border-radius:8px;">
+      <div style="background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.12);font-family:sans-serif;max-width:120px;margin:0 auto;">
+        <div style="background:linear-gradient(135deg,#0f2044,#2563eb);padding:6px;color:white;">
+          <div style="font-size:5px;opacity:0.6">⛽ GASFUEL OS · Reporte</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-top:4px;">
+            <div style="background:rgba(255,255,255,0.15);border-radius:1px;padding:2px;text-align:center;"><div style="font-size:6px;font-weight:700">1,234</div><div style="font-size:4px;opacity:0.6">GAL</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:1px;padding:2px;text-align:center;"><div style="font-size:6px;font-weight:700">45K</div><div style="font-size:4px;opacity:0.6">Q</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:1px;padding:2px;text-align:center;"><div style="font-size:6px;font-weight:700">89</div><div style="font-size:4px;opacity:0.6">DSP</div></div>
+            <div style="background:rgba(255,255,255,0.15);border-radius:1px;padding:2px;text-align:center;"><div style="font-size:6px;font-weight:700">13.9</div><div style="font-size:4px;opacity:0.6">G/D</div></div>
+          </div>
+        </div>
+        <div style="padding:4px;border-bottom:1px solid #f1f5f9;">
+          <div style="font-size:5px;color:#64748b;margin-bottom:2px">Gráficas</div>
+          <div style="display:flex;gap:3px;">
+            <div style="flex:1;height:18px;background:#f8fafc;border-radius:2px;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="#e2e8f0" stroke-width="3"/><circle cx="8" cy="8" r="5" fill="none" stroke="#1a3a6b" stroke-width="3" stroke-dasharray="19 13" stroke-dashoffset="0" transform="rotate(-90,8,8)"/></svg></div>
+            <div style="flex:2;height:18px;background:#f8fafc;border-radius:2px;padding:3px;"><svg width="100%" height="12" viewBox="0 0 40 12"><polyline points="2,10 10,7 18,8 26,4 34,5" fill="none" stroke="#2563eb" stroke-width="1"/></svg></div>
+          </div>
+        </div>
+        <div style="padding:4px;border-bottom:1px solid #f1f5f9;">
+          <div style="font-size:5px;color:#64748b;margin-bottom:2px">Vehículos · Pilotos</div>
+          <div style="height:4px;background:#e2e8f0;border-radius:1px;margin-bottom:1px"><div style="width:75%;height:100%;background:#1a3a6b;border-radius:1px"></div></div>
+          <div style="height:4px;background:#e2e8f0;border-radius:1px"><div style="width:45%;height:100%;background:#2563eb;border-radius:1px"></div></div>
+        </div>
+        <div style="padding:4px;">
+          <div style="font-size:5px;color:#64748b;margin-bottom:2px">Tabla despachos</div>
+          <div style="height:3px;background:#f1f5f9;border-radius:1px;margin-bottom:1px"></div>
+          <div style="height:3px;background:#f8fafc;border-radius:1px;margin-bottom:1px"></div>
+          <div style="height:3px;background:#f1f5f9;border-radius:1px;margin-bottom:1px"></div>
+          <div style="font-size:4px;color:#94a3b8">scroll continuo…</div>
+        </div>
+        <div style="text-align:center;font-size:5px;color:#94a3b8;padding:2px">Página única larga</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Página única continua</h3>
+      <p>Todo en una sola página A4 larga (scroll). Gráficas compactas, tabla completa al fondo. Bueno para exportar a web o enviar por email como PDF pequeño.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:20px">Elige en el browser o responde aquí. Mi recomendación: B.</p>

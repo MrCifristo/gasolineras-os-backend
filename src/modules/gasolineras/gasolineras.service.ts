@@ -1,16 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { DbService } from '../../db/db.service';
-import { gasolineras } from '../../db/schema';
-import { CreateGasolineraDto } from './dto/create-gasolinera.dto';
-import { UpdateGasolineraDto } from './dto/update-gasolinera.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { eq } from "drizzle-orm";
+import { DbService } from "../../db/db.service";
+import { gasolineras } from "../../db/schema";
+import { CreateGasolineraDto } from "./dto/create-gasolinera.dto";
+import { UpdateGasolineraDto } from "./dto/update-gasolinera.dto";
 
 @Injectable()
 export class GasolinerasService {
   constructor(private db: DbService) {}
 
   findAll() {
-    return this.db.db.select().from(gasolineras).where(eq(gasolineras.activo, true));
+    return this.db.db
+      .select()
+      .from(gasolineras)
+      .where(eq(gasolineras.activo, true));
   }
 
   async findOne(id: string) {
@@ -19,7 +22,7 @@ export class GasolinerasService {
       .from(gasolineras)
       .where(eq(gasolineras.id, id))
       .limit(1);
-    if (!row) throw new NotFoundException('Gasolinera no encontrada');
+    if (!row) throw new NotFoundException("Gasolinera no encontrada");
     return row;
   }
 

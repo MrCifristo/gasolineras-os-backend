@@ -1,7 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { and, avg, count, eq, gte, lte, sql, sum } from 'drizzle-orm';
-import { DbService } from '../../db/db.service';
-import { despachos, vehiculos, pilotos, preciosCombustible } from '../../db/schema';
+import { Injectable } from "@nestjs/common";
+import { and, count, eq, gte, sql, sum } from "drizzle-orm";
+import { DbService } from "../../db/db.service";
+import {
+  despachos,
+  vehiculos,
+  pilotos,
+  preciosCombustible,
+} from "../../db/schema";
 
 export interface ReporteFilters {
   cliente_id?: string;
@@ -16,12 +21,18 @@ export class ReportesService {
 
   private buildConditions(filters: ReporteFilters) {
     const conds: any[] = [];
-    if (filters.cliente_id) conds.push(eq(despachos.cliente_id, filters.cliente_id));
-    if (filters.gasolinera_id) conds.push(eq(despachos.gasolinera_id, filters.gasolinera_id));
+    if (filters.cliente_id)
+      conds.push(eq(despachos.cliente_id, filters.cliente_id));
+    if (filters.gasolinera_id)
+      conds.push(eq(despachos.gasolinera_id, filters.gasolinera_id));
     if (filters.fecha_desde)
-      conds.push(gte(despachos.despachado_at, new Date(filters.fecha_desde)));
+      conds.push(
+        sql`${despachos.despachado_at}::date >= ${filters.fecha_desde}::date`,
+      );
     if (filters.fecha_hasta)
-      conds.push(lte(despachos.despachado_at, new Date(filters.fecha_hasta)));
+      conds.push(
+        sql`${despachos.despachado_at}::date <= ${filters.fecha_hasta}::date`,
+      );
     return conds;
   }
 
@@ -45,7 +56,10 @@ export class ReportesService {
         total_monto: sum(despachos.monto_total),
       })
       .from(despachos)
-      .innerJoin(preciosCombustible, eq(despachos.precio_id, preciosCombustible.id))
+      .innerJoin(
+        preciosCombustible,
+        eq(despachos.precio_id, preciosCombustible.id),
+      )
       .where(where)
       .groupBy(preciosCombustible.tipo_combustible);
 
@@ -59,7 +73,11 @@ export class ReportesService {
       .where(where)
       .groupBy(despachos.gasolinera_id);
 
-    return { totales, por_tipo_combustible: porTipo, por_gasolinera: porGasolinera };
+    return {
+      totales,
+      por_tipo_combustible: porTipo,
+      por_gasolinera: porGasolinera,
+    };
   }
 
   async consumoPorVehiculo(filters: ReporteFilters) {
@@ -79,7 +97,12 @@ export class ReportesService {
       .from(despachos)
       .innerJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
       .where(where)
-      .groupBy(despachos.vehiculo_id, vehiculos.placa, vehiculos.marca, vehiculos.modelo)
+      .groupBy(
+        despachos.vehiculo_id,
+        vehiculos.placa,
+        vehiculos.marca,
+        vehiculos.modelo,
+      )
       .orderBy(sql`sum(${despachos.galones}) DESC`);
   }
 

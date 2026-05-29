@@ -1,0 +1,243 @@
+<h2>¿Qué estilo visual quieres para el PDF?</h2>
+<p class="subtitle">Mockups de la portada con datos reales — elige el que mejor represente a tus clientes</p>
+
+<div class="cards">
+
+  <!-- OPCIÓN A: Corporate Dark -->
+  <div class="card" data-choice="corporate" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#fff;border-radius:8px;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.15);">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#0f2044 0%,#1a3a6b 60%,#2563eb 100%);padding:20px 18px 16px;color:white;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div style="font-size:9px;letter-spacing:2px;opacity:0.6;font-weight:600">⛽ GASFUEL OS</div>
+              <div style="font-size:15px;font-weight:800;margin-top:3px;line-height:1.2">Reporte de Consumo<br>de Combustible</div>
+              <div style="font-size:9px;opacity:0.6;margin-top:6px">Período: 01 May — 21 May 2026</div>
+            </div>
+            <div style="text-align:right;font-size:8px;opacity:0.5">Generado<br>21/05/2026</div>
+          </div>
+          <!-- KPI row -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:14px;">
+            <div style="background:rgba(255,255,255,0.1);border-radius:5px;padding:8px 6px;text-align:center;">
+              <div style="font-size:14px;font-weight:800">1,234</div>
+              <div style="font-size:7px;opacity:0.65;margin-top:1px">GALONES</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.1);border-radius:5px;padding:8px 6px;text-align:center;">
+              <div style="font-size:14px;font-weight:800">Q45.2K</div>
+              <div style="font-size:7px;opacity:0.65;margin-top:1px">MONTO</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.1);border-radius:5px;padding:8px 6px;text-align:center;">
+              <div style="font-size:14px;font-weight:800">89</div>
+              <div style="font-size:7px;opacity:0.65;margin-top:1px">DESPACHOS</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.1);border-radius:5px;padding:8px 6px;text-align:center;">
+              <div style="font-size:14px;font-weight:800">13.9</div>
+              <div style="font-size:7px;opacity:0.65;margin-top:1px">GAL/DESP.</div>
+            </div>
+          </div>
+        </div>
+        <!-- Charts row -->
+        <div style="padding:12px 14px;background:#f8fafc;">
+          <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:10px;">
+            <!-- Donut -->
+            <div style="background:white;border-radius:6px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">
+              <div style="font-size:8px;font-weight:700;color:#64748b;letter-spacing:0.5px;margin-bottom:8px">POR TIPO</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="48" height="48" viewBox="0 0 48 48">
+                  <circle cx="24" cy="24" r="16" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+                  <circle cx="24" cy="24" r="16" fill="none" stroke="#1a3a6b" stroke-width="8" stroke-dasharray="60 41" stroke-dashoffset="0" transform="rotate(-90,24,24)"/>
+                  <circle cx="24" cy="24" r="16" fill="none" stroke="#f59e0b" stroke-width="8" stroke-dasharray="25 76" stroke-dashoffset="-60" transform="rotate(-90,24,24)"/>
+                  <circle cx="24" cy="24" r="16" fill="none" stroke="#10b981" stroke-width="8" stroke-dasharray="16 85" stroke-dashoffset="-85" transform="rotate(-90,24,24)"/>
+                </svg>
+                <div style="font-size:8px;line-height:1.8;">
+                  <div><span style="color:#1a3a6b">■</span> Diesel 59%</div>
+                  <div><span style="color:#f59e0b">■</span> Super 25%</div>
+                  <div><span style="color:#10b981">■</span> Regular 16%</div>
+                </div>
+              </div>
+            </div>
+            <!-- Line chart -->
+            <div style="background:white;border-radius:6px;padding:10px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">
+              <div style="font-size:8px;font-weight:700;color:#64748b;letter-spacing:0.5px;margin-bottom:6px">TENDENCIA MENSUAL</div>
+              <svg width="100%" height="50" viewBox="0 0 120 50">
+                <polyline points="5,40 20,32 35,36 50,22 65,28 80,18 95,24 110,10" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linejoin="round"/>
+                <path d="M5,40 L20,32 L35,36 L50,22 L65,28 L80,18 L95,24 L110,10 L110,45 L5,45 Z" fill="#2563eb" opacity="0.08"/>
+                <circle cx="110" cy="10" r="2.5" fill="#2563eb"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Table preview -->
+          <div style="background:white;border-radius:6px;padding:10px;margin-top:10px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">
+            <div style="font-size:8px;font-weight:700;color:#64748b;margin-bottom:6px">TOP VEHÍCULOS</div>
+            <table style="width:100%;font-size:8px;border-collapse:collapse;">
+              <tr style="background:#f1f5f9;"><td style="padding:3px 4px;border-radius:2px;color:#475569;font-weight:600">Placa</td><td style="padding:3px 4px;color:#475569;font-weight:600;text-align:right">Galones</td><td style="padding:3px 4px;color:#475569;font-weight:600;text-align:right">Monto</td></tr>
+              <tr><td style="padding:3px 4px;color:#374151">ABC-123</td><td style="padding:3px 4px;text-align:right;color:#374151">450.0</td><td style="padding:3px 4px;text-align:right;color:#374151">Q12,825</td></tr>
+              <tr style="background:#f8fafc"><td style="padding:3px 4px;color:#374151">XYZ-789</td><td style="padding:3px 4px;text-align:right;color:#374151">320.5</td><td style="padding:3px 4px;text-align:right;color:#374151">Q 9,134</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Corporate Blue</h3>
+      <p>Header degradado azul marino, tarjetas blancas, tipografía limpia. Profesional y moderno. Ideal para presentar a clientes corporativos.</p>
+    </div>
+  </div>
+
+  <!-- OPCIÓN B: Dark Premium -->
+  <div class="card" data-choice="dark" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0f172a;border-radius:8px;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.4);">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#020617,#0f172a);padding:18px;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <div style="width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;">⛽</div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:#e2e8f0">GASFUEL OS</div>
+              <div style="font-size:8px;color:#475569">Reporte de Consumo · Mayo 2026</div>
+            </div>
+          </div>
+          <!-- KPI cards -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:6px;padding:8px;border:1px solid rgba(99,102,241,0.3);">
+              <div style="font-size:13px;font-weight:800;color:#a5b4fc">1,234</div>
+              <div style="font-size:7px;color:#64748b;margin-top:1px">GALONES</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#1a2e1a,#14532d);border-radius:6px;padding:8px;border:1px solid rgba(16,185,129,0.3);">
+              <div style="font-size:13px;font-weight:800;color:#6ee7b7">Q45.2K</div>
+              <div style="font-size:7px;color:#64748b;margin-top:1px">MONTO</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#2d1a0e,#431407);border-radius:6px;padding:8px;border:1px solid rgba(249,115,22,0.3);">
+              <div style="font-size:13px;font-weight:800;color:#fdba74">89</div>
+              <div style="font-size:7px;color:#64748b;margin-top:1px">DESPACHOS</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:6px;padding:8px;border:1px solid rgba(148,163,184,0.2);">
+              <div style="font-size:13px;font-weight:800;color:#e2e8f0">13.9</div>
+              <div style="font-size:7px;color:#64748b;margin-top:1px">GAL/DESP.</div>
+            </div>
+          </div>
+        </div>
+        <!-- Charts -->
+        <div style="padding:12px;display:grid;grid-template-columns:1fr 1.6fr;gap:8px;">
+          <div style="background:#1e293b;border-radius:6px;padding:10px;border:1px solid rgba(255,255,255,0.05);">
+            <div style="font-size:7px;color:#64748b;letter-spacing:1px;font-weight:600;margin-bottom:8px">POR TIPO</div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <svg width="44" height="44" viewBox="0 0 44 44">
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#1e293b" stroke-width="7"/>
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#6366f1" stroke-width="7" stroke-dasharray="52 36" stroke-dashoffset="0" transform="rotate(-90,22,22)"/>
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#f59e0b" stroke-width="7" stroke-dasharray="22 66" stroke-dashoffset="-52" transform="rotate(-90,22,22)"/>
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="14 74" stroke-dashoffset="-74" transform="rotate(-90,22,22)"/>
+              </svg>
+              <div style="font-size:7px;line-height:2;color:#94a3b8;">
+                <div><span style="color:#6366f1">■</span> Diesel</div>
+                <div><span style="color:#f59e0b">■</span> Super</div>
+                <div><span style="color:#10b981">■</span> Regular</div>
+              </div>
+            </div>
+          </div>
+          <div style="background:#1e293b;border-radius:6px;padding:10px;border:1px solid rgba(255,255,255,0.05);">
+            <div style="font-size:7px;color:#64748b;letter-spacing:1px;font-weight:600;margin-bottom:4px">TENDENCIA</div>
+            <svg width="100%" height="48" viewBox="0 0 110 48">
+              <line x1="0" y1="36" x2="110" y2="36" stroke="#1e293b" stroke-width="0.5"/>
+              <polyline points="5,38 20,30 35,34 50,20 65,26 80,14 95,20 105,8" fill="none" stroke="#6366f1" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M5,38 L20,30 L35,34 L50,20 L65,26 L80,14 L95,20 L105,8 L105,44 L5,44Z" fill="#6366f1" opacity="0.12"/>
+              <circle cx="105" cy="8" r="2.5" fill="#6366f1"/>
+            </svg>
+          </div>
+        </div>
+        <div style="padding:0 12px 12px;">
+          <div style="background:#1e293b;border-radius:6px;padding:8px;border:1px solid rgba(255,255,255,0.05);">
+            <div style="font-size:7px;color:#64748b;margin-bottom:5px;letter-spacing:1px;font-weight:600">TOP VEHÍCULOS</div>
+            <div style="font-size:8px;color:#94a3b8;">
+              <div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span>ABC-123</span><span style="color:#6ee7b7">450 gal</span></div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0"><span>XYZ-789</span><span style="color:#6ee7b7">320 gal</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Dark Premium</h3>
+      <p>Fondo oscuro profundo, acentos en violeta/verde/naranja por tipo de dato. Moderno y distintivo. Destaca en pantalla y en impresión de calidad.</p>
+    </div>
+  </div>
+
+  <!-- OPCIÓN C: Clean Minimal -->
+  <div class="card" data-choice="minimal" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#fff;border-radius:8px;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.1);">
+        <!-- Thin accent bar + header -->
+        <div style="height:4px;background:linear-gradient(90deg,#059669,#10b981,#34d399)"></div>
+        <div style="padding:16px 18px 12px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div style="font-size:9px;color:#6b7280;letter-spacing:1px;font-weight:600">⛽ GASFUEL OS</div>
+              <div style="font-size:15px;font-weight:800;color:#111827;margin-top:2px">Reporte de Consumo</div>
+              <div style="font-size:8px;color:#9ca3af;margin-top:3px">01 mayo – 21 mayo 2026</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:7px;color:#d1d5db">Generado el</div>
+              <div style="font-size:8px;color:#6b7280;font-weight:600">21/05/2026</div>
+            </div>
+          </div>
+          <!-- KPI row with left border accent -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;">
+            <div style="border-left:3px solid #059669;padding:6px 8px;background:#f0fdf4;border-radius:0 4px 4px 0;">
+              <div style="font-size:14px;font-weight:800;color:#065f46">1,234</div>
+              <div style="font-size:7px;color:#6b7280;margin-top:1px">galones totales</div>
+            </div>
+            <div style="border-left:3px solid #3b82f6;padding:6px 8px;background:#eff6ff;border-radius:0 4px 4px 0;">
+              <div style="font-size:14px;font-weight:800;color:#1e40af">Q45.2K</div>
+              <div style="font-size:7px;color:#6b7280;margin-top:1px">monto total</div>
+            </div>
+            <div style="border-left:3px solid #f59e0b;padding:6px 8px;background:#fffbeb;border-radius:0 4px 4px 0;">
+              <div style="font-size:14px;font-weight:800;color:#92400e">89</div>
+              <div style="font-size:7px;color:#6b7280;margin-top:1px">despachos</div>
+            </div>
+            <div style="border-left:3px solid #8b5cf6;padding:6px 8px;background:#f5f3ff;border-radius:0 4px 4px 0;">
+              <div style="font-size:14px;font-weight:800;color:#4c1d95">13.9</div>
+              <div style="font-size:7px;color:#6b7280;margin-top:1px">gal/despacho</div>
+            </div>
+          </div>
+        </div>
+        <!-- Divider -->
+        <div style="height:1px;background:#f3f4f6;margin:0 18px"></div>
+        <div style="padding:12px 18px;display:grid;grid-template-columns:1fr 1.6fr;gap:10px;">
+          <div>
+            <div style="font-size:8px;color:#6b7280;font-weight:600;letter-spacing:0.5px;margin-bottom:8px">POR TIPO</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <svg width="44" height="44" viewBox="0 0 44 44">
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#f3f4f6" stroke-width="7"/>
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="52 36" stroke-dashoffset="0" transform="rotate(-90,22,22)"/>
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#3b82f6" stroke-width="7" stroke-dasharray="22 66" stroke-dashoffset="-52" transform="rotate(-90,22,22)"/>
+                <circle cx="22" cy="22" r="14" fill="none" stroke="#f59e0b" stroke-width="7" stroke-dasharray="14 74" stroke-dashoffset="-74" transform="rotate(-90,22,22)"/>
+              </svg>
+              <div style="font-size:8px;line-height:2;color:#374151;">
+                <div><span style="color:#059669">●</span> Diesel 59%</div>
+                <div><span style="color:#3b82f6">●</span> Super 25%</div>
+                <div><span style="color:#f59e0b">●</span> Regular 16%</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:8px;color:#6b7280;font-weight:600;letter-spacing:0.5px;margin-bottom:4px">TENDENCIA MENSUAL</div>
+            <svg width="100%" height="44" viewBox="0 0 110 44">
+              <line x1="0" y1="36" x2="110" y2="36" stroke="#f3f4f6" stroke-width="1"/>
+              <polyline points="5,34 20,26 35,30 50,16 65,22 80,10 95,16 105,4" fill="none" stroke="#059669" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M5,34 L20,26 L35,30 L50,16 L65,22 L80,10 L95,16 L105,4 L105,40 L5,40Z" fill="#059669" opacity="0.07"/>
+              <circle cx="105" cy="4" r="2.5" fill="#059669" stroke="white" stroke-width="1"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Clean Minimal</h3>
+      <p>Fondo blanco puro, acentos de color sutiles con borde izquierdo por KPI, línea superior verde teal. Fácil de leer impreso en blanco y negro también.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:20px">Elige el estilo en el browser o dime tu preferencia aquí.</p>

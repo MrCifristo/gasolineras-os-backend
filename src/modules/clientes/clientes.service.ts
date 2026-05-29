@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { DbService } from '../../db/db.service';
-import { clientes, vehiculos, pilotos } from '../../db/schema';
-import { CreateClienteDto } from './dto/create-cliente.dto';
-import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { and, eq } from "drizzle-orm";
+import { DbService } from "../../db/db.service";
+import { clientes, vehiculos, pilotos, saldosCliente } from "../../db/schema";
+import { CreateClienteDto } from "./dto/create-cliente.dto";
+import { UpdateClienteDto } from "./dto/update-cliente.dto";
 
 @Injectable()
 export class ClientesService {
@@ -17,27 +17,31 @@ export class ClientesService {
     const [cliente] = await this.db.db
       .select()
       .from(clientes)
-      .where(eq(clientes.id, id))
+      .where(and(eq(clientes.id, id), eq(clientes.activo, true)))
       .limit(1);
-    if (!cliente) throw new NotFoundException('Cliente no encontrado');
+    if (!cliente) throw new NotFoundException("Cliente no encontrado");
 
     const [clienteVehiculos, clientePilotos] = await Promise.all([
       this.db.db
         .select()
         .from(vehiculos)
-        .where(eq(vehiculos.cliente_id, id)),
+        .where(and(eq(vehiculos.cliente_id, id), eq(vehiculos.activo, true))),
       this.db.db
         .select()
         .from(pilotos)
-        .where(eq(pilotos.cliente_id, id)),
+        .where(and(eq(pilotos.cliente_id, id), eq(pilotos.activo, true))),
     ]);
 
     return { ...cliente, vehiculos: clienteVehiculos, pilotos: clientePilotos };
   }
 
   async create(dto: CreateClienteDto) {
-    const [row] = await this.db.db.insert(clientes).values(dto).returning();
-    return row;
+    return this.db.db.transaction(async (tx) => {
+      const [cliente] = await tx.insert(clientes).values(dto).returning();
+      // Crear el saldo inicial en 0 para que los despachos puedan descontarse correctamente
+      await tx.insert(saldosCliente).values({ cliente_id: cliente.id });
+      return cliente;
+    });
   }
 
   async update(id: string, dto: UpdateClienteDto) {
