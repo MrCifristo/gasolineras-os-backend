@@ -12,7 +12,7 @@ export const vehiculos = pgTable("vehiculos", {
   ruta: varchar("ruta"),
   tipo_vehiculo: varchar("tipo_vehiculo"),
   activo: boolean("activo").default(true),
-  bloqueado: boolean("bloqueado").default(false),
+  bloqueado: boolean("bloqueado").notNull().default(false),
   limite_monto_transaccion: decimal("limite_monto_transaccion", { precision: 10, scale: 2 }),
   limite_monto_dia: decimal("limite_monto_dia", { precision: 10, scale: 2 }),
   limite_monto_semana: decimal("limite_monto_semana", { precision: 10, scale: 2 }),

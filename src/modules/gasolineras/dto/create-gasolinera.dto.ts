@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsNotEmpty } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
 export class CreateGasolineraDto {
   @ApiProperty({ example: "Gasolinera Central" })
@@ -16,4 +16,9 @@ export class CreateGasolineraDto {
   @IsString()
   @IsNotEmpty()
   ciudad: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  bloqueado?: boolean;
 }

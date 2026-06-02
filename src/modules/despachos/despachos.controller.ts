@@ -134,9 +134,15 @@ export class DespachosController {
 
   @Get("vehiculo/:vehiculoId/consumo-hoy")
   @Auth("admin", "operario", "cliente")
-  @ApiOperation({ summary: "Consumo del día actual de un vehículo (hora Guatemala UTC-6)" })
-  getConsumoHoy(@Param("vehiculoId") vehiculoId: string) {
-    return this.service.getConsumoHoy(vehiculoId);
+  @ApiOperation({ summary: "Estado completo de un vehículo para despacho (sistema, gasolinera, cliente, vehículo, horario)" })
+  @ApiQuery({ name: "cliente_id", required: false })
+  @ApiQuery({ name: "gasolinera_id", required: false })
+  getConsumoHoy(
+    @Param("vehiculoId") vehiculoId: string,
+    @Query("cliente_id") clienteId?: string,
+    @Query("gasolinera_id") gasolineraId?: string,
+  ) {
+    return this.service.getConsumoHoy(vehiculoId, clienteId, gasolineraId);
   }
 
   @Get(":id")

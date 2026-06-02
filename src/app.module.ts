@@ -11,6 +11,7 @@ import { DespachosModule } from "./modules/despachos/despachos.module";
 import { ReportesModule } from "./modules/reportes/reportes.module";
 import { UsuariosModule } from "./modules/usuarios/usuarios.module";
 import { SaldosModule } from "./modules/saldos/saldos.module";
+import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/configuracion-sistema.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SaldosModule } from "./modules/saldos/saldos.module";
     ReportesModule,
     UsuariosModule,
     SaldosModule,
+    ConfiguracionSistemaModule,
   ],
 })
 export class AppModule {}

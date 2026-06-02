@@ -16,6 +16,7 @@ import {
   pilotos,
   gasolineras,
   clientes,
+  configuracionSistema,
 } from "../../db/schema";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
@@ -136,6 +137,36 @@ export class DespachosService {
       throw new ForbiddenException("Solo operarios pueden crear despachos");
     }
 
+    // ── 1. Bloqueo global del sistema ───────────────────────────────────
+    const [sysConfig] = await this.db.db
+      .select({ sistema_bloqueado: configuracionSistema.sistema_bloqueado })
+      .from(configuracionSistema)
+      .limit(1);
+    if (sysConfig?.sistema_bloqueado) {
+      throw new ForbiddenException("Sistema suspendido — contacte al administrador");
+    }
+
+    // ── 2. Bloqueo de gasolinera ─────────────────────────────────────────
+    const [gas] = await this.db.db
+      .select({ bloqueado: gasolineras.bloqueado })
+      .from(gasolineras)
+      .where(eq(gasolineras.id, user.gasolinera_id))
+      .limit(1);
+    if (gas?.bloqueado) {
+      throw new ForbiddenException("Gasolinera bloqueada — contacte al administrador");
+    }
+
+    // ── 3. Bloqueo de cliente ────────────────────────────────────────────
+    const [clienteRow] = await this.db.db
+      .select()
+      .from(clientes)
+      .where(eq(clientes.id, dto.cliente_id))
+      .limit(1);
+    if (!clienteRow) throw new NotFoundException("Cliente no encontrado");
+    if (clienteRow.bloqueado) {
+      throw new ForbiddenException("Cuenta bloqueada por el cliente");
+    }
+
     // ── Restricciones del vehículo ──────────────────────────────────
     const [v] = await this.db.db
       .select()
@@ -205,9 +236,37 @@ export class DespachosService {
     const galonesEstimado = parseFloat(dto.galones);
     const montoEstimado = galonesEstimado * parseFloat(precioRow.precio_galon);
     const montoTotal = montoEstimado.toFixed(3);
+    const num = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
+
+    // ── 4. Límites de gasto a nivel cuenta ──────────────────────────
+    const needsClienteAggregate =
+      clienteRow.limite_monto_dia != null ||
+      clienteRow.limite_monto_semana != null ||
+      clienteRow.limite_monto_mes != null;
+
+    if (needsClienteAggregate) {
+      const [cAgg] = await this.db.db
+        .select({
+          monto_dia:    sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+          monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+          monto_mes:    sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+        })
+        .from(despachos)
+        .where(eq(despachos.cliente_id, dto.cliente_id));
+
+      const clienteChecks: Array<[number | null, number, string]> = [
+        [num(clienteRow.limite_monto_dia),    parseFloat(String(cAgg.monto_dia)),    "Límite diario de la cuenta superado"],
+        [num(clienteRow.limite_monto_semana), parseFloat(String(cAgg.monto_semana)), "Límite semanal de la cuenta superado"],
+        [num(clienteRow.limite_monto_mes),    parseFloat(String(cAgg.monto_mes)),    "Límite mensual de la cuenta superado"],
+      ];
+      for (const [limite, consumido, msg] of clienteChecks) {
+        if (limite != null && consumido + montoEstimado > limite) {
+          throw new ForbiddenException(msg);
+        }
+      }
+    }
 
     // ── Límites por transacción (sin query) ──────────────────────────
-    const num = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
     const lmt = num(v.limite_monto_transaccion);
     if (lmt != null && montoEstimado > lmt)
       throw new ForbiddenException(
@@ -275,6 +334,20 @@ export class DespachosService {
       }
     }
     // ────────────────────────────────────────────────────────────────
+
+    // ── 10. Validación de kilometraje ────────────────────────────────────
+    if (dto.kilometraje) {
+      const [lastKmRow] = await this.db.db
+        .select({ max_km: sql<number>`MAX(${despachos.kilometraje}::numeric)` })
+        .from(despachos)
+        .where(eq(despachos.vehiculo_id, dto.vehiculo_id));
+
+      const maxKm =
+        lastKmRow?.max_km != null ? parseFloat(String(lastKmRow.max_km)) : null;
+      if (maxKm !== null && parseFloat(dto.kilometraje) <= maxKm) {
+        throw new ForbiddenException("Inconsistencia de kilometraje detectada");
+      }
+    }
 
     return this.db.db.transaction(async (tx) => {
       // Advisory lock por gasolinera+serie para serializar la asignación de numero_vale.
@@ -357,35 +430,120 @@ export class DespachosService {
     return row;
   }
 
-  async getConsumoHoy(vehiculoId: string) {
-    const [v] = await this.db.db.select().from(vehiculos).where(eq(vehiculos.id, vehiculoId)).limit(1);
+  async getConsumoHoy(vehiculoId: string, clienteId?: string, gasolineraId?: string) {
+    const n = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
+
+    const [v] = await this.db.db
+      .select()
+      .from(vehiculos)
+      .where(eq(vehiculos.id, vehiculoId))
+      .limit(1);
     if (!v) throw new NotFoundException("Vehículo no encontrado");
+
+    // Sistema
+    const [sysConfig] = await this.db.db
+      .select({ sistema_bloqueado: configuracionSistema.sistema_bloqueado })
+      .from(configuracionSistema)
+      .limit(1);
+
+    // Gasolinera
+    let gasolinera_bloqueado = false;
+    if (gasolineraId) {
+      const [gasRow] = await this.db.db
+        .select({ bloqueado: gasolineras.bloqueado })
+        .from(gasolineras)
+        .where(eq(gasolineras.id, gasolineraId))
+        .limit(1);
+      gasolinera_bloqueado = gasRow?.bloqueado ?? false;
+    }
+
+    // Cliente
+    let cliente_bloqueado = false;
+    let clienteLimites = { dia: null as number | null, semana: null as number | null, mes: null as number | null };
+    let clienteConsumo = { dia: 0, semana: 0, mes: 0 };
+    const resolvedClienteId = clienteId ?? v.cliente_id;
+
+    const [cliRow] = await this.db.db
+      .select()
+      .from(clientes)
+      .where(eq(clientes.id, resolvedClienteId))
+      .limit(1);
+
+    if (cliRow) {
+      cliente_bloqueado = cliRow.bloqueado ?? false;
+      clienteLimites = {
+        dia:    n(cliRow.limite_monto_dia),
+        semana: n(cliRow.limite_monto_semana),
+        mes:    n(cliRow.limite_monto_mes),
+      };
+      if (clienteLimites.dia != null || clienteLimites.semana != null || clienteLimites.mes != null) {
+        const [cAgg] = await this.db.db
+          .select({
+            monto_dia:    sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+            monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+            monto_mes:    sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+          })
+          .from(despachos)
+          .where(eq(despachos.cliente_id, resolvedClienteId));
+        clienteConsumo = {
+          dia:    parseFloat(String(cAgg.monto_dia)),
+          semana: parseFloat(String(cAgg.monto_semana)),
+          mes:    parseFloat(String(cAgg.monto_mes)),
+        };
+      }
+    }
+
+    // Vehículo aggregate
     const [agg] = await this.db.db
       .select({
-        monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+        monto_dia:    sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
         monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-        monto_mes: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-        vol_dia: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-        vol_semana: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-        vol_mes: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-        trans_dia: sql<number>`COUNT(*) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
+        monto_mes:    sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+        vol_dia:      sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+        vol_semana:   sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+        vol_mes:      sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+        trans_dia:    sql<number>`COUNT(*) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
         trans_semana: sql<number>`COUNT(*) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours'))`,
-        trans_mes: sql<number>`COUNT(*) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
+        trans_mes:    sql<number>`COUNT(*) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
       })
       .from(despachos)
       .where(eq(despachos.vehiculo_id, vehiculoId));
-    const n = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
+
+    // Horario
+    const { dayName, totalMinutes } = getGuatemalaTime();
+    void dayName; // used only in create() for day-of-week check; included here for reference
+    const dentroDeHorario = (() => {
+      if (!v.hora_inicio || !v.hora_fin) return true;
+      return totalMinutes >= hhmm(v.hora_inicio) && totalMinutes <= hhmm(v.hora_fin);
+    })();
+    const minutosRestantes = (() => {
+      if (!v.hora_fin || !dentroDeHorario) return 0;
+      return Math.max(0, hhmm(v.hora_fin) - totalMinutes);
+    })();
+
     return {
-      bloqueado: v.bloqueado ?? false,
+      sistema_bloqueado:    sysConfig?.sistema_bloqueado ?? false,
+      gasolinera_bloqueado,
+      cliente_bloqueado,
+      cliente_limites: clienteLimites,
+      cliente_consumo: clienteConsumo,
+      bloqueado:            v.bloqueado ?? false,
       productos_permitidos: v.productos_permitidos ?? null,
+      horario: {
+        dias_permitidos:   v.dias_permitidos ?? null,
+        hora_inicio:       v.hora_inicio ?? null,
+        hora_fin:          v.hora_fin ?? null,
+        dentro_de_horario: dentroDeHorario,
+        minutos_restantes: minutosRestantes,
+      },
       limites: {
-        monto: { transaccion: n(v.limite_monto_transaccion), dia: n(v.limite_monto_dia), semana: n(v.limite_monto_semana), mes: n(v.limite_monto_mes) },
-        volumen: { transaccion: n(v.limite_volumen_transaccion), dia: n(v.limite_volumen_dia), semana: n(v.limite_volumen_semana), mes: n(v.limite_volumen_mes) },
+        monto:        { transaccion: n(v.limite_monto_transaccion), dia: n(v.limite_monto_dia), semana: n(v.limite_monto_semana), mes: n(v.limite_monto_mes) },
+        volumen:      { transaccion: n(v.limite_volumen_transaccion), dia: n(v.limite_volumen_dia), semana: n(v.limite_volumen_semana), mes: n(v.limite_volumen_mes) },
         transacciones: { dia: v.limite_trans_dia ?? null, semana: v.limite_trans_semana ?? null, mes: v.limite_trans_mes ?? null },
       },
       consumo: {
-        monto: { dia: parseFloat(String(agg.monto_dia)), semana: parseFloat(String(agg.monto_semana)), mes: parseFloat(String(agg.monto_mes)) },
-        volumen: { dia: parseFloat(String(agg.vol_dia)), semana: parseFloat(String(agg.vol_semana)), mes: parseFloat(String(agg.vol_mes)) },
+        monto:        { dia: parseFloat(String(agg.monto_dia)), semana: parseFloat(String(agg.monto_semana)), mes: parseFloat(String(agg.monto_mes)) },
+        volumen:      { dia: parseFloat(String(agg.vol_dia)), semana: parseFloat(String(agg.vol_semana)), mes: parseFloat(String(agg.vol_mes)) },
         transacciones: { dia: parseInt(String(agg.trans_dia)), semana: parseInt(String(agg.trans_semana)), mes: parseInt(String(agg.trans_mes)) },
       },
     };

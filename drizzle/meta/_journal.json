@@ -36,6 +36,20 @@
       "when": 1780017558633,
       "tag": "0004_vehiculo_limites",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780332372081,
+      "tag": "0005_daffy_slapstick",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780332545114,
+      "tag": "0006_rich_terror",
+      "breakpoints": true
     }
   ]
 }

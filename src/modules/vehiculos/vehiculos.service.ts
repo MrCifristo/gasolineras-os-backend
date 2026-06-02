@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
-import { vehiculos, pilotosVehiculos, pilotos } from "../../db/schema";
+import { vehiculos, pilotosVehiculos, pilotos, clientes } from "../../db/schema";
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 
@@ -42,9 +42,33 @@ export class VehiculosService {
   }
 
   async create(dto: CreateVehiculoDto) {
+    const [cli] = await this.db.db
+      .select()
+      .from(clientes)
+      .where(eq(clientes.id, dto.cliente_id))
+      .limit(1);
+
+    const plantilla: Partial<typeof dto> = {};
+    if (cli) {
+      const p = cli;
+      if (p.plantilla_monto_transaccion != null)    plantilla.limite_monto_transaccion   = parseFloat(String(p.plantilla_monto_transaccion));
+      if (p.plantilla_monto_dia != null)            plantilla.limite_monto_dia           = parseFloat(String(p.plantilla_monto_dia));
+      if (p.plantilla_monto_semana != null)         plantilla.limite_monto_semana        = parseFloat(String(p.plantilla_monto_semana));
+      if (p.plantilla_monto_mes != null)            plantilla.limite_monto_mes           = parseFloat(String(p.plantilla_monto_mes));
+      if (p.plantilla_volumen_transaccion != null)  plantilla.limite_volumen_transaccion = parseFloat(String(p.plantilla_volumen_transaccion));
+      if (p.plantilla_volumen_dia != null)          plantilla.limite_volumen_dia         = parseFloat(String(p.plantilla_volumen_dia));
+      if (p.plantilla_volumen_semana != null)       plantilla.limite_volumen_semana      = parseFloat(String(p.plantilla_volumen_semana));
+      if (p.plantilla_volumen_mes != null)          plantilla.limite_volumen_mes         = parseFloat(String(p.plantilla_volumen_mes));
+      if (p.plantilla_trans_dia != null)            plantilla.limite_trans_dia           = p.plantilla_trans_dia;
+      if (p.plantilla_trans_semana != null)         plantilla.limite_trans_semana        = p.plantilla_trans_semana;
+      if (p.plantilla_trans_mes != null)            plantilla.limite_trans_mes           = p.plantilla_trans_mes;
+      if (p.plantilla_productos_permitidos?.length) plantilla.productos_permitidos        = p.plantilla_productos_permitidos as string[];
+    }
+
+    const merged = { ...plantilla, ...dto };
     const [row] = await this.db.db
       .insert(vehiculos)
-      .values(this.coerceDecimals(dto) as any)
+      .values(this.coerceDecimals(merged) as any)
       .returning();
     return row;
   }

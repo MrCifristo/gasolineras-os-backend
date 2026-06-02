@@ -9,6 +9,20 @@ import { UpdateClienteDto } from "./dto/update-cliente.dto";
 export class ClientesService {
   constructor(private db: DbService) {}
 
+  private readonly CLIENTE_DECIMAL_FIELDS = [
+    "limite_monto_dia", "limite_monto_semana", "limite_monto_mes",
+    "plantilla_monto_transaccion", "plantilla_monto_dia", "plantilla_monto_semana", "plantilla_monto_mes",
+    "plantilla_volumen_transaccion", "plantilla_volumen_dia", "plantilla_volumen_semana", "plantilla_volumen_mes",
+  ] as const;
+
+  private coerceDecimales(dto: Record<string, any>) {
+    const out: Record<string, any> = { ...dto };
+    for (const f of this.CLIENTE_DECIMAL_FIELDS) {
+      if (out[f] != null) out[f] = String(out[f]);
+    }
+    return out;
+  }
+
   findAll() {
     return this.db.db.select().from(clientes).where(eq(clientes.activo, true));
   }
@@ -37,7 +51,7 @@ export class ClientesService {
 
   async create(dto: CreateClienteDto) {
     return this.db.db.transaction(async (tx) => {
-      const [cliente] = await tx.insert(clientes).values(dto).returning();
+      const [cliente] = await tx.insert(clientes).values(this.coerceDecimales(dto) as any).returning();
       // Crear el saldo inicial en 0 para que los despachos puedan descontarse correctamente
       await tx.insert(saldosCliente).values({ cliente_id: cliente.id });
       return cliente;
@@ -48,7 +62,7 @@ export class ClientesService {
     await this.findOne(id);
     const [row] = await this.db.db
       .update(clientes)
-      .set(dto)
+      .set(this.coerceDecimales(dto) as any)
       .where(eq(clientes.id, id))
       .returning();
     return row;
