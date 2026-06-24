@@ -1,98 +1,170 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# GasFuel OS — Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for managing fuel dispatch operations, customer credit ledgers, and reporting at gas stations.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## What it does
 
-## Description
+GasFuel OS is the backend for a fuel station management platform. It records every fuel voucher (despacho), automatically charges it against the customer's credit balance, and enforces per-vehicle spending and volume limits — all in a single, race-safe database transaction. Operators get live customer balances, reconciliations, and exportable Excel/PDF reports; administrators get full multi-station oversight.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+This is a private business system operated by ALBRAN INDUSTRIES S.A., but the codebase is general enough to be adapted by other fuel-station operations.
 
-## Project setup
+## Tech stack
 
-```bash
-$ pnpm install
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Node.js 20+ (developed on 26.x), TypeScript 5.7 |
+| Framework | NestJS 11 |
+| Database | PostgreSQL 16 |
+| ORM | Drizzle ORM over `node-postgres` (`pg`) + Drizzle Kit migrations |
+| Auth | Supabase Auth (server-side JWT validation) |
+| Validation | class-validator + class-transformer (global `ValidationPipe`) |
+| Reports | ExcelJS (`.xlsx`), Puppeteer (`.pdf`) |
+| API docs | Swagger / OpenAPI at `/api/docs` |
+| Tooling | pnpm, Docker Compose, Jest (unit + e2e), ESLint, Prettier |
+
+## Key features
+
+- **Transactional fuel dispatch** — creating a despacho calculates the total, debits the customer's balance, and writes a ledger entry atomically. A `pg_advisory_xact_lock` per station+series serializes voucher numbering to prevent duplicate vale numbers under concurrency.
+- **Per-vehicle consumption limits** — configurable caps by amount and volume per transaction / day / week / month, plus transaction-count limits, enforced at dispatch time (with a 6-hour business-day offset).
+- **Customer credit ledger** — current balances (`saldos`), top-ups (`abonos`), full movement history (`movimientos`), and reconciliations (`cuadres`).
+- **Role-based access control** — three roles (`admin`, `operario`, `cliente`). Operators are scoped to their station, customers to their own account, admins see everything. Enforced via a composable `@Auth(...roles)` decorator.
+- **Reporting & exports** — summary stats, consumption by vehicle/pilot, monthly trends, vehicle efficiency, multi-sheet Excel export of dispatches, and chart-driven PDF reports.
+- **Multi-station, per-day pricing** — fuel prices are tracked per station, per fuel type, per day; dispatches reference the price record in effect.
+
+## Architecture
+
+The app follows the standard NestJS module pattern. Each feature module owns a controller (HTTP routes, protected with `@Auth()`), a service (business logic, queries through `DbService`), and DTOs. All database access goes through `DbService.db`.
+
+```
+src/
+├── main.ts                      # Bootstrap: ValidationPipe, CORS, Swagger, /api/v1 prefix
+├── app.module.ts                # Root module wiring all features
+├── auth/                        # AuthGuard (Supabase JWT) + RolesGuard + @Auth decorator
+├── db/
+│   ├── db.service.ts            # Drizzle client (single source of DB access)
+│   └── schema/                  # One file per entity, re-exported from index.ts
+│       ├── gasolineras.schema.ts
+│       ├── clientes.schema.ts
+│       ├── vehiculos.schema.ts          # incl. amount/volume/count limits
+│       ├── pilotos.schema.ts
+│       ├── pilotos-vehiculos.schema.ts
+│       ├── precios-combustible.schema.ts
+│       ├── despachos.schema.ts          # central fact table
+│       ├── saldos-cliente.schema.ts
+│       ├── movimientos-saldo.schema.ts
+│       ├── cuadres.schema.ts
+│       ├── usuarios.schema.ts
+│       └── configuracion-sistema.schema.ts
+└── modules/
+    ├── gasolineras/             # Stations
+    ├── clientes/                # Customers
+    ├── vehiculos/               # Vehicles + consumption limits
+    ├── pilotos/                 # Drivers
+    ├── precios-combustible/     # Per-day, per-station fuel prices
+    ├── despachos/               # Dispatch creation + Excel export
+    ├── saldos/                  # Balances, abonos, cuadres, movements
+    ├── reportes/                # Stats + PDF generation
+    ├── usuarios/                # System users
+    └── configuracion-sistema/   # System configuration
 ```
 
-## Compile and run the project
+Schema lives in `src/db/schema/`; migrations are generated by Drizzle Kit into `./drizzle/`.
+
+### Core data flow
+
+- `gasolineras` → `usuarios` (operators), `precios_combustible`, `despachos`
+- `clientes` → `vehiculos`, `pilotos`, `saldos_cliente` (current balance), `movimientos_saldo` (ledger)
+- `despachos` links station + customer + vehicle + pilot + price, and on creation drives the balance debit and ledger write inside one transaction.
+
+## Getting started
+
+A senior dev should be running this in under 10 minutes.
+
+### Prerequisites
+
+- Node.js 20+ and [pnpm](https://pnpm.io/)
+- Docker (for the local PostgreSQL 16 instance)
+- A Supabase project (for auth)
+
+### 1. Configure environment
+
+Copy `.env.example` to `.env` and fill in the values:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+| Var | Purpose |
+|-----|---------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key for server-side auth calls |
+| `SUPABASE_JWT_SECRET` | Supabase JWT secret |
+| `FRONTEND_URL` | CORS allowed origin (default `http://localhost:3001`) |
+| `PORT` | HTTP port (default `3000`) |
+| `NODE_ENV` | `development` / `production` |
+
+### 2. One-command setup
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm setup
 ```
 
-## Deployment
+This installs dependencies, starts the Docker Postgres container, waits for it to be ready, and generates + applies Drizzle migrations.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+> Prefer manual steps? Run them individually:
+> ```bash
+> pnpm install
+> docker compose up -d postgres
+> pnpm db:generate
+> pnpm db:migrate
+> ```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Create the first admin
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm bootstrap:admin
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Run
 
-## Resources
+```bash
+pnpm dev          # watch mode
+pnpm start:prod   # production (after `pnpm build`)
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+- API: `http://localhost:3000/api/v1`
+- Swagger UI: `http://localhost:3000/api/docs`
+- DB Studio: `pnpm db:studio`
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Useful commands
 
-## Support
+```bash
+pnpm test                 # unit tests
+pnpm test:e2e             # all e2e tests (requires running DB)
+pnpm test:e2e:gasfuel     # gasfuel-specific e2e spec
+pnpm test:cov             # coverage
+pnpm lint                 # lint + autofix
+pnpm format               # prettier
+pnpm db:push              # push schema directly (dev only)
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## API reference
 
-## Stay in touch
+The Swagger UI at `/api/docs` is the primary, always-current API reference. All routes are versioned under `/api/v1`, documented with `@ApiTags`, and protected via Bearer JWT (`persistAuthorization` is enabled, so you can authorize once and explore).
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Screenshots / demo
 
-## License
+This is a private business system, so there is no public demo. The interactive API explorer is available locally once the server is running:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+> `http://localhost:3000/api/docs`
+
+_Add screenshots of the Swagger UI or report outputs here as the project documentation grows._
+
+## Status
+
+**Production · Actively maintained.** In use for live fuel-station operations and receiving ongoing updates.
+
+## Author
+
+**Milton Beltrán** · ALBRAN INDUSTRIES S.A.
