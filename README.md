@@ -159,8 +159,6 @@ This is a private business system, so there is no public demo. The interactive A
 
 > `http://localhost:3000/api/docs`
 
-_Add screenshots of the Swagger UI or report outputs here as the project documentation grows._
-
 ## Status
 
 **Production · Actively maintained.** In use for live fuel-station operations and receiving ongoing updates.
