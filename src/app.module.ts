@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { DbModule } from "./db/db.module";
 import { AuthModule } from "./auth/auth.module";
+import { StorageModule } from "./storage/storage.module";
 import { GasolinerasModule } from "./modules/gasolineras/gasolineras.module";
 import { ClientesModule } from "./modules/clientes/clientes.module";
 import { VehiculosModule } from "./modules/vehiculos/vehiculos.module";
@@ -18,6 +19,7 @@ import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/conf
     ConfigModule.forRoot({ isGlobal: true }),
     DbModule,
     AuthModule,
+    StorageModule,
     GasolinerasModule,
     ClientesModule,
     VehiculosModule,

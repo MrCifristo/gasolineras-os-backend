@@ -124,12 +124,34 @@ export class ReportesPdfService {
   }
 
   private async renderPdf(html: string): Promise<Buffer> {
+    // El sandbox de Chrome queda activo a propósito: el HTML lleva datos
+    // enviados por el cliente (graficas.*), así que un escape del renderer
+    // llegaría al host. Si esto se contenedoriza, hay que darle al contenedor
+    // los permisos del sandbox (seccomp/SYS_ADMIN), no reactivar --no-sandbox.
     const browser = await puppeteer.launch({
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
       headless: true,
     });
     try {
       const page = await browser.newPage();
+
+      // El reporte es HTML+CSS estático: no necesita JS. Desactivarlo anula
+      // toda la clase de inyección vía atributos del template.
+      await page.setJavaScriptEnabled(false);
+
+      // El template es autocontenido (sin fuentes, CDN ni scripts remotos),
+      // así que sólo data: es legítimo. Bloquear el resto corta exfiltración
+      // y SSRF aunque algo se cuele en el HTML.
+      await page.setRequestInterception(true);
+      page.on("request", (req) => {
+        const url = req.url();
+        // about: es el documento base que abre setContent; data: son las
+        // gráficas embebidas. Todo lo demás es salida a la red y no debería existir.
+        if (url.startsWith("data:") || url.startsWith("about:")) {
+          return void req.continue();
+        }
+        void req.abort();
+      });
+
       await page.setContent(html, { waitUntil: "load" });
       const pdf = await page.pdf({
         format: "A4",

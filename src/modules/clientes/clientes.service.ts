@@ -10,9 +10,17 @@ export class ClientesService {
   constructor(private db: DbService) {}
 
   private readonly CLIENTE_DECIMAL_FIELDS = [
-    "limite_monto_dia", "limite_monto_semana", "limite_monto_mes",
-    "plantilla_monto_transaccion", "plantilla_monto_dia", "plantilla_monto_semana", "plantilla_monto_mes",
-    "plantilla_volumen_transaccion", "plantilla_volumen_dia", "plantilla_volumen_semana", "plantilla_volumen_mes",
+    "limite_monto_dia",
+    "limite_monto_semana",
+    "limite_monto_mes",
+    "plantilla_monto_transaccion",
+    "plantilla_monto_dia",
+    "plantilla_monto_semana",
+    "plantilla_monto_mes",
+    "plantilla_volumen_transaccion",
+    "plantilla_volumen_dia",
+    "plantilla_volumen_semana",
+    "plantilla_volumen_mes",
   ] as const;
 
   private coerceDecimales(dto: Record<string, any>) {
@@ -51,7 +59,10 @@ export class ClientesService {
 
   async create(dto: CreateClienteDto) {
     return this.db.db.transaction(async (tx) => {
-      const [cliente] = await tx.insert(clientes).values(this.coerceDecimales(dto) as any).returning();
+      const [cliente] = await tx
+        .insert(clientes)
+        .values(this.coerceDecimales(dto) as any)
+        .returning();
       // Crear el saldo inicial en 0 para que los despachos puedan descontarse correctamente
       await tx.insert(saldosCliente).values({ cliente_id: cliente.id });
       return cliente;

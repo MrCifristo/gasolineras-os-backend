@@ -67,6 +67,20 @@ export interface PdfTemplateData {
   };
 }
 
+// Este HTML lo renderiza Puppeteer, así que todo string que venga de la base
+// (nombres de cliente, placas, códigos de piloto) se escapa antes de entrar al
+// markup. Los formateadores de abajo (fmt/fmtInt/fmtDate) ya devuelven números
+// o fechas y no necesitan pasar por acá.
+function esc(v: string | number | null | undefined): string {
+  if (v == null) return "—";
+  return String(v)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function fmt(v: string | number | null | undefined, decimals = 2): string {
   if (v == null) return "—";
   const n = parseFloat(String(v));
@@ -161,13 +175,13 @@ const CSS = `
 function footer(page: number, total: number, fechaGen: string): string {
   return `<div class="footer">
     <span>GasFuel OS — Sistema de Gestión de Combustible</span>
-    <span>Generado: ${fechaGen}</span>
+    <span>Generado: ${esc(fechaGen)}</span>
     <span>Pág. ${page} de ${total}</span>
   </div>`;
 }
 
 function tipoBadge(tipo: string): string {
-  return `<span class="badge badge-${tipo}">${tipo}</span>`;
+  return `<span class="badge badge-${esc(tipo)}">${esc(tipo)}</span>`;
 }
 
 // ─────────────────────────────────────────
@@ -187,7 +201,7 @@ function page1(d: PdfTemplateData): string {
       (g, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td>${g.gasolinera_id}</td>
+      <td>${esc(g.gasolinera_id)}</td>
       <td class="right">${fmt(g.total_galones)} gal</td>
       <td class="right">Q ${fmt(g.total_monto)}</td>
     </tr>`,
@@ -201,13 +215,13 @@ function page1(d: PdfTemplateData): string {
         <div>
           <div class="header-logo">⛽ GASFUEL <span>OS</span></div>
           <div class="cover-subtitle">Reporte Ejecutivo de Combustible</div>
-          ${d.clienteNombre ? `<div style="margin-top:6px;font-size:11px;color:#bfdbfe">Empresa: <strong>${d.clienteNombre}</strong></div>` : ""}
+          ${d.clienteNombre ? `<div style="margin-top:6px;font-size:11px;color:#bfdbfe">Empresa: <strong>${esc(d.clienteNombre)}</strong></div>` : ""}
         </div>
         <div class="header-meta">
           <div>Período</div>
-          <div style="font-size:12px;font-weight:700;color:#fff">${d.periodoLabel}</div>
+          <div style="font-size:12px;font-weight:700;color:#fff">${esc(d.periodoLabel)}</div>
           <div style="margin-top:6px">Generado el</div>
-          <div>${d.fechaGeneracion}</div>
+          <div>${esc(d.fechaGeneracion)}</div>
         </div>
       </div>
     </div>
@@ -271,12 +285,14 @@ function page2(d: PdfTemplateData): string {
     })
     .join("");
 
+  // GraficasDto ya obliga a que esto sea un data URL base64 válido; el esc()
+  // es la segunda línea de defensa por si el template se llama desde otro lado.
   const donutSection = d.graficas.donut
-    ? `<img class="chart-img" src="${d.graficas.donut}" alt="Distribución por tipo" />`
+    ? `<img class="chart-img" src="${esc(d.graficas.donut)}" alt="Distribución por tipo" />`
     : "";
 
   const lineaSection = d.graficas.linea
-    ? `<div style="margin-top:16px"><div class="section-title">Tendencia Mensual (12 meses)</div><img class="chart-img" src="${d.graficas.linea}" alt="Tendencia mensual" /></div>`
+    ? `<div style="margin-top:16px"><div class="section-title">Tendencia Mensual (12 meses)</div><img class="chart-img" src="${esc(d.graficas.linea)}" alt="Tendencia mensual" /></div>`
     : "";
 
   return `
@@ -286,7 +302,7 @@ function page2(d: PdfTemplateData): string {
         <div><div class="header-logo">⛽ GASFUEL <span>OS</span></div></div>
         <div class="header-meta">
           <div>Análisis de Combustible</div>
-          <div>${d.periodoLabel}</div>
+          <div>${esc(d.periodoLabel)}</div>
         </div>
       </div>
     </div>
@@ -324,8 +340,8 @@ function page3(d: PdfTemplateData): string {
     .map(
       (v, i) => `<tr>
     <td>${i + 1}</td>
-    <td><strong>${v.placa}</strong></td>
-    <td>${v.marca} ${v.modelo}</td>
+    <td><strong>${esc(v.placa)}</strong></td>
+    <td>${esc(v.marca)} ${esc(v.modelo)}</td>
     <td class="right">${fmtInt(v.total_despachos)}</td>
     <td class="right">${fmt(v.total_galones)} gal</td>
     <td class="right">Q ${fmt(v.total_monto)}</td>
@@ -338,8 +354,8 @@ function page3(d: PdfTemplateData): string {
     .map(
       (p, i) => `<tr>
     <td>${i + 1}</td>
-    <td>${p.codigo}</td>
-    <td>${p.nombre_completo}</td>
+    <td>${esc(p.codigo)}</td>
+    <td>${esc(p.nombre_completo)}</td>
     <td class="right">${fmtInt(p.total_despachos)}</td>
     <td class="right">${fmt(p.total_galones)} gal</td>
     <td class="right">Q ${fmt(p.total_monto)}</td>
@@ -354,7 +370,7 @@ function page3(d: PdfTemplateData): string {
         <div><div class="header-logo">⛽ GASFUEL <span>OS</span></div></div>
         <div class="header-meta">
           <div>Vehículos y Pilotos</div>
-          <div>${d.periodoLabel}</div>
+          <div>${esc(d.periodoLabel)}</div>
         </div>
       </div>
     </div>
@@ -362,7 +378,7 @@ function page3(d: PdfTemplateData): string {
     <div class="section">
       <div class="section-title">Top Vehículos por Consumo</div>
       <div style="display:flex;gap:16px;align-items:flex-start">
-        ${d.graficas.vehiculos ? `<div style="flex:1"><img class="chart-img" src="${d.graficas.vehiculos}" alt="Top vehículos" /></div>` : ""}
+        ${d.graficas.vehiculos ? `<div style="flex:1"><img class="chart-img" src="${esc(d.graficas.vehiculos)}" alt="Top vehículos" /></div>` : ""}
         <div style="flex:${d.graficas.vehiculos ? "1.2" : "1"}">
           <table>
             <thead><tr>
@@ -377,7 +393,7 @@ function page3(d: PdfTemplateData): string {
       <div style="margin-top:18px">
         <div class="section-title">Top Pilotos por Consumo</div>
         <div style="display:flex;gap:16px;align-items:flex-start">
-          ${d.graficas.pilotos ? `<div style="flex:1"><img class="chart-img" src="${d.graficas.pilotos}" alt="Top pilotos" /></div>` : ""}
+          ${d.graficas.pilotos ? `<div style="flex:1"><img class="chart-img" src="${esc(d.graficas.pilotos)}" alt="Top pilotos" /></div>` : ""}
           <div style="flex:${d.graficas.pilotos ? "1.2" : "1"}">
             <table>
               <thead><tr>
@@ -415,11 +431,11 @@ function page4(d: PdfTemplateData): string {
     .map(
       (r, i) => `<tr>
     <td>${i + 1}</td>
-    <td><strong>${r.numero_vale}</strong></td>
+    <td><strong>${esc(r.numero_vale)}</strong></td>
     <td>${fmtDate(r.despachado_at)}</td>
-    <td style="font-size:9px">${r.gasolinera_id}</td>
-    <td>${r.placa ?? "—"}</td>
-    <td>${r.nombre_completo ?? "—"}</td>
+    <td style="font-size:9px">${esc(r.gasolinera_id)}</td>
+    <td>${esc(r.placa)}</td>
+    <td>${esc(r.nombre_completo)}</td>
     <td>${r.tipo_combustible ? tipoBadge(r.tipo_combustible) : "—"}</td>
     <td class="right">${fmt(r.galones)}</td>
     <td class="right">Q ${fmt(r.monto_total)}</td>
@@ -434,7 +450,7 @@ function page4(d: PdfTemplateData): string {
         <div><div class="header-logo">⛽ GASFUEL <span>OS</span></div></div>
         <div class="header-meta">
           <div>Consolidado de Despachos</div>
-          <div>${d.periodoLabel}</div>
+          <div>${esc(d.periodoLabel)}</div>
         </div>
       </div>
     </div>

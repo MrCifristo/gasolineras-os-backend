@@ -19,7 +19,9 @@ export class ConfiguracionSistemaController {
 
   @Patch()
   @Auth("admin")
-  @ApiOperation({ summary: "Activar/desactivar paro de emergencia global (solo admin)" })
+  @ApiOperation({
+    summary: "Activar/desactivar paro de emergencia global (solo admin)",
+  })
   update(@Body() dto: UpdateConfiguracionDto, @Request() req: any) {
     return this.service.update(dto, req.user.email);
   }

@@ -5,17 +5,20 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
 } from "class-validator";
 
 export class CreateUsuarioDto {
   @ApiProperty({ example: "operario@gasolinera.com" })
   @IsEmail()
+  @MaxLength(254)
   email: string;
 
   @ApiProperty({ example: "Juan Pérez" })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
   nombre: string;
 
   @ApiProperty({ enum: ["admin", "operario", "cliente"], example: "operario" })

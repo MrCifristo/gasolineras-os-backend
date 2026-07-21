@@ -7,26 +7,44 @@
  *
  * Requisitos:
  *   - PostgreSQL corriendo (docker compose up -d postgres)
- *   - Variables de entorno en .env
+ *   - Variables de entorno en .env, incluidas E2E_ADMIN_EMAIL y E2E_ADMIN_PASSWORD
  *   - Un usuario admin ya creado (pnpm bootstrap:admin)
  *
  * Ejecutar:
- *   pnpm test:e2e --testPathPattern=gasfuel
+ *   pnpm test:e2e:gasfuel
  */
 
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { ThrottlerGuard } from "@nestjs/throttler";
+import { eq } from "drizzle-orm";
 import * as dotenv from "dotenv";
 import request from "supertest";
 import { App } from "supertest/types";
 import { AppModule } from "../src/app.module";
+import { DbService } from "../src/db/db.service";
+import { PasswordService } from "../src/auth/password.service";
+import { StorageService } from "../src/storage/storage.service";
+import { InMemoryStorageService } from "../src/storage/in-memory-storage.service";
+import { usuarios } from "../src/db/schema";
 
 dotenv.config();
 
 // ── Credenciales del admin bootstrap (creado con pnpm bootstrap:admin) ─────
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "elmiltonxd@gmail.com";
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "Caballo!!1122";
+// Sin fallback a propósito: un default aquí termina siendo una credencial real
+// commiteada. Si faltan, la suite debe morir ruidosamente, no caer en un default.
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `Falta ${name}. Definila en .env o en el entorno antes de correr la suite e2e.`,
+    );
+  }
+  return value;
+}
+
+const ADMIN_EMAIL = requireEnv("E2E_ADMIN_EMAIL");
+const ADMIN_PASSWORD = requireEnv("E2E_ADMIN_PASSWORD");
 
 // ── Sufijo único por ejecución para no colisionar con datos previos ──────────
 const RUN_ID = Date.now().toString().slice(-6);
@@ -38,7 +56,7 @@ const TEST_PASSWORD = `E2ePass#${RUN_ID}`;
 // ────────────────────────────────────────────────────────────────────────────
 describe("GasFuel OS — Suite E2E Completa", () => {
   let app: INestApplication<App>;
-  let supabaseAdmin: SupabaseClient;
+  let db: DbService;
 
   // ── Tokens por rol ────────────────────────────────────────────────────────
   let adminToken: string;
@@ -58,9 +76,6 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   let despacho2Id: string;
   let saldosCuadreId: string;
 
-  // ── IDs de usuarios de prueba (para cleanup en Supabase Auth) ────────────
-  const testSupabaseUserIds: string[] = [];
-
   // ════════════════════════════════════════════════════════════════════════
   // SETUP & TEARDOWN
   // ════════════════════════════════════════════════════════════════════════
@@ -68,7 +83,16 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // La suite hace varios logins seguidos; el rate limit los cortaría con
+      // 429 y no es lo que se prueba acá.
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      // Fake en memoria: sin R2, sin red. También evita que R2StorageService se
+      // instancie y falle al no haber env de R2.
+      .overrideProvider(StorageService)
+      .useClass(InMemoryStorageService)
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -81,17 +105,48 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     app.setGlobalPrefix("api/v1");
     await app.init();
 
-    supabaseAdmin = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    db = app.get(DbService);
+    const passwords = app.get(PasswordService);
+
+    // El admin se siembra acá con el mismo hashing que la app, en vez de
+    // depender de que alguien haya corrido `pnpm bootstrap:admin`. Esa
+    // dependencia implícita es justo lo que llevó a que una contraseña real
+    // terminara hardcodeada como fallback en este archivo.
+    const emailAdmin = ADMIN_EMAIL.toLowerCase();
+    const hash = await passwords.hashear(ADMIN_PASSWORD);
+    await db.db
+      .insert(usuarios)
+      .values({
+        email: emailAdmin,
+        nombre: "Admin E2E",
+        password_hash: hash,
+        rol: "admin",
+        activo: true,
+      })
+      .onConflictDoUpdate({
+        target: usuarios.email,
+        set: { password_hash: hash, rol: "admin", activo: true },
+      });
   }, 30_000);
 
   afterAll(async () => {
-    // Eliminar usuarios de prueba de Supabase Auth
-    for (const uid of testSupabaseUserIds) {
-      await supabaseAdmin.auth.admin.deleteUser(uid);
+    // El operario de prueba queda referenciado por los despachos que creó, así
+    // que un delete duro violaría el FK. Se desactivan (no chocan con corridas
+    // futuras porque el email lleva el RUN_ID) y la limpieza no tumba la suite.
+    try {
+      for (const email of [
+        `operario.${RUN_ID}@gasfuel-e2e.test`,
+        `cliente.${RUN_ID}@gasfuel-e2e.test`,
+        `cliente.propio.${RUN_ID}@gasfuel-e2e.test`,
+        `cliente.ajeno.${RUN_ID}@gasfuel-e2e.test`,
+      ]) {
+        await db.db
+          .update(usuarios)
+          .set({ activo: false })
+          .where(eq(usuarios.email, email));
+      }
+    } catch {
+      // Limpieza best-effort: la DB de test se recrea con docker compose down -v.
     }
 
     await app.close();
@@ -116,15 +171,15 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(401);
     });
 
-    it("admin hace login y obtiene access_token + datos del usuario → 201", async () => {
+    it("admin hace login y obtiene access_token + datos del usuario → 200", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.body.access_token).toBeDefined();
       expect(res.body.usuario.rol).toBe("admin");
-      expect(res.body.usuario.email).toBe(ADMIN_EMAIL);
+      expect(res.body.usuario.email).toBe(ADMIN_EMAIL.toLowerCase());
       expect(res.body.refresh_token).toBeDefined();
 
       adminToken = res.body.access_token;
@@ -204,12 +259,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(201);
       expect(res.body.rol).toBe("operario");
       expect(res.body.gasolinera_id).toBe(gasolineraId);
-
-      if (res.body.supabase_user_id)
-        testSupabaseUserIds.push(res.body.supabase_user_id);
+      // El hash nunca debe salir en la respuesta.
+      expect(res.body.password_hash).toBeUndefined();
     });
 
-    it("operario puede hacer login con sus credenciales → 201", async () => {
+    it("operario puede hacer login con sus credenciales → 200", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
@@ -217,7 +271,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           password: TEST_PASSWORD,
         });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.body.usuario.rol).toBe("operario");
       operarioToken = res.body.access_token;
     });
@@ -235,12 +289,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(201);
       expect(res.body.rol).toBe("cliente");
-
-      if (res.body.supabase_user_id)
-        testSupabaseUserIds.push(res.body.supabase_user_id);
+      expect(res.body.password_hash).toBeUndefined();
     });
 
-    it("usuario cliente puede hacer login → 201", async () => {
+    it("usuario cliente puede hacer login → 200", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
@@ -248,7 +300,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           password: TEST_PASSWORD,
         });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.body.usuario.rol).toBe("cliente");
       clienteUserToken = res.body.access_token;
     });
@@ -550,11 +602,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "diesel",
-          serie_vale: `E${RUN_ID}`,
           turno: "manana",
           bomba_numero: 1,
           kilometraje: "12500.000",
-          galones: "80.000",
+          monto: "2280.000", // 80 gal * 28.5
         });
 
       expect(res.status).toBe(201);
@@ -575,11 +626,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           vehiculo_id: vehiculo2Id,
           piloto_id: piloto2Id,
           tipo_combustible: "super",
-          serie_vale: `E${RUN_ID}`,
           turno: "tarde",
           bomba_numero: 2,
           kilometraje: "45200.000",
-          galones: "15.500",
+          monto: "538.625", // 15.5 gal * 34.75
         });
 
       expect(res.status).toBe(201);
@@ -613,9 +663,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "regular", // sin precio registrado para este tipo
-          serie_vale: `E${RUN_ID}`,
           turno: "manana",
-          galones: "10.000",
+          monto: "285.000",
         });
 
       expect(res.status).toBe(400);
@@ -630,9 +679,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "diesel",
-          serie_vale: `E${RUN_ID}`,
           turno: "manana",
-          galones: "5.000",
+          monto: "142.500",
         });
 
       expect(res.status).toBe(403);
@@ -957,6 +1005,146 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${fakeToken}`);
       expect(res.status).toBe(401);
     });
+
+    // ── Scoping de findOne (IDOR) ────────────────────────────────────────────
+    // despacho1Id pertenece a cliente1. Un usuario cliente ligado a su empresa
+    // lo ve; uno de otra empresa recibe 404 (no 403: no se revela que existe).
+
+    it("cliente de SU empresa puede leer su propio despacho → 200", async () => {
+      const empresaToken = await tokenDeClienteLigado(cliente1Id, "propio");
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}`)
+        .set("Authorization", `Bearer ${empresaToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.despacho.id).toBe(despacho1Id);
+    });
+
+    it("cliente de OTRA empresa no puede leer el despacho ajeno → 404", async () => {
+      // Empresa distinta a la del despacho.
+      const otraEmpresa = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Empresa Ajena"), nit: `AJENA-${RUN_ID}` });
+      const otraToken = await tokenDeClienteLigado(
+        otraEmpresa.body.id,
+        "ajeno",
+      );
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}`)
+        .set("Authorization", `Bearer ${otraToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    it("cliente sin empresa asignada no ve nada (falla cerrado) → 403", async () => {
+      // clienteUserToken se creó sin cliente_id.
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}`)
+        .set("Authorization", `Bearer ${clienteUserToken}`);
+      expect(res.status).toBe(403);
+    });
+  });
+
+  // Crea un usuario cliente ligado a `clienteId` y devuelve su access token.
+  async function tokenDeClienteLigado(
+    clienteId: string,
+    sufijo: string,
+  ): Promise<string> {
+    const email = `cliente.${sufijo}.${RUN_ID}@gasfuel-e2e.test`;
+    await request(app.getHttpServer())
+      .post("/api/v1/usuarios")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        nombre: tag(`Cliente ${sufijo}`),
+        email,
+        password: TEST_PASSWORD,
+        rol: "cliente",
+        cliente_id: clienteId,
+      });
+    const login = await request(app.getHttpServer())
+      .post("/api/v1/auth/login")
+      .send({ email, password: TEST_PASSWORD });
+    return login.body.access_token;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 14 — Firma del piloto (round-trip a storage)
+  // Va antes del soft-delete (bloque 12) para que la gasolinera/cliente sigan
+  // activos, y después de los bloques 9/10 para no alterar sus conteos.
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("14. Firma del Piloto (Storage)", () => {
+    // PNG 1x1 real: empieza con la firma mágica que valida el backend.
+    const PNG_1x1 =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let despachoFirmaId: string;
+
+    it("firma inválida aborta ANTES de crear el despacho (sin fantasma) → 400", async () => {
+      // La subida de firma va antes de la transacción, así que si falla no debe
+      // quedar ningún despacho a medias. Se compara el conteo antes y después.
+      const contar = async () => {
+        const r = await request(app.getHttpServer())
+          .get(`/api/v1/despachos?vehiculo_id=${vehiculo1Id}`)
+          .set("Authorization", `Bearer ${adminToken}`);
+        return r.body.length as number;
+      };
+      const antes = await contar();
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${operarioToken}`)
+        .send({
+          cliente_id: cliente1Id,
+          vehiculo_id: vehiculo1Id,
+          piloto_id: piloto1Id,
+          tipo_combustible: "diesel",
+          turno: "manana",
+          kilometraje: "13100.000",
+          monto: "285.000",
+          firma_piloto_base64: "data:image/png;base64,bm8tZXMtdW4tcG5n",
+        });
+      expect(res.status).toBe(400);
+      expect(await contar()).toBe(antes);
+    });
+
+    it("crea un despacho con firma → 201 y persiste firma_key", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${operarioToken}`)
+        .send({
+          cliente_id: cliente1Id,
+          vehiculo_id: vehiculo1Id,
+          piloto_id: piloto1Id,
+          tipo_combustible: "diesel",
+          turno: "manana",
+          kilometraje: "13200.000",
+          monto: "285.000",
+          firma_piloto_base64: PNG_1x1,
+        });
+      expect(res.status).toBe(201);
+      despachoFirmaId = res.body.id;
+    });
+
+    it("GET /:id/firma devuelve el PNG (proxy desde storage) → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despachoFirmaId}/firma`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .buffer(true);
+
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("image/png");
+      // Los bytes devueltos empiezan con la firma mágica del PNG.
+      expect(res.body.subarray(0, 8)).toEqual(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      );
+    });
+
+    it("un despacho sin firma responde 404 en /firma", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}/firma`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(404);
+    });
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1001,7 +1189,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       // Debe haber al menos un movimiento tipo credito
-      const creditos = res.body.movimientos.filter((m: any) => m.tipo === "credito");
+      const creditos = res.body.movimientos.filter(
+        (m: any) => m.tipo === "credito",
+      );
       expect(creditos.length).toBeGreaterThanOrEqual(1);
     });
 

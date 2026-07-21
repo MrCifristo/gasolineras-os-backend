@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1779398032522,
-      "tag": "0000_watery_scarecrow",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1779468337593,
-      "tag": "0001_minor_barracuda",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1779469578474,
-      "tag": "0002_misty_professor_monster",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1780017558632,
-      "tag": "0003_absurd_hulk",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1780017558633,
-      "tag": "0004_vehiculo_limites",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1780332372081,
-      "tag": "0005_daffy_slapstick",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1780332545114,
-      "tag": "0006_rich_terror",
+      "when": 1784138716152,
+      "tag": "0000_blushing_phalanx",
       "breakpoints": true
     }
   ]

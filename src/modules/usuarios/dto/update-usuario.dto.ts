@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  MaxLength,
   MinLength,
 } from "class-validator";
 
@@ -12,11 +13,13 @@ export class UpdateUsuarioDto {
   @ApiPropertyOptional({ example: "nuevo@email.com" })
   @IsOptional()
   @IsEmail()
+  @MaxLength(254)
   email?: string;
 
   @ApiPropertyOptional({ example: "Juan Pérez Actualizado" })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   nombre?: string;
 
   @ApiPropertyOptional({ enum: ["admin", "operario", "cliente"] })

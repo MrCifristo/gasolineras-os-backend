@@ -24,19 +24,29 @@ step "Verificando dependencias del sistema"
 
 command -v docker  >/dev/null 2>&1 || fail "Docker no está instalado"
 command -v pnpm    >/dev/null 2>&1 || fail "pnpm no está instalado"
-ok "docker y pnpm encontrados"
+command -v openssl >/dev/null 2>&1 || fail "openssl no está instalado"
+ok "docker, pnpm y openssl encontrados"
 
 # ── 2. Archivo .env ────────────────────────────────────────────────────────
 step "Configurando variables de entorno"
 
 if [ ! -f ".env" ]; then
   cp .env.example .env
-  echo -e "${YELLOW}  Se creó .env desde .env.example"
-  echo -e "  ⚠  Edita .env con tus credenciales de Supabase antes de continuar."
-  echo -e "  Presiona ENTER cuando hayas guardado los cambios...${NC}"
-  read -r
+  ok "Se creó .env desde .env.example"
 else
-  ok ".env ya existe, omitiendo"
+  ok ".env ya existe"
+fi
+
+# Generar el secreto de firma si está vacío. Es la única variable sin la que el
+# backend no arranca, y un valor débil hace forjable cualquier token, así que
+# se genera solo en vez de pedírselo a alguien.
+if ! grep -qE '^JWT_ACCESS_SECRET=.+' .env; then
+  SECRET="$(openssl rand -base64 48)"
+  # Reemplazo compatible con el sed de BSD (macOS) y el de GNU.
+  sed -i.bak "s|^JWT_ACCESS_SECRET=.*|JWT_ACCESS_SECRET=${SECRET}|" .env && rm -f .env.bak
+  ok "JWT_ACCESS_SECRET generado"
+else
+  ok "JWT_ACCESS_SECRET ya configurado"
 fi
 
 # ── 3. Instalar dependencias de Node ───────────────────────────────────────
@@ -55,7 +65,6 @@ step "Levantando PostgreSQL con Docker"
 docker compose up -d postgres
 ok "Contenedor iniciado"
 
-# Esperar a que PostgreSQL esté listo
 echo "  Esperando a que PostgreSQL acepte conexiones..."
 RETRIES=30
 until docker compose exec -T postgres pg_isready -U gasfuel_user -d gasfuel_db >/dev/null 2>&1; do
@@ -69,17 +78,26 @@ done
 echo ""
 ok "PostgreSQL listo"
 
-# ── 5. Generar migraciones Drizzle ─────────────────────────────────────────
-step "Generando migraciones Drizzle desde el schema"
-
-pnpm run db:generate
-ok "Migraciones generadas en ./drizzle"
-
-# ── 6. Aplicar migraciones ─────────────────────────────────────────────────
+# ── 5. Aplicar migraciones ─────────────────────────────────────────────────
+# No se corre db:generate: las migraciones son artefactos versionados en el
+# repo. Generarlas acá produciría diffs espurios contra el baseline.
 step "Aplicando migraciones a la base de datos"
 
 pnpm run db:migrate
 ok "Migraciones aplicadas"
+
+# ── 6. Crear el primer admin ───────────────────────────────────────────────
+# Antes esto era un paso manual aparte, y esa brecha es la razón de que una
+# contraseña real terminara hardcodeada como fallback en la suite e2e.
+step "Creando el primer administrador"
+
+if [ -t 0 ] || { [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; }; then
+  pnpm run bootstrap:admin
+  ok "Admin listo"
+else
+  echo -e "${YELLOW}  Sin terminal interactiva y sin ADMIN_EMAIL/ADMIN_PASSWORD."
+  echo -e "  Creá el admin luego con: ${BOLD}pnpm bootstrap:admin${NC}"
+fi
 
 # ── 7. Listo ───────────────────────────────────────────────────────────────
 echo -e "\n${BOLD}${GREEN}╔══════════════════════════════════════════════╗${NC}"

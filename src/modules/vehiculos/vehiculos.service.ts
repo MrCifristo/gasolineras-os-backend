@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
-import { vehiculos, pilotosVehiculos, pilotos, clientes } from "../../db/schema";
+import {
+  vehiculos,
+  pilotosVehiculos,
+  pilotos,
+  clientes,
+} from "../../db/schema";
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 
@@ -10,8 +15,14 @@ export class VehiculosService {
   constructor(private db: DbService) {}
 
   private readonly DECIMAL_FIELDS = [
-    "limite_monto_transaccion", "limite_monto_dia", "limite_monto_semana", "limite_monto_mes",
-    "limite_volumen_transaccion", "limite_volumen_dia", "limite_volumen_semana", "limite_volumen_mes",
+    "limite_monto_transaccion",
+    "limite_monto_dia",
+    "limite_monto_semana",
+    "limite_monto_mes",
+    "limite_volumen_transaccion",
+    "limite_volumen_dia",
+    "limite_volumen_semana",
+    "limite_volumen_mes",
   ] as const;
 
   private coerceDecimals(dto: Record<string, any>) {
@@ -51,18 +62,43 @@ export class VehiculosService {
     const plantilla: Partial<typeof dto> = {};
     if (cli) {
       const p = cli;
-      if (p.plantilla_monto_transaccion != null)    plantilla.limite_monto_transaccion   = parseFloat(String(p.plantilla_monto_transaccion));
-      if (p.plantilla_monto_dia != null)            plantilla.limite_monto_dia           = parseFloat(String(p.plantilla_monto_dia));
-      if (p.plantilla_monto_semana != null)         plantilla.limite_monto_semana        = parseFloat(String(p.plantilla_monto_semana));
-      if (p.plantilla_monto_mes != null)            plantilla.limite_monto_mes           = parseFloat(String(p.plantilla_monto_mes));
-      if (p.plantilla_volumen_transaccion != null)  plantilla.limite_volumen_transaccion = parseFloat(String(p.plantilla_volumen_transaccion));
-      if (p.plantilla_volumen_dia != null)          plantilla.limite_volumen_dia         = parseFloat(String(p.plantilla_volumen_dia));
-      if (p.plantilla_volumen_semana != null)       plantilla.limite_volumen_semana      = parseFloat(String(p.plantilla_volumen_semana));
-      if (p.plantilla_volumen_mes != null)          plantilla.limite_volumen_mes         = parseFloat(String(p.plantilla_volumen_mes));
-      if (p.plantilla_trans_dia != null)            plantilla.limite_trans_dia           = p.plantilla_trans_dia;
-      if (p.plantilla_trans_semana != null)         plantilla.limite_trans_semana        = p.plantilla_trans_semana;
-      if (p.plantilla_trans_mes != null)            plantilla.limite_trans_mes           = p.plantilla_trans_mes;
-      if (p.plantilla_productos_permitidos?.length) plantilla.productos_permitidos        = p.plantilla_productos_permitidos as string[];
+      if (p.plantilla_monto_transaccion != null)
+        plantilla.limite_monto_transaccion = parseFloat(
+          String(p.plantilla_monto_transaccion),
+        );
+      if (p.plantilla_monto_dia != null)
+        plantilla.limite_monto_dia = parseFloat(String(p.plantilla_monto_dia));
+      if (p.plantilla_monto_semana != null)
+        plantilla.limite_monto_semana = parseFloat(
+          String(p.plantilla_monto_semana),
+        );
+      if (p.plantilla_monto_mes != null)
+        plantilla.limite_monto_mes = parseFloat(String(p.plantilla_monto_mes));
+      if (p.plantilla_volumen_transaccion != null)
+        plantilla.limite_volumen_transaccion = parseFloat(
+          String(p.plantilla_volumen_transaccion),
+        );
+      if (p.plantilla_volumen_dia != null)
+        plantilla.limite_volumen_dia = parseFloat(
+          String(p.plantilla_volumen_dia),
+        );
+      if (p.plantilla_volumen_semana != null)
+        plantilla.limite_volumen_semana = parseFloat(
+          String(p.plantilla_volumen_semana),
+        );
+      if (p.plantilla_volumen_mes != null)
+        plantilla.limite_volumen_mes = parseFloat(
+          String(p.plantilla_volumen_mes),
+        );
+      if (p.plantilla_trans_dia != null)
+        plantilla.limite_trans_dia = p.plantilla_trans_dia;
+      if (p.plantilla_trans_semana != null)
+        plantilla.limite_trans_semana = p.plantilla_trans_semana;
+      if (p.plantilla_trans_mes != null)
+        plantilla.limite_trans_mes = p.plantilla_trans_mes;
+      if (p.plantilla_productos_permitidos?.length)
+        plantilla.productos_permitidos =
+          p.plantilla_productos_permitidos as string[];
     }
 
     const merged = { ...plantilla, ...dto };

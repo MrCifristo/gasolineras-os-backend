@@ -7,6 +7,8 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
+  MaxLength,
   Min,
 } from "class-validator";
 
@@ -35,11 +37,6 @@ export class CreateDespachoDto {
   @IsUUID()
   piloto_id: string;
 
-  @ApiProperty({ example: "A" })
-  @IsString()
-  @IsNotEmpty()
-  serie_vale: string;
-
   @ApiProperty({ enum: Turno, example: Turno.MANANA })
   @IsEnum(Turno)
   turno: Turno;
@@ -59,12 +56,16 @@ export class CreateDespachoDto {
   @IsNumberString()
   kilometraje?: string;
 
-  @ApiProperty({ example: "50.000" })
+  @ApiProperty({
+    example: "1552.05",
+    description: "Monto en quetzales; los galones se derivan del precio",
+  })
   @IsNumberString()
-  galones: string;
+  monto: string;
 
   @ApiPropertyOptional({ example: "data:image/png;base64,iVBORw0KGgo..." })
   @IsOptional()
   @IsString()
+  @MaxLength(200000)
   firma_piloto_base64?: string;
 }

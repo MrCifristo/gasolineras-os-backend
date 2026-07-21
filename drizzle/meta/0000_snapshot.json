@@ -1,5 +1,5 @@
 {
-  "id": "96f7ab19-9a9c-4b14-85a2-3b02dd296856",
+  "id": "c1d4135e-7dcc-476b-bda4-528849a1ee18",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -33,12 +33,26 @@
           "primaryKey": false,
           "notNull": true
         },
+        "serie_vale_actual": {
+          "name": "serie_vale_actual",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'A'"
+        },
         "activo": {
           "name": "activo",
           "type": "boolean",
           "primaryKey": false,
           "notNull": false,
           "default": true
+        },
+        "bloqueado": {
+          "name": "bloqueado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -91,6 +105,103 @@
           "primaryKey": false,
           "notNull": false,
           "default": true
+        },
+        "bloqueado": {
+          "name": "bloqueado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "limite_monto_dia": {
+          "name": "limite_monto_dia",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_monto_semana": {
+          "name": "limite_monto_semana",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_monto_mes": {
+          "name": "limite_monto_mes",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_monto_transaccion": {
+          "name": "plantilla_monto_transaccion",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_monto_dia": {
+          "name": "plantilla_monto_dia",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_monto_semana": {
+          "name": "plantilla_monto_semana",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_monto_mes": {
+          "name": "plantilla_monto_mes",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_volumen_transaccion": {
+          "name": "plantilla_volumen_transaccion",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_volumen_dia": {
+          "name": "plantilla_volumen_dia",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_volumen_semana": {
+          "name": "plantilla_volumen_semana",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_volumen_mes": {
+          "name": "plantilla_volumen_mes",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_trans_dia": {
+          "name": "plantilla_trans_dia",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_trans_semana": {
+          "name": "plantilla_trans_semana",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_trans_mes": {
+          "name": "plantilla_trans_mes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plantilla_productos_permitidos": {
+          "name": "plantilla_productos_permitidos",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -154,6 +265,103 @@
           "primaryKey": false,
           "notNull": false,
           "default": true
+        },
+        "bloqueado": {
+          "name": "bloqueado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "limite_monto_transaccion": {
+          "name": "limite_monto_transaccion",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_monto_dia": {
+          "name": "limite_monto_dia",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_monto_semana": {
+          "name": "limite_monto_semana",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_monto_mes": {
+          "name": "limite_monto_mes",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_volumen_transaccion": {
+          "name": "limite_volumen_transaccion",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_volumen_dia": {
+          "name": "limite_volumen_dia",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_volumen_semana": {
+          "name": "limite_volumen_semana",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_volumen_mes": {
+          "name": "limite_volumen_mes",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_trans_dia": {
+          "name": "limite_trans_dia",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_trans_semana": {
+          "name": "limite_trans_semana",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "limite_trans_mes": {
+          "name": "limite_trans_mes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "productos_permitidos": {
+          "name": "productos_permitidos",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dias_permitidos": {
+          "name": "dias_permitidos",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hora_inicio": {
+          "name": "hora_inicio",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hora_fin": {
+          "name": "hora_fin",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -402,12 +610,6 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "supabase_user_id": {
-          "name": "supabase_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "gasolinera_id": {
           "name": "gasolinera_id",
           "type": "uuid",
@@ -432,9 +634,23 @@
           "primaryKey": false,
           "notNull": true
         },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_actualizado_at": {
+          "name": "password_actualizado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "rol": {
           "name": "rol",
-          "type": "varchar",
+          "type": "rol",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -442,7 +658,7 @@
           "name": "activo",
           "type": "boolean",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "default": true
         }
       },
@@ -477,18 +693,166 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "usuarios_supabase_user_id_unique": {
-          "name": "usuarios_supabase_user_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "supabase_user_id"
-          ]
-        },
         "usuarios_email_unique": {
           "name": "usuarios_email_unique",
           "nullsNotDistinct": false,
           "columns": [
             "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sesiones": {
+      "name": "sesiones",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "usuario_id": {
+          "name": "usuario_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "familia_id": {
+          "name": "familia_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usado_at": {
+          "name": "usado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocado_at": {
+          "name": "revocado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expira_at": {
+          "name": "expira_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "familia_expira_at": {
+          "name": "familia_expira_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creado_at": {
+          "name": "creado_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ultimo_uso_at": {
+          "name": "ultimo_uso_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip": {
+          "name": "ip",
+          "type": "varchar(45)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "sesiones_usuario_idx": {
+          "name": "sesiones_usuario_idx",
+          "columns": [
+            {
+              "expression": "usuario_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sesiones_familia_idx": {
+          "name": "sesiones_familia_idx",
+          "columns": [
+            {
+              "expression": "familia_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "sesiones_expira_idx": {
+          "name": "sesiones_expira_idx",
+          "columns": [
+            {
+              "expression": "expira_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sesiones_usuario_id_usuarios_id_fk": {
+          "name": "sesiones_usuario_id_usuarios_id_fk",
+          "tableFrom": "sesiones",
+          "tableTo": "usuarios",
+          "columnsFrom": [
+            "usuario_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sesiones_refresh_token_hash_unique": {
+          "name": "sesiones_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "refresh_token_hash"
           ]
         }
       },
@@ -585,9 +949,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "firma_piloto_base64": {
-          "name": "firma_piloto_base64",
-          "type": "text",
+        "firma_key": {
+          "name": "firma_key",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false
         },
@@ -878,9 +1242,183 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.cuadres": {
+      "name": "cuadres",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "cuadres_tipo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gasolinera_id": {
+          "name": "gasolinera_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cliente_id": {
+          "name": "cliente_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fecha_desde": {
+          "name": "fecha_desde",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_hasta": {
+          "name": "fecha_hasta",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cuadrado_por": {
+          "name": "cuadrado_por",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notas": {
+          "name": "notas",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cuadres_gasolinera_id_gasolineras_id_fk": {
+          "name": "cuadres_gasolinera_id_gasolineras_id_fk",
+          "tableFrom": "cuadres",
+          "tableTo": "gasolineras",
+          "columnsFrom": [
+            "gasolinera_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cuadres_cliente_id_clientes_id_fk": {
+          "name": "cuadres_cliente_id_clientes_id_fk",
+          "tableFrom": "cuadres",
+          "tableTo": "clientes",
+          "columnsFrom": [
+            "cliente_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cuadres_cuadrado_por_usuarios_id_fk": {
+          "name": "cuadres_cuadrado_por_usuarios_id_fk",
+          "tableFrom": "cuadres",
+          "tableTo": "usuarios",
+          "columnsFrom": [
+            "cuadrado_por"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.configuracion_sistema": {
+      "name": "configuracion_sistema",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "sistema_bloqueado": {
+          "name": "sistema_bloqueado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "bloqueado_por": {
+          "name": "bloqueado_por",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bloqueado_en": {
+          "name": "bloqueado_en",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.rol": {
+      "name": "rol",
+      "schema": "public",
+      "values": [
+        "admin",
+        "operario",
+        "cliente"
+      ]
+    },
+    "public.cuadres_tipo": {
+      "name": "cuadres_tipo",
+      "schema": "public",
+      "values": [
+        "cliente",
+        "gasolinera"
+      ]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

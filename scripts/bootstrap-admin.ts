@@ -1,9 +1,20 @@
 import 'dotenv/config';
 import * as readline from 'readline';
-import { createClient } from '@supabase/supabase-js';
+import { hash } from '@node-rs/argon2';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { usuarios } from '../src/db/schema';
+
+// Mismos parámetros que PasswordService. Este script no puede levantar el
+// contexto de Nest, así que se duplican; si allá cambian, acá también.
+// Argon2id === 2 en el const enum de @node-rs/argon2 (no importable acá).
+const ARGON2 = {
+  algorithm: 2,
+  memoryCost: 19456,
+  timeCost: 2,
+  parallelism: 1,
+};
 
 function ask(question: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -43,84 +54,104 @@ function askPassword(question: string): Promise<string> {
   });
 }
 
-async function main() {
-  console.log('\n🔧 Bootstrap de admin — GASFUEL OS\n');
-
-  const nombre   = await ask('Nombre completo: ');
-  const email    = await ask('Email: ');
-  const password = await askPassword('Contraseña (mín. 8 caracteres): ');
-
-  if (!nombre || !email || password.length < 8) {
-    console.error('❌ Datos inválidos.');
-    process.exit(1);
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const dbUrl       = process.env.DATABASE_URL;
-
-  if (!supabaseUrl || !serviceKey || !dbUrl) {
-    console.error('❌ Faltan variables de entorno (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL).');
-    process.exit(1);
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  console.log('\n⏳ Creando cuenta en Supabase Auth...');
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-
-  if (authError) {
-    if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
-      console.log('⚠️  El email ya existe en Supabase Auth, buscando usuario existente...');
-      const listResult = await supabase.auth.admin.listUsers();
-      const allUsers: { id: string; email?: string }[] = listResult.data?.users ?? [];
-      const existing = allUsers.find((u) => u.email === email);
-      if (!existing) {
-        console.error('❌ No se pudo obtener el usuario existente de Supabase.');
-        process.exit(1);
-      }
-      await insertLocal(dbUrl, existing.id, email, nombre);
-    } else {
-      console.error(`❌ Error en Supabase Auth: ${authError.message}`);
+/**
+ * Sin TTY (CI, first-start.sh no interactivo) toma los datos del entorno.
+ * Esa ausencia es justamente lo que llevó a que una contraseña real terminara
+ * hardcodeada en la suite e2e.
+ */
+async function obtenerDatos() {
+  const desdeEnv = process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD;
+  if (desdeEnv || !process.stdin.isTTY) {
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    const nombre = process.env.ADMIN_NOMBRE ?? 'Administrador';
+    if (!email || !password) {
+      console.error(
+        '❌ Sin terminal interactiva hay que pasar ADMIN_EMAIL y ADMIN_PASSWORD por entorno.',
+      );
       process.exit(1);
     }
-  } else {
-    console.log(`✅ Usuario creado en Supabase Auth: ${authData.user.id}`);
-    await insertLocal(dbUrl, authData.user.id, email, nombre);
+    return { nombre, email, password };
   }
 
-  process.exit(0);
+  console.log('\n🔧 Bootstrap de admin — GASFUEL OS\n');
+  return {
+    nombre: await ask('Nombre completo: '),
+    email: await ask('Email: '),
+    password: await askPassword('Contraseña (mín. 8 caracteres): '),
+  };
 }
 
-async function insertLocal(dbUrl: string, supabaseUserId: string, email: string, nombre: string) {
-  console.log('⏳ Insertando en base de datos local...');
+async function main() {
+  const { nombre, email, password } = await obtenerDatos();
+
+  if (!nombre || !email || password.length < 8) {
+    console.error('❌ Datos inválidos: falta nombre/email o la contraseña tiene menos de 8 caracteres.');
+    process.exit(1);
+  }
+
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.error('❌ Falta DATABASE_URL.');
+    process.exit(1);
+  }
+
   const pool = new Pool({ connectionString: dbUrl });
   const db = drizzle(pool);
 
-  const [row] = await db
-    .insert(usuarios)
-    .values({ supabase_user_id: supabaseUserId, email, nombre, rol: 'admin', activo: true })
-    .onConflictDoNothing()
-    .returning();
+  try {
+    const emailNormalizado = email.toLowerCase();
+    const passwordHash = await hash(password, ARGON2);
 
-  await pool.end();
+    const [existente] = await db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(eq(usuarios.email, emailNormalizado))
+      .limit(1);
 
-  if (!row) {
-    console.log('⚠️  El usuario ya existía en la base de datos local.');
-  } else {
-    console.log('\n✅ Admin creado exitosamente:');
-    console.log(`   ID interno : ${row.id}`);
-    console.log(`   Supabase ID: ${row.supabase_user_id}`);
-    console.log(`   Email      : ${row.email}`);
-    console.log(`   Rol        : ${row.rol}`);
+    // Reestablecer la contraseña acá es deliberado: este script es el modo de
+    // recuperar el acceso cuando nadie puede entrar.
+    if (existente) {
+      const [row] = await db
+        .update(usuarios)
+        .set({
+          password_hash: passwordHash,
+          password_actualizado_at: new Date(),
+          rol: 'admin',
+          activo: true,
+        })
+        .where(eq(usuarios.id, existente.id))
+        .returning({ id: usuarios.id, email: usuarios.email, rol: usuarios.rol });
+
+      console.log('\n✅ El admin ya existía: se actualizó su contraseña.');
+      console.log(`   ID    : ${row.id}`);
+      console.log(`   Email : ${row.email}`);
+      console.log(`   Rol   : ${row.rol}`);
+    } else {
+      const [row] = await db
+        .insert(usuarios)
+        .values({
+          email: emailNormalizado,
+          nombre,
+          password_hash: passwordHash,
+          rol: 'admin',
+          activo: true,
+        })
+        .returning({ id: usuarios.id, email: usuarios.email, rol: usuarios.rol });
+
+      console.log('\n✅ Admin creado:');
+      console.log(`   ID    : ${row.id}`);
+      console.log(`   Email : ${row.email}`);
+      console.log(`   Rol   : ${row.rol}`);
+    }
+
+    console.log('\n🚀 Ya podés hacer login en la API con estas credenciales.\n');
+  } finally {
+    await pool.end();
   }
-  console.log('\n🚀 Ya puedes hacer login en la API con estas credenciales.\n');
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

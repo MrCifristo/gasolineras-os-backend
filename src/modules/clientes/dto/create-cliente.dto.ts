@@ -7,6 +7,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
+  MaxLength,
   Min,
 } from "class-validator";
 
@@ -14,16 +16,20 @@ export class CreateClienteDto {
   @ApiProperty({ example: "Coca-Cola Guatemala" })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
   nombre: string;
 
   @ApiPropertyOptional({ example: "1234567-8" })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
+  @Matches(/^[A-Za-z0-9-]+$/)
   nit?: string;
 
   @ApiPropertyOptional({ example: "contacto@cocacola.com" })
   @IsOptional()
   @IsEmail()
+  @MaxLength(254)
   contacto_email?: string;
 
   @ApiPropertyOptional({ example: false })

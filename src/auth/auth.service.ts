@@ -1,57 +1,129 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { usuarios } from "../db/schema";
 import { LoginDto } from "./dto/login.dto";
+import { PasswordService } from "./password.service";
+import { SessionService, type MetaSesion } from "./session.service";
+import { TokenService, ACCESS_TTL_SEGUNDOS } from "./token.service";
+
+type Usuario = typeof usuarios.$inferSelect;
+
+export interface RespuestaAuth {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  usuario: {
+    id: string;
+    email: string;
+    nombre: string;
+    rol: Usuario["rol"];
+    gasolinera_id: string | null;
+    cliente_id: string | null;
+  };
+}
 
 @Injectable()
 export class AuthService {
-  private supabase: SupabaseClient;
-
   constructor(
-    private db: DbService,
-    private config: ConfigService,
-  ) {
-    this.supabase = createClient(
-      this.config.get<string>("SUPABASE_URL")!,
-      this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    private readonly db: DbService,
+    private readonly passwords: PasswordService,
+    private readonly tokens: TokenService,
+    private readonly sesiones: SessionService,
+  ) {}
+
+  private perfil(u: Usuario): RespuestaAuth["usuario"] {
+    return {
+      id: u.id,
+      email: u.email,
+      nombre: u.nombre,
+      rol: u.rol,
+      gasolinera_id: u.gasolinera_id,
+      cliente_id: u.cliente_id,
+    };
   }
 
-  async login(dto: LoginDto) {
-    const { data, error } = await this.supabase.auth.signInWithPassword({
-      email: dto.email,
-      password: dto.password,
-    });
-
-    if (error || !data.user) {
-      throw new UnauthorizedException("Credenciales inválidas");
-    }
-
+  /**
+   * Los tokens salen en el body, NO como Set-Cookie: quien los convierte en
+   * cookies httpOnly es el BFF de Next. Así el backend nunca actúa sobre
+   * credenciales ambientales y queda estructuralmente inmune a CSRF.
+   */
+  async login(dto: LoginDto, meta: MetaSesion = {}): Promise<RespuestaAuth> {
     const [usuario] = await this.db.db
       .select()
       .from(usuarios)
-      .where(eq(usuarios.supabase_user_id, data.user.id))
+      .where(eq(usuarios.email, dto.email.toLowerCase()))
       .limit(1);
 
-    if (!usuario || !usuario.activo) {
-      throw new UnauthorizedException("Usuario inactivo o no registrado");
+    // Se hashea aunque el usuario no exista, para que el tiempo de respuesta
+    // no delate qué correos están registrados.
+    const hashComparable = usuario?.password_hash ?? (await this.hashSenuelo());
+    const coincide = await this.passwords.verificar(
+      hashComparable,
+      dto.password,
+    );
+
+    // Un solo mensaje para usuario inexistente, contraseña mala y cuenta
+    // desactivada: no se le regala información a quien prueba credenciales.
+    if (!usuario || !coincide || !usuario.activo) {
+      throw new UnauthorizedException("Credenciales inválidas");
     }
 
+    const sesion = await this.sesiones.crear(usuario, meta);
+
     return {
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-      usuario: {
-        id: usuario.id,
-        email: usuario.email,
-        nombre: usuario.nombre,
+      access_token: this.tokens.firmarAccess({
+        sub: usuario.id,
         rol: usuario.rol,
         gasolinera_id: usuario.gasolinera_id,
         cliente_id: usuario.cliente_id,
-      },
+        sid: sesion.sid,
+      }),
+      refresh_token: sesion.refreshToken,
+      expires_in: ACCESS_TTL_SEGUNDOS,
+      usuario: this.perfil(usuario),
     };
+  }
+
+  async refresh(
+    refreshToken: string,
+    meta: MetaSesion = {},
+  ): Promise<RespuestaAuth> {
+    const { usuario, sesion } = await this.sesiones.rotar(refreshToken, meta);
+
+    return {
+      access_token: this.tokens.firmarAccess({
+        sub: usuario.id,
+        rol: usuario.rol,
+        gasolinera_id: usuario.gasolinera_id,
+        cliente_id: usuario.cliente_id,
+        sid: sesion.sid,
+      }),
+      refresh_token: sesion.refreshToken,
+      expires_in: ACCESS_TTL_SEGUNDOS,
+      usuario: this.perfil(usuario),
+    };
+  }
+
+  async logout(sid: string): Promise<void> {
+    await this.sesiones.revocarPorSid(sid);
+  }
+
+  async logoutTodas(usuarioId: string): Promise<void> {
+    await this.sesiones.revocarTodasDelUsuario(usuarioId);
+  }
+
+  me(usuario: Usuario): RespuestaAuth["usuario"] {
+    return this.perfil(usuario);
+  }
+
+  // Hash descartable contra un correo inexistente. Sin esto el login respondería
+  // mucho más rápido para correos no registrados y permitiría enumerarlos.
+  private senueloCacheado?: string;
+  private async hashSenuelo(): Promise<string> {
+    this.senueloCacheado ??= await this.passwords.hashear(
+      "senuelo-para-igualar-el-tiempo-de-respuesta",
+    );
+    return this.senueloCacheado;
   }
 }

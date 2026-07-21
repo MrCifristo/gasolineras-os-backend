@@ -36,7 +36,7 @@ export class UsuariosController {
   @Post()
   @Auth("admin")
   @ApiOperation({
-    summary: "Crear usuario (crea cuenta en Supabase Auth + registro local)",
+    summary: "Crear usuario (hashea la contraseña con argon2)",
   })
   create(@Body() dto: CreateUsuarioDto) {
     return this.service.create(dto);
@@ -52,7 +52,7 @@ export class UsuariosController {
   @Delete(":id")
   @Auth("admin")
   @ApiOperation({
-    summary: "Desactivar usuario (soft delete + ban en Supabase Auth)",
+    summary: "Desactivar usuario (soft delete + revoca sus sesiones)",
   })
   remove(@Param("id") id: string) {
     return this.service.remove(id);

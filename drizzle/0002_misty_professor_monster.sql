@@ -1,2 +1,0 @@
-CREATE TYPE "public"."cuadres_tipo" AS ENUM('cliente', 'gasolinera');--> statement-breakpoint
-ALTER TABLE "cuadres" ALTER COLUMN "tipo" SET DATA TYPE "public"."cuadres_tipo" USING "tipo"::"public"."cuadres_tipo";

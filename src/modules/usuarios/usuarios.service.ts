@@ -1,39 +1,46 @@
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
+import { PasswordService } from "../../auth/password.service";
+import { SessionService } from "../../auth/session.service";
 import { DbService } from "../../db/db.service";
 import { usuarios } from "../../db/schema";
 import { CreateUsuarioDto } from "./dto/create-usuario.dto";
 import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
 
+// El hash nunca sale del servicio: si se filtra en una respuesta, queda
+// expuesto a fuerza bruta offline.
+const CAMPOS_PUBLICOS = {
+  id: usuarios.id,
+  email: usuarios.email,
+  nombre: usuarios.nombre,
+  rol: usuarios.rol,
+  gasolinera_id: usuarios.gasolinera_id,
+  cliente_id: usuarios.cliente_id,
+  activo: usuarios.activo,
+};
+
 @Injectable()
 export class UsuariosService {
-  private supabaseAdmin: SupabaseClient;
-
   constructor(
-    private db: DbService,
-    private config: ConfigService,
-  ) {
-    this.supabaseAdmin = createClient(
-      this.config.get<string>("SUPABASE_URL")!,
-      this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
-  }
+    private readonly db: DbService,
+    private readonly passwords: PasswordService,
+    private readonly sesiones: SessionService,
+  ) {}
 
   findAll() {
-    return this.db.db.select().from(usuarios).where(eq(usuarios.activo, true));
+    return this.db.db
+      .select(CAMPOS_PUBLICOS)
+      .from(usuarios)
+      .where(eq(usuarios.activo, true));
   }
 
   async findOne(id: string) {
     const [usuario] = await this.db.db
-      .select()
+      .select(CAMPOS_PUBLICOS)
       .from(usuarios)
       .where(eq(usuarios.id, id))
       .limit(1);
@@ -42,86 +49,68 @@ export class UsuariosService {
   }
 
   async create(dto: CreateUsuarioDto) {
-    const { password, ...userData } = dto;
+    const { password, ...datos } = dto;
+    const email = datos.email.toLowerCase();
 
-    const { data: authData, error: authError } =
-      await this.supabaseAdmin.auth.admin.createUser({
-        email: userData.email,
-        password,
-        email_confirm: true,
-      });
-
-    if (authError) {
-      if (authError.message.includes("already registered")) {
-        throw new BadRequestException("El email ya está registrado");
-      }
-      throw new InternalServerErrorException(
-        `Error al crear usuario en Auth: ${authError.message}`,
-      );
-    }
+    const [existente] = await this.db.db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(eq(usuarios.email, email))
+      .limit(1);
+    if (existente) throw new BadRequestException("El email ya está registrado");
 
     const [row] = await this.db.db
       .insert(usuarios)
       .values({
-        supabase_user_id: authData.user.id,
-        email: userData.email,
-        nombre: userData.nombre,
-        rol: userData.rol,
-        gasolinera_id: userData.gasolinera_id ?? null,
-        cliente_id: userData.cliente_id ?? null,
+        email,
+        nombre: datos.nombre,
+        password_hash: await this.passwords.hashear(password),
+        rol: datos.rol,
+        gasolinera_id: datos.gasolinera_id ?? null,
+        cliente_id: datos.cliente_id ?? null,
       })
-      .returning();
+      .returning(CAMPOS_PUBLICOS);
 
     return row;
   }
 
   async update(id: string, dto: UpdateUsuarioDto) {
-    const usuario = await this.findOne(id);
-    const { password, ...rest } = dto;
+    await this.findOne(id);
+    const { password, ...resto } = dto;
 
-    if (dto.email || password) {
-      const authUpdate: Record<string, unknown> = {};
-      if (dto.email) authUpdate.email = dto.email;
-      if (password) authUpdate.password = password;
+    const cambios: Partial<typeof usuarios.$inferInsert> = { ...resto };
+    if (resto.email) cambios.email = resto.email.toLowerCase();
 
-      const { error } = await this.supabaseAdmin.auth.admin.updateUserById(
-        usuario.supabase_user_id,
-        authUpdate,
-      );
-      if (error) {
-        throw new InternalServerErrorException(
-          `Error al actualizar Auth: ${error.message}`,
-        );
-      }
+    if (password) {
+      cambios.password_hash = await this.passwords.hashear(password);
+      cambios.password_actualizado_at = new Date();
     }
-
-    const dbUpdate: Partial<typeof rest> = { ...rest };
-    delete (dbUpdate as any).password;
 
     const [row] = await this.db.db
       .update(usuarios)
-      .set(dbUpdate)
+      .set(cambios)
       .where(eq(usuarios.id, id))
-      .returning();
+      .returning(CAMPOS_PUBLICOS);
+
+    // Cambiar la contraseña tiene que echar las sesiones abiertas: si no,
+    // quien tuviera la contraseña vieja sigue adentro con su refresh token.
+    if (password) await this.sesiones.revocarTodasDelUsuario(id);
 
     return row;
   }
 
+  /** Baja lógica: la fila queda por integridad referencial con los despachos. */
   async remove(id: string) {
-    const usuario = await this.findOne(id);
-
-    await this.supabaseAdmin.auth.admin.updateUserById(
-      usuario.supabase_user_id,
-      {
-        ban_duration: "87600h",
-      },
-    );
+    await this.findOne(id);
 
     const [row] = await this.db.db
       .update(usuarios)
       .set({ activo: false })
       .where(eq(usuarios.id, id))
-      .returning();
+      .returning(CAMPOS_PUBLICOS);
+
+    // Sin esto el usuario desactivado seguiría operando con su sesión abierta.
+    await this.sesiones.revocarTodasDelUsuario(id);
 
     return row;
   }

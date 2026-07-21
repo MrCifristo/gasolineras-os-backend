@@ -1,14 +1,33 @@
-import { pgTable, uuid, varchar, boolean } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  pgEnum,
+  uuid,
+  varchar,
+  boolean,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { gasolineras } from "./gasolineras.schema";
 import { clientes } from "./clientes.schema";
 
+export const ROLES = ["admin", "operario", "cliente"] as const;
+export const rolEnum = pgEnum("rol", ROLES);
+
 export const usuarios = pgTable("usuarios", {
   id: uuid("id").primaryKey().defaultRandom(),
-  supabase_user_id: uuid("supabase_user_id").unique().notNull(),
   gasolinera_id: uuid("gasolinera_id").references(() => gasolineras.id),
   cliente_id: uuid("cliente_id").references(() => clientes.id),
   email: varchar("email").unique().notNull(),
   nombre: varchar("nombre").notNull(),
-  rol: varchar("rol").notNull(),
-  activo: boolean("activo").default(true),
+  // argon2id ronda los 95-100 caracteres.
+  password_hash: varchar("password_hash", { length: 255 }).notNull(),
+  // Cambiar la contraseña invalida toda sesión emitida antes de esta marca.
+  password_actualizado_at: timestamp("password_actualizado_at", {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
+  rol: rolEnum("rol").notNull(),
+  // notNull a propósito: cuando era nullable-con-default, `!usuario.activo`
+  // trataba NULL como inactivo y bloqueaba al usuario en silencio.
+  activo: boolean("activo").notNull().default(true),
 });

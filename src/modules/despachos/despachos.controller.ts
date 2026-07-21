@@ -134,7 +134,10 @@ export class DespachosController {
 
   @Get("vehiculo/:vehiculoId/consumo-hoy")
   @Auth("admin", "operario", "cliente")
-  @ApiOperation({ summary: "Estado completo de un vehículo para despacho (sistema, gasolinera, cliente, vehículo, horario)" })
+  @ApiOperation({
+    summary:
+      "Estado completo de un vehículo para despacho (sistema, gasolinera, cliente, vehículo, horario)",
+  })
   @ApiQuery({ name: "cliente_id", required: false })
   @ApiQuery({ name: "gasolinera_id", required: false })
   getConsumoHoy(
@@ -145,11 +148,28 @@ export class DespachosController {
     return this.service.getConsumoHoy(vehiculoId, clienteId, gasolineraId);
   }
 
+  @Get(":id/firma")
+  @Auth("admin", "operario", "cliente")
+  @ApiOperation({
+    summary: "Firma del piloto (PNG, proxy desde R2 con scoping)",
+  })
+  async firma(
+    @Param("id") id: string,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    const obj = await this.service.getFirma(id, req.user);
+    res.setHeader("Content-Type", obj.contentType);
+    // private: es el comprobante del piloto, no debe cachearse en proxies.
+    res.setHeader("Cache-Control", "private, max-age=0, no-store");
+    res.send(obj.body);
+  }
+
   @Get(":id")
   @Auth("admin", "operario", "cliente")
   @ApiOperation({ summary: "Obtener despacho completo con joins" })
-  findOne(@Param("id") id: string) {
-    return this.service.findOne(id);
+  findOne(@Param("id") id: string, @Request() req: any) {
+    return this.service.findOne(id, req.user);
   }
 
   @Post()

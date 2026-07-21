@@ -9,10 +9,7 @@ export class ConfiguracionSistemaService {
   constructor(private db: DbService) {}
 
   async findOne() {
-    const [row] = await this.db.db
-      .select()
-      .from(configuracionSistema)
-      .limit(1);
+    const [row] = await this.db.db.select().from(configuracionSistema).limit(1);
     if (row) return row;
     const [created] = await this.db.db
       .insert(configuracionSistema)

@@ -1,0 +1,14 @@
+# pnpm 10+ no ejecuta scripts de instalación salvo que se listen acá, y aborta
+# cualquier comando (build, dev, test) mientras queden sin decidir. Los que están
+# en true necesitan su script para bajar o enlazar un binario nativo: sin eso
+# fallan en runtime, no al instalar.
+allowBuilds:
+  # Descarga Chromium. Sin esto, POST /reportes/pdf revienta al generar el PDF.
+  puppeteer: true
+  # Enlazan su binario de plataforma.
+  esbuild: true
+  unrs-resolver: true
+  # Sólo imprime un mensaje de patrocinio al instalar.
+  '@nestjs/core': false
+  # Telemetría de terceros.
+  '@scarf/scarf': false

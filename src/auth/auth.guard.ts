@@ -4,52 +4,49 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
-import { DbService } from "../db/db.service";
-import { usuarios } from "../db/schema";
+import type { Request } from "express";
+import { SessionService } from "./session.service";
+import { TokenService } from "./token.service";
+
+export const COOKIE_ACCESS = "ef_at";
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private supabase: SupabaseClient;
-
   constructor(
-    private config: ConfigService,
-    private db: DbService,
-  ) {
-    this.supabase = createClient(
-      this.config.get<string>("SUPABASE_URL")!,
-      this.config.get<string>("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    );
+    private readonly tokens: TokenService,
+    private readonly sesiones: SessionService,
+  ) {}
+
+  /**
+   * La cookie es el camino normal (la pone el BFF de Next). El header Bearer
+   * queda como respaldo para Swagger y la suite e2e, que hablan con la API
+   * directo y no tienen navegador que guarde cookies.
+   */
+  private extraerToken(req: Request): string | null {
+    const cookies = req.cookies as Record<string, string> | undefined;
+    const deCookie = cookies?.[COOKIE_ACCESS];
+    if (deCookie) return deCookie;
+
+    const header = req.headers.authorization;
+    if (header?.startsWith("Bearer ")) return header.slice(7);
+
+    return null;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const authHeader: string | undefined = request.headers["authorization"];
+    const request = context.switchToHttp().getRequest<Request>();
+    const token = this.extraerToken(request);
 
-    if (!authHeader?.startsWith("Bearer ")) {
-      throw new UnauthorizedException("Token requerido");
-    }
+    if (!token) throw new UnauthorizedException("Token requerido");
 
-    const token = authHeader.slice(7);
+    const claims = this.tokens.verificarAccess(token);
+    if (!claims) throw new UnauthorizedException("Token inválido");
 
-    // Validar el JWT delegando a Supabase Auth (soporta HS256 y ES256)
-    const { data, error } = await this.supabase.auth.getUser(token);
-    if (error || !data.user) {
-      throw new UnauthorizedException("Token inválido");
-    }
-
-    const [usuario] = await this.db.db
-      .select()
-      .from(usuarios)
-      .where(eq(usuarios.supabase_user_id, data.user.id))
-      .limit(1);
-
-    if (!usuario || !usuario.activo) {
-      throw new UnauthorizedException("Usuario no autorizado");
-    }
+    // La firma sólo prueba que el token es nuestro y no venció. Falta saber si
+    // la sesión sigue viva: sin esta consulta, un access token de una sesión ya
+    // revocada seguiría sirviendo hasta 15 minutos y revocar no serviría de nada.
+    const usuario = await this.sesiones.usuarioDeSesionViva(claims.sid);
+    if (!usuario) throw new UnauthorizedException("Sesión no vigente");
 
     request.user = usuario;
     return true;

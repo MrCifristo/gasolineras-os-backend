@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   ValidateIf,
 } from "class-validator";
 
@@ -37,5 +38,6 @@ export class CreateCuadreDto {
   @ApiPropertyOptional({ example: "Cuadre OK, diferencia 0" })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   notas?: string;
 }

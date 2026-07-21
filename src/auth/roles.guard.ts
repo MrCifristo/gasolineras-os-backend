@@ -5,6 +5,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import type { Request } from "express";
 import { ROLES_KEY, Role } from "./roles.decorator";
 
 @Injectable()
@@ -19,8 +20,9 @@ export class RolesGuard implements CanActivate {
 
     if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    const { user } = context.switchToHttp().getRequest();
-    if (!requiredRoles.includes(user?.rol)) {
+    // AuthGuard corre antes y deja el usuario tipado en el request.
+    const { user } = context.switchToHttp().getRequest<Request>();
+    if (!user || !requiredRoles.includes(user.rol)) {
       throw new ForbiddenException("Permisos insuficientes");
     }
     return true;

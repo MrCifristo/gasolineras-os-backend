@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNumberString, IsOptional, IsString, IsUUID } from "class-validator";
+import {
+  IsNumberString,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from "class-validator";
 
 export class CreateAbonoDto {
   @ApiProperty({ example: "550e8400-e29b-41d4-a716-446655440000" })
@@ -20,5 +26,6 @@ export class CreateAbonoDto {
   @ApiPropertyOptional({ example: "Pago transferencia bancaria" })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   descripcion?: string;
 }

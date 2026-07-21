@@ -4,7 +4,6 @@ import {
   varchar,
   integer,
   numeric,
-  text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -44,7 +43,9 @@ export const despachos = pgTable(
     kilometraje: numeric("kilometraje", { precision: 10, scale: 3 }),
     galones: numeric("galones", { precision: 10, scale: 3 }).notNull(),
     monto_total: numeric("monto_total", { precision: 10, scale: 3 }).notNull(),
-    firma_piloto_base64: text("firma_piloto_base64"),
+    // Key del objeto en R2, no el blob. Los base64 de firma inflaban esta
+    // tabla de hechos y pesaban en cada SELECT.
+    firma_key: varchar("firma_key", { length: 255 }),
     despachado_at: timestamp("despachado_at").defaultNow(),
   },
   (t) => [
