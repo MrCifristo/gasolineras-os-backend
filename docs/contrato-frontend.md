@@ -87,6 +87,47 @@ Los límites de tasa aplican: `solicitar` 5/min, `reset` 10/min, por IP.
 
 ---
 
+## 1c. Capa financiera: crédito, saldo inicial y estado de cuenta
+
+**`credito_bloqueado` es un flag distinto de `bloqueado`.** No los mezclen en la UI:
+
+| Flag | Qué significa | Efecto |
+|---|---|---|
+| `bloqueado` | El cliente suspendió su cuenta entera | Ningún despacho. Mensaje: *"Cuenta bloqueada por el cliente"* |
+| `credito_bloqueado` | La estación le cortó el crédito (mora, decisión administrativa) | Ningún despacho, pero la cuenta sigue viva: se consulta, se abona y se emite estado de cuenta. Mensaje: *"Crédito suspendido — consulte con administración"* |
+
+Ambos son `boolean` en `clientes` y se editan por `POST`/`PATCH /clientes`. `GET /despachos/vehiculo/:id/consumo-hoy` ahora devuelve **`cliente_credito_bloqueado`** junto a `cliente_bloqueado`, para que el checklist del operario diga cuál de los dos es.
+
+**Saldo inicial.** `POST /clientes` acepta `saldo_inicial` (número, `>= 0`, opcional). **No es una columna**: abre la cuenta con ese saldo y deja un movimiento `credito` con descripción `"Saldo inicial"` y **`gasolinera_id: null`**, porque una apertura no ocurre en ninguna estación.
+
+> Consecuencia para el frontend: **`movimientos_saldo.gasolinera_id` ahora puede venir `null`**. Toda tabla o agrupación por estación tiene que contemplarlo (mostrar "—", no romper).
+
+`saldo_inicial` **no se acepta en `PATCH /clientes/:id`** — devuelve 400. Una apertura no se reescribe; para corregir el saldo se registra un abono, que deja rastro en el ledger.
+
+**Estado de cuenta.** `GET /api/v1/saldos/cliente/:id/estado-cuenta?fecha_desde&fecha_hasta`, `@Auth("admin")`:
+
+```jsonc
+{
+  "cliente": { "id": "uuid", "nombre": "...", "nit": "...", "credito_bloqueado": false },
+  "periodo": { "fecha_desde": "2026-08-01", "fecha_hasta": "2026-08-31" },
+  "saldo_inicial": "5000.000",   // todo el ledger ANTERIOR a fecha_desde, resumido
+  "total_abonos":  "1500.000",
+  "total_debitos": "2280.000",
+  "saldo_final":   "4220.000",
+  "movimientos": [ /* filas de movimientos_saldo del rango, ascendente */ ]
+}
+```
+
+Los cuatro totales son **strings** con 3 decimales, como el resto de los numéricos del seam: coercionarlos en `mappers.ts`. Se cumple siempre `saldo_inicial + total_abonos − total_debitos = saldo_final`. Sin `fecha_desde`, `saldo_inicial` es `0` y todo el histórico cae dentro del período.
+
+En cada movimiento el `monto` es **positivo** y el signo lo pone `tipo` (`credito` suma, `debito` resta). El saldo corriente por fila hay que acumularlo en el cliente.
+
+**PDF**: `GET .../estado-cuenta/pdf` con los mismos parámetros, devuelve `application/pdf` como descarga.
+
+Un **saldo negativo es válido y esperado**: no hay control de fondos insuficientes, las cuentas se van a negativo a propósito.
+
+---
+
 ## 2. Crear despacho: se manda `monto`, no `galones`
 
 **Divergencia:** `CreateDespachoDto` exige `galones: string` (`@IsNumberString`) y no tiene campo `monto`. Pero el operario **teclea quetzales en la bomba** (commits `5552543`/`49a1ed9`/`57cc894` movieron el formulario a eso deliberadamente), y `DespachoForm.tsx:143` deriva galones en el navegador. Con `forbidNonWhitelisted: true`, mandar `monto` es un 400 duro.

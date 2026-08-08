@@ -1,7 +1,13 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
-import { clientes, vehiculos, pilotos, saldosCliente } from "../../db/schema";
+import {
+  clientes,
+  vehiculos,
+  pilotos,
+  saldosCliente,
+  movimientosSaldo,
+} from "../../db/schema";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 
@@ -58,13 +64,35 @@ export class ClientesService {
   }
 
   async create(dto: CreateClienteDto) {
+    // saldo_inicial no es una columna de `clientes`: hay que sacarlo antes del
+    // insert o rompería, porque coerceDecimales vuelca el dto entero.
+    const { saldo_inicial, ...datos } = dto;
+    const apertura = saldo_inicial ?? 0;
+
     return this.db.db.transaction(async (tx) => {
       const [cliente] = await tx
         .insert(clientes)
-        .values(this.coerceDecimales(dto) as any)
+        .values(this.coerceDecimales(datos) as any)
         .returning();
-      // Crear el saldo inicial en 0 para que los despachos puedan descontarse correctamente
-      await tx.insert(saldosCliente).values({ cliente_id: cliente.id });
+
+      // El saldo arranca en 0 para que los despachos tengan de dónde descontar.
+      await tx.insert(saldosCliente).values({
+        cliente_id: cliente.id,
+        saldo_actual: String(apertura),
+      });
+
+      // La apertura entra al ledger como cualquier otro movimiento, para que el
+      // estado de cuenta cuadre. Sin gasolinera: no ocurrió en ninguna estación.
+      if (apertura > 0) {
+        await tx.insert(movimientosSaldo).values({
+          cliente_id: cliente.id,
+          gasolinera_id: null,
+          tipo: "credito",
+          monto: String(apertura),
+          descripcion: "Saldo inicial",
+        });
+      }
+
       return cliente;
     });
   }

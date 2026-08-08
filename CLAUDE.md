@@ -48,7 +48,13 @@ it before changing anything at the API seam.
   `forbidNonWhitelisted`, so unknown body keys **400** rather than being stripped
   (e2e bootstraps must replicate this pipe config).
 - Soft delete (`activo`) and blocking (`bloqueado`) are separate concepts;
-  `DELETE` routes update, never remove.
+  `DELETE` routes update, never remove. **`credito_bloqueado` is a third,
+  distinct thing**: it stops dispatches but leaves the account queryable and
+  abonable. Don't collapse it into `bloqueado`.
+- **`movimientos_saldo.gasolinera_id` is nullable.** The opening-balance movement
+  (`saldo_inicial` on `POST /clientes`) happens at no station. Any aggregate
+  grouped by station must handle the NULL. The ledger stores `monto` positive
+  and encodes direction in `tipo` (`credito` / `debito`).
 - Raw `sql` templates carry the aggregate/date logic (`FILTER (WHERE …)`,
   `date_trunc`) rather than doing it in JS.
 

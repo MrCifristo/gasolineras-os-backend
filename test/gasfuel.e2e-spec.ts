@@ -30,6 +30,18 @@ import { MailService } from "../src/mail/mail.service";
 import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { usuarios } from "../src/db/schema";
 
+// moduleNameMapper resuelve "puppeteer" al mock de test/__mocks__. El cast es
+// para llegar a los ayudantes del mock, que los tipos reales no declaran.
+import puppeteerReal from "puppeteer";
+const puppeteerMock = puppeteerReal as unknown as {
+  __paginas: {
+    jsHabilitado: boolean;
+    interceptacionActiva: boolean;
+    eventos: string[];
+  }[];
+  __limpiarPaginas: () => void;
+};
+
 dotenv.config();
 
 // ── Credenciales del admin bootstrap (creado con pnpm bootstrap:admin) ─────
@@ -1360,6 +1372,229 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${supervisorToken}`);
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 16 — Capa financiera: saldo inicial, estado de cuenta, crédito
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("16. Saldo inicial, estado de cuenta y bloqueo de crédito", () => {
+    let clienteAperturaId: string;
+    const SALDO_INICIAL = 5000;
+
+    it("crear cliente con saldo_inicial abre la cuenta con ese saldo → 201", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente Apertura"), saldo_inicial: SALDO_INICIAL });
+
+      expect(res.status).toBe(201);
+      clienteAperturaId = res.body.id;
+
+      const saldo = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteAperturaId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(saldo.status).toBe(200);
+      expect(parseFloat(saldo.body.saldo_actual)).toBe(SALDO_INICIAL);
+    });
+
+    it("la apertura queda en el ledger y sin gasolinera", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteAperturaId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.body.movimientos).toHaveLength(1);
+      const apertura = res.body.movimientos[0];
+      expect(apertura.tipo).toBe("credito");
+      expect(apertura.descripcion).toBe("Saldo inicial");
+      // El movimiento de apertura no ocurre en ninguna estación: por eso la
+      // columna tuvo que volverse nullable.
+      expect(apertura.gasolinera_id).toBeNull();
+    });
+
+    it("un cliente sin saldo_inicial abre en cero y sin movimientos → 201", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente Sin Apertura") });
+
+      expect(res.status).toBe(201);
+      const saldo = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${res.body.id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(parseFloat(saldo.body.saldo_actual)).toBe(0);
+      expect(saldo.body.movimientos).toHaveLength(0);
+    });
+
+    it("rechaza saldo_inicial negativo → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente Negativo"), saldo_inicial: -1 });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("no se puede reescribir el saldo inicial por PATCH → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/clientes/${clienteAperturaId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ saldo_inicial: 99999 });
+
+      // forbidNonWhitelisted: la apertura no se corrige, se abona.
+      expect(res.status).toBe(400);
+    });
+
+    it("el estado de cuenta cuadra: inicial + abonos − consumos = final → 200", async () => {
+      await request(app.getHttpServer())
+        .post("/api/v1/saldos/abonos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          cliente_id: clienteAperturaId,
+          gasolinera_id: gasolineraId,
+          monto: "1500.000",
+          descripcion: "Abono E2E",
+        });
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteAperturaId}/estado-cuenta`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const inicial = parseFloat(res.body.saldo_inicial);
+      const abonos = parseFloat(res.body.total_abonos);
+      const debitos = parseFloat(res.body.total_debitos);
+      const final = parseFloat(res.body.saldo_final);
+
+      expect(inicial + abonos - debitos).toBeCloseTo(final, 3);
+      // Sin fecha_desde todo el histórico cae dentro del rango, así que el
+      // arrastre inicial es cero y la apertura cuenta como abono del período.
+      expect(inicial).toBe(0);
+      expect(abonos).toBeCloseTo(SALDO_INICIAL + 1500, 3);
+      expect(final).toBeCloseTo(SALDO_INICIAL + 1500, 3);
+    });
+
+    it("con fecha_desde futura, todo el histórico se resume en el saldo inicial → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(
+          `/api/v1/saldos/cliente/${clienteAperturaId}/estado-cuenta?fecha_desde=2099-01-01`,
+        )
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(parseFloat(res.body.saldo_inicial)).toBeCloseTo(
+        SALDO_INICIAL + 1500,
+        3,
+      );
+      expect(res.body.movimientos).toHaveLength(0);
+      expect(parseFloat(res.body.saldo_final)).toBeCloseTo(
+        SALDO_INICIAL + 1500,
+        3,
+      );
+    });
+
+    // Puppeteer está mockeado (ver test/__mocks__/puppeteer.js): esto verifica
+    // el cableado, las cabeceras y el endurecimiento del renderer, no que el
+    // HTML se dibuje bien. Eso último se comprueba a ojo.
+    it("el estado de cuenta en PDF → 200 application/pdf", async () => {
+      puppeteerMock.__limpiarPaginas();
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteAperturaId}/estado-cuenta/pdf`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .buffer()
+        .parse((res, cb) => {
+          const trozos: Buffer[] = [];
+          res.on("data", (c: Buffer) => trozos.push(c));
+          res.on("end", () => cb(null, Buffer.concat(trozos)));
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("application/pdf");
+      // %PDF-: si el buffer no arranca así, no es un PDF.
+      expect((res.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
+
+      // El HTML lleva texto de la base (nombre del cliente, descripción del
+      // movimiento), así que el renderer va con JS apagado y sin salida de red.
+      // Se afirma acá para que quitar esas protecciones rompa un test.
+      const [pagina] = puppeteerMock.__paginas;
+      expect(pagina.jsHabilitado).toBe(false);
+      expect(pagina.interceptacionActiva).toBe(true);
+      expect(pagina.eventos).toContain("request");
+    }, 60_000);
+
+    it("un supervisor no puede ver el estado de cuenta → 403", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteAperturaId}/estado-cuenta`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it("suspender el crédito bloquea el despacho pero no la cuenta → 403 y 200", async () => {
+      const bloqueo = await request(app.getHttpServer())
+        .patch(`/api/v1/clientes/${cliente1Id}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ credito_bloqueado: true });
+      expect(bloqueo.status).toBe(200);
+      expect(bloqueo.body.credito_bloqueado).toBe(true);
+
+      const despacho = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: cliente1Id,
+          operario_id: operarioId,
+          vehiculo_id: vehiculo1Id,
+          piloto_id: piloto1Id,
+          tipo_combustible: "diesel",
+          turno: "manana",
+          monto: "285.000",
+        });
+      expect(despacho.status).toBe(403);
+      expect(despacho.body.message).toContain("Crédito suspendido");
+
+      // La cuenta sigue viva: se puede consultar y abonar. Ése es justo el
+      // punto de tener un flag separado de `bloqueado`.
+      const saldo = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${cliente1Id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(saldo.status).toBe(200);
+    });
+
+    it("el diagnóstico del vehículo expone el crédito suspendido → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/vehiculo/${vehiculo1Id}/consumo-hoy`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.cliente_credito_bloqueado).toBe(true);
+      // Bloqueo de crédito no es bloqueo de cuenta.
+      expect(res.body.cliente_bloqueado).toBe(false);
+    });
+
+    it("levantar la suspensión vuelve a permitir despachar → 201", async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/clientes/${cliente1Id}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ credito_bloqueado: false });
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: cliente1Id,
+          operario_id: operarioId,
+          vehiculo_id: vehiculo1Id,
+          piloto_id: piloto1Id,
+          tipo_combustible: "diesel",
+          turno: "manana",
+          monto: "285.000",
+        });
+
+      expect(res.status).toBe(201);
     });
   });
 

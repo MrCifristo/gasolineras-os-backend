@@ -37,6 +37,25 @@ export class CreateClienteDto {
   @IsBoolean()
   bloqueado?: boolean;
 
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      "Corta sólo el consumo a crédito. Distinto de `bloqueado`, que suspende la cuenta entera.",
+  })
+  @IsOptional()
+  @IsBoolean()
+  credito_bloqueado?: boolean;
+
+  @ApiPropertyOptional({
+    example: 5000,
+    description:
+      "Saldo de apertura. No es una columna: genera un movimiento de crédito sin gasolinera.",
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  saldo_inicial?: number;
+
   // Límites de cuenta
   @ApiPropertyOptional({ example: 5000 })
   @IsOptional()

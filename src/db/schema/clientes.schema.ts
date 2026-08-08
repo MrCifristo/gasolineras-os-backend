@@ -15,6 +15,11 @@ export const clientes = pgTable("clientes", {
   contacto_email: varchar("contacto_email"),
   activo: boolean("activo").default(true),
   bloqueado: boolean("bloqueado").notNull().default(false),
+  // Distinto de `bloqueado`: aquél es una suspensión operativa completa (la
+  // pide el propio cliente); éste corta sólo el consumo a crédito, por mora o
+  // por decisión administrativa. Un cliente con crédito suspendido sigue
+  // existiendo, consultando su estado de cuenta y recibiendo abonos.
+  credito_bloqueado: boolean("credito_bloqueado").notNull().default(false),
   limite_monto_dia: decimal("limite_monto_dia", { precision: 10, scale: 2 }),
   limite_monto_semana: decimal("limite_monto_semana", {
     precision: 10,

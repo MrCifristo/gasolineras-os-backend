@@ -260,6 +260,14 @@ export class DespachosService {
     if (clienteRow.bloqueado) {
       throw new ForbiddenException("Cuenta bloqueada por el cliente");
     }
+    // Va después del bloqueo de cuenta y con mensaje propio: al supervisor en la
+    // bomba le sirve saber si el cliente suspendió su cuenta o si es la
+    // estación la que le cortó el crédito, porque el siguiente paso es distinto.
+    if (clienteRow.credito_bloqueado) {
+      throw new ForbiddenException(
+        "Crédito suspendido — consulte con administración",
+      );
+    }
 
     // ── Restricciones del vehículo ──────────────────────────────────
     const [v] = await this.db.db
@@ -618,6 +626,7 @@ export class DespachosService {
 
     // Cliente
     let cliente_bloqueado = false;
+    let cliente_credito_bloqueado = false;
     let clienteLimites = {
       dia: null as number | null,
       semana: null as number | null,
@@ -634,6 +643,7 @@ export class DespachosService {
 
     if (cliRow) {
       cliente_bloqueado = cliRow.bloqueado ?? false;
+      cliente_credito_bloqueado = cliRow.credito_bloqueado ?? false;
       clienteLimites = {
         dia: n(cliRow.limite_monto_dia),
         semana: n(cliRow.limite_monto_semana),
@@ -694,6 +704,7 @@ export class DespachosService {
       sistema_bloqueado: sysConfig?.sistema_bloqueado ?? false,
       gasolinera_bloqueado,
       cliente_bloqueado,
+      cliente_credito_bloqueado,
       cliente_limites: clienteLimites,
       cliente_consumo: clienteConsumo,
       bloqueado: v.bloqueado ?? false,
