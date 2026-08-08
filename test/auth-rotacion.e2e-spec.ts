@@ -45,7 +45,7 @@ describe("Auth — rotación y ciclo de vida de sesiones", () => {
   const login = () =>
     request(app.getHttpServer())
       .post("/api/v1/auth/login")
-      .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+      .send({ identificador: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 
   const refresh = (token: string) =>
     request(app.getHttpServer())

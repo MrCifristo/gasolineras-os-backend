@@ -60,7 +60,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
   // ── Tokens por rol ────────────────────────────────────────────────────────
   let adminToken: string;
-  let operarioToken: string;
+  let supervisorToken: string;
   let clienteUserToken: string;
 
   // ── IDs de entidades creadas (compartidos entre bloques) ──────────────────
@@ -72,6 +72,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   let piloto2Id: string;
   let precioRegularId: string;
   let precioSuperiorId: string;
+  let operarioId: string;
   let despacho1Id: string;
   let despacho2Id: string;
   let saldosCuadreId: string;
@@ -130,12 +131,12 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   }, 30_000);
 
   afterAll(async () => {
-    // El operario de prueba queda referenciado por los despachos que creó, así
+    // El supervisor de prueba queda referenciado por los despachos que creó, así
     // que un delete duro violaría el FK. Se desactivan (no chocan con corridas
     // futuras porque el email lleva el RUN_ID) y la limpieza no tumba la suite.
     try {
       for (const email of [
-        `operario.${RUN_ID}@gasfuel-e2e.test`,
+        `supervisor.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.propio.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.ajeno.${RUN_ID}@gasfuel-e2e.test`,
@@ -160,7 +161,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     it("rechaza login con credenciales incorrectas → 401", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
-        .send({ email: "noexiste@test.com", password: "WrongPass123" });
+        .send({ identificador: "noexiste@test.com", password: "WrongPass123" });
 
       expect(res.status).toBe(401);
       expect(res.body.message).toBeDefined();
@@ -174,7 +175,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     it("admin hace login y obtiene access_token + datos del usuario → 200", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
-        .send({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+        .send({ identificador: ADMIN_EMAIL, password: ADMIN_PASSWORD });
 
       expect(res.status).toBe(200);
       expect(res.body.access_token).toBeDefined();
@@ -250,30 +251,30 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`)
         .send({
           nombre: tag("Operario López"),
-          email: `operario.${RUN_ID}@gasfuel-e2e.test`,
+          email: `supervisor.${RUN_ID}@gasfuel-e2e.test`,
           password: TEST_PASSWORD,
-          rol: "operario",
+          rol: "supervisor",
           gasolinera_id: gasolineraId,
         });
 
       expect(res.status).toBe(201);
-      expect(res.body.rol).toBe("operario");
+      expect(res.body.rol).toBe("supervisor");
       expect(res.body.gasolinera_id).toBe(gasolineraId);
       // El hash nunca debe salir en la respuesta.
       expect(res.body.password_hash).toBeUndefined();
     });
 
-    it("operario puede hacer login con sus credenciales → 200", async () => {
+    it("supervisor puede hacer login con sus credenciales → 200", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
-          email: `operario.${RUN_ID}@gasfuel-e2e.test`,
+          identificador: `supervisor.${RUN_ID}@gasfuel-e2e.test`,
           password: TEST_PASSWORD,
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.usuario.rol).toBe("operario");
-      operarioToken = res.body.access_token;
+      expect(res.body.usuario.rol).toBe("supervisor");
+      supervisorToken = res.body.access_token;
     });
 
     it("admin crea usuario CLIENTE → 201", async () => {
@@ -296,7 +297,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/auth/login")
         .send({
-          email: `cliente.${RUN_ID}@gasfuel-e2e.test`,
+          identificador: `cliente.${RUN_ID}@gasfuel-e2e.test`,
           password: TEST_PASSWORD,
         });
 
@@ -315,10 +316,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.length).toBeGreaterThanOrEqual(2);
     });
 
-    it("operario no puede listar usuarios (solo admin) → 403", async () => {
+    it("supervisor no puede listar usuarios (solo admin) → 403", async () => {
       const res = await request(app.getHttpServer())
         .get("/api/v1/usuarios")
-        .set("Authorization", `Bearer ${operarioToken}`);
+        .set("Authorization", `Bearer ${supervisorToken}`);
 
       expect(res.status).toBe(403);
     });
@@ -561,10 +562,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       precioSuperiorId = res.body.id;
     });
 
-    it("operario consulta precio del día de su gasolinera → 200", async () => {
+    it("supervisor consulta precio del día de su gasolinera → 200", async () => {
       const res = await request(app.getHttpServer())
         .get("/api/v1/precios-combustible/hoy")
-        .set("Authorization", `Bearer ${operarioToken}`);
+        .set("Authorization", `Bearer ${supervisorToken}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
@@ -593,12 +594,30 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   // ════════════════════════════════════════════════════════════════════════
 
   describe("8. Despachos de Combustible", () => {
-    it("operario despacha diesel al vehículo 1 (camión) → 201", async () => {
+    // El operario es el personal de bomba, no una cuenta: el supervisor lo
+    // elige al registrar el vale. Todo despacho necesita uno.
+    it("admin crea el operario que despacha en la bomba → 201", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/operarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          gasolinera_id: gasolineraId,
+          nombre: tag("Operario Bomba"),
+          codigo: `OP-${RUN_ID}`,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.activo).toBe(true);
+      operarioId = res.body.id;
+    });
+
+    it("supervisor despacha diesel al vehículo 1 (camión) → 201", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/despachos")
-        .set("Authorization", `Bearer ${operarioToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
           cliente_id: cliente1Id,
+          operario_id: operarioId,
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "diesel",
@@ -617,12 +636,13 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       despacho1Id = res.body.id;
     });
 
-    it("operario despacha super al vehículo 2 (pick-up) → 201", async () => {
+    it("supervisor despacha super al vehículo 2 (pick-up) → 201", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/despachos")
-        .set("Authorization", `Bearer ${operarioToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
           cliente_id: cliente1Id,
+          operario_id: operarioId,
           vehiculo_id: vehiculo2Id,
           piloto_id: piloto2Id,
           tipo_combustible: "super",
@@ -657,9 +677,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     it("rechaza despacho de combustible sin precio registrado hoy → 400", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/despachos")
-        .set("Authorization", `Bearer ${operarioToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
           cliente_id: cliente1Id,
+          operario_id: operarioId,
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "regular", // sin precio registrado para este tipo
@@ -676,6 +697,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${clienteUserToken}`)
         .send({
           cliente_id: cliente1Id,
+          operario_id: operarioId,
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "diesel",
@@ -686,7 +708,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(403);
     });
 
-    it("operario actualiza kilometraje del despacho → 200", async () => {
+    it("supervisor actualiza kilometraje del despacho → 200", async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/despachos/${despacho1Id}`)
         .set("Authorization", `Bearer ${adminToken}`)
@@ -771,13 +793,13 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body[0].id).toBe(despacho2Id);
     });
 
-    it("operario solo ve despachos de su gasolinera → 200", async () => {
+    it("supervisor solo ve despachos de su gasolinera → 200", async () => {
       const res = await request(app.getHttpServer())
         .get("/api/v1/despachos")
-        .set("Authorization", `Bearer ${operarioToken}`);
+        .set("Authorization", `Bearer ${supervisorToken}`);
 
       expect(res.status).toBe(200);
-      // Todos los despachos deben ser de la gasolinera del operario
+      // Todos los despachos deben ser de la gasolinera del supervisor
       expect(res.body.every((d: any) => d.gasolinera_id === gasolineraId)).toBe(
         true,
       );
@@ -962,23 +984,23 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(403);
     });
 
-    it("operario no puede crear usuarios → 403", async () => {
+    it("supervisor no puede crear usuarios → 403", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/usuarios")
-        .set("Authorization", `Bearer ${operarioToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
           nombre: "x",
           email: "x@x.com",
           password: "Password1!",
-          rol: "operario",
+          rol: "supervisor",
         });
       expect(res.status).toBe(403);
     });
 
-    it("operario no puede eliminar gasolineras → 403", async () => {
+    it("supervisor no puede eliminar gasolineras → 403", async () => {
       const res = await request(app.getHttpServer())
         .delete(`/api/v1/gasolineras/${gasolineraId}`)
-        .set("Authorization", `Bearer ${operarioToken}`);
+        .set("Authorization", `Bearer ${supervisorToken}`);
       expect(res.status).toBe(403);
     });
 
@@ -1063,7 +1085,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       });
     const login = await request(app.getHttpServer())
       .post("/api/v1/auth/login")
-      .send({ email, password: TEST_PASSWORD });
+      .send({ identificador: email, password: TEST_PASSWORD });
     return login.body.access_token;
   }
 
@@ -1092,9 +1114,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       const res = await request(app.getHttpServer())
         .post("/api/v1/despachos")
-        .set("Authorization", `Bearer ${operarioToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
           cliente_id: cliente1Id,
+          operario_id: operarioId,
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "diesel",
@@ -1110,9 +1133,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     it("crea un despacho con firma → 201 y persiste firma_key", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/despachos")
-        .set("Authorization", `Bearer ${operarioToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
           cliente_id: cliente1Id,
+          operario_id: operarioId,
           vehiculo_id: vehiculo1Id,
           piloto_id: piloto1Id,
           tipo_combustible: "diesel",
@@ -1318,10 +1342,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(400);
     });
 
-    it("operario no puede acceder a saldos → 403", async () => {
+    it("supervisor no puede acceder a saldos → 403", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/saldos/cliente/${cliente1Id}`)
-        .set("Authorization", `Bearer ${operarioToken}`);
+        .set("Authorization", `Bearer ${supervisorToken}`);
 
       expect(res.status).toBe(403);
     });
