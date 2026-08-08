@@ -112,7 +112,7 @@ export class DespachosService {
     const offset = (page - 1) * limit;
     const conditions: any[] = [];
 
-    if (user.rol === "operario")
+    if (user.rol === "supervisor")
       conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
     if (user.rol === "cliente")
       conditions.push(eq(despachos.cliente_id, user.cliente_id));
@@ -162,7 +162,7 @@ export class DespachosService {
     // Falla cerrado: un operario/cliente sin su id de alcance no ve nada, en vez
     // de saltarse el filtro y verlo todo.
     const conditions = [eq(despachos.id, id)];
-    if (user.rol === "operario") {
+    if (user.rol === "supervisor") {
       if (!user.gasolinera_id) {
         throw new ForbiddenException("Operario sin gasolinera asignada");
       }
@@ -217,8 +217,8 @@ export class DespachosService {
   }
 
   async create(dto: CreateDespachoDto, user: any) {
-    if (user.rol !== "operario" && user.rol !== "admin") {
-      throw new ForbiddenException("Solo operarios pueden crear despachos");
+    if (user.rol !== "supervisor" && user.rol !== "admin") {
+      throw new ForbiddenException("Solo supervisores pueden crear despachos");
     }
 
     // ── 1. Bloqueo global del sistema ───────────────────────────────────
@@ -525,6 +525,7 @@ export class DespachosService {
             vehiculo_id: dto.vehiculo_id,
             piloto_id: dto.piloto_id,
             despachador_id: user.id,
+            operario_id: dto.operario_id,
             precio_id: precioRow.id,
             numero_vale: numeroVale,
             serie_vale: serieVale,

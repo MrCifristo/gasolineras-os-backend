@@ -32,7 +32,7 @@ export class DespachosExcelService {
   private async fetchRows(filters: DespachoFilters, user: any) {
     const conditions: any[] = [];
 
-    if (user.rol === "operario")
+    if (user.rol === "supervisor")
       conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
     if (user.rol === "cliente")
       conditions.push(eq(despachos.cliente_id, user.cliente_id));

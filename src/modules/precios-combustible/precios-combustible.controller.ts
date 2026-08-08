@@ -26,7 +26,7 @@ export class PreciosCombustibleController {
   constructor(private readonly service: PreciosCombustibleService) {}
 
   @Get()
-  @Auth("admin", "operario")
+  @Auth("admin", "supervisor")
   @ApiOperation({
     summary: "Listar precios, filtrable por gasolinera_id y fecha",
   })
@@ -40,7 +40,7 @@ export class PreciosCombustibleController {
   }
 
   @Get("hoy")
-  @Auth("admin", "operario")
+  @Auth("admin", "supervisor")
   @ApiOperation({
     summary: "Precios de hoy para la gasolinera del operario autenticado",
   })
@@ -49,14 +49,14 @@ export class PreciosCombustibleController {
   }
 
   @Post()
-  @Auth("admin")
+  @Auth("admin", "jefe_pista")
   @ApiOperation({ summary: "Registrar precio del día" })
   create(@Body() dto: CreatePrecioDto) {
     return this.service.create(dto);
   }
 
   @Patch(":id")
-  @Auth("admin")
+  @Auth("admin", "jefe_pista")
   @ApiOperation({ summary: "Corregir precio" })
   update(@Param("id") id: string, @Body() dto: UpdatePrecioDto) {
     return this.service.update(id, dto);

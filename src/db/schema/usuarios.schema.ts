@@ -9,14 +9,17 @@ import {
 import { gasolineras } from "./gasolineras.schema";
 import { clientes } from "./clientes.schema";
 
-export const ROLES = ["admin", "operario", "cliente"] as const;
+export const ROLES = ["admin", "supervisor", "cliente", "jefe_pista"] as const;
 export const rolEnum = pgEnum("rol", ROLES);
 
 export const usuarios = pgTable("usuarios", {
   id: uuid("id").primaryKey().defaultRandom(),
   gasolinera_id: uuid("gasolinera_id").references(() => gasolineras.id),
   cliente_id: uuid("cliente_id").references(() => clientes.id),
-  email: varchar("email").unique().notNull(),
+  // email o telefono: al menos uno debe existir (CHECK en la migración). unique
+  // permite múltiples NULL, así que un cliente sin correo no choca con otro.
+  email: varchar("email").unique(),
+  telefono: varchar("telefono").unique(),
   nombre: varchar("nombre").notNull(),
   // argon2id ronda los 95-100 caracteres.
   password_hash: varchar("password_hash", { length: 255 }).notNull(),

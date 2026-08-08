@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { usuarios } from "../db/schema";
 import { LoginDto } from "./dto/login.dto";
@@ -15,7 +15,8 @@ export interface RespuestaAuth {
   expires_in: number;
   usuario: {
     id: string;
-    email: string;
+    email: string | null;
+    telefono: string | null;
     nombre: string;
     rol: Usuario["rol"];
     gasolinera_id: string | null;
@@ -36,6 +37,7 @@ export class AuthService {
     return {
       id: u.id,
       email: u.email,
+      telefono: u.telefono,
       nombre: u.nombre,
       rol: u.rol,
       gasolinera_id: u.gasolinera_id,
@@ -49,14 +51,27 @@ export class AuthService {
    * credenciales ambientales y queda estructuralmente inmune a CSRF.
    */
   async login(dto: LoginDto, meta: MetaSesion = {}): Promise<RespuestaAuth> {
+    // El identificador puede ser correo o teléfono. Sólo bajamos a minúsculas
+    // cuando parece un correo; los teléfonos se comparan tal cual.
+    const identificador = dto.identificador.trim();
+    const esCorreo = identificador.includes("@");
+    const idNormalizado = esCorreo
+      ? identificador.toLowerCase()
+      : identificador;
+
     const [usuario] = await this.db.db
       .select()
       .from(usuarios)
-      .where(eq(usuarios.email, dto.email.toLowerCase()))
+      .where(
+        or(
+          eq(usuarios.email, idNormalizado),
+          eq(usuarios.telefono, idNormalizado),
+        ),
+      )
       .limit(1);
 
     // Se hashea aunque el usuario no exista, para que el tiempo de respuesta
-    // no delate qué correos están registrados.
+    // no delate qué correos/teléfonos están registrados.
     const hashComparable = usuario?.password_hash ?? (await this.hashSenuelo());
     const coincide = await this.passwords.verificar(
       hashComparable,

@@ -7,6 +7,7 @@ import { GasolinerasModule } from "./modules/gasolineras/gasolineras.module";
 import { ClientesModule } from "./modules/clientes/clientes.module";
 import { VehiculosModule } from "./modules/vehiculos/vehiculos.module";
 import { PilotosModule } from "./modules/pilotos/pilotos.module";
+import { OperariosModule } from "./modules/operarios/operarios.module";
 import { PreciosCombustibleModule } from "./modules/precios-combustible/precios-combustible.module";
 import { DespachosModule } from "./modules/despachos/despachos.module";
 import { ReportesModule } from "./modules/reportes/reportes.module";
@@ -24,6 +25,7 @@ import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/conf
     ClientesModule,
     VehiculosModule,
     PilotosModule,
+    OperariosModule,
     PreciosCombustibleModule,
     DespachosModule,
     ReportesModule,

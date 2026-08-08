@@ -37,6 +37,13 @@ export class CreateDespachoDto {
   @IsUUID()
   piloto_id: string;
 
+  @ApiProperty({
+    example: "uuid-del-operario",
+    description: "Operario que físicamente despacha, elegido del listado",
+  })
+  @IsUUID()
+  operario_id: string;
+
   @ApiProperty({ enum: Turno, example: Turno.MANANA })
   @IsEnum(Turno)
   turno: Turno;

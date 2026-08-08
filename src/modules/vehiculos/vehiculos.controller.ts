@@ -26,7 +26,7 @@ export class VehiculosController {
   constructor(private readonly service: VehiculosService) {}
 
   @Get()
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({
     summary: "Listar vehículos, filtrable por cliente_id y activo",
   })
@@ -43,7 +43,7 @@ export class VehiculosController {
   }
 
   @Get(":id")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener vehículo por ID" })
   findOne(@Param("id") id: string) {
     return this.service.findOne(id);

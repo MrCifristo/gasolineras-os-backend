@@ -20,14 +20,14 @@ export class ClientesController {
   constructor(private readonly service: ClientesService) {}
 
   @Get()
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar clientes activos" })
   findAll() {
     return this.service.findAll();
   }
 
   @Get(":id")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener cliente con sus vehículos y pilotos" })
   findOne(@Param("id") id: string) {
     return this.service.findOne(id);

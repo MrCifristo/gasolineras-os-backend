@@ -32,7 +32,7 @@ export class DespachosController {
   ) {}
 
   @Get()
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar despachos con filtros y paginación" })
   @ApiQuery({ name: "gasolinera_id", required: false })
   @ApiQuery({ name: "cliente_id", required: false })
@@ -79,7 +79,7 @@ export class DespachosController {
   }
 
   @Get("export/xlsx")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({
     summary:
       "Exportar despachos a Excel (.xlsx) con los mismos filtros del listado",
@@ -133,7 +133,7 @@ export class DespachosController {
   }
 
   @Get("vehiculo/:vehiculoId/consumo-hoy")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({
     summary:
       "Estado completo de un vehículo para despacho (sistema, gasolinera, cliente, vehículo, horario)",
@@ -149,7 +149,7 @@ export class DespachosController {
   }
 
   @Get(":id/firma")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({
     summary: "Firma del piloto (PNG, proxy desde R2 con scoping)",
   })
@@ -166,14 +166,14 @@ export class DespachosController {
   }
 
   @Get(":id")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener despacho completo con joins" })
   findOne(@Param("id") id: string, @Request() req: any) {
     return this.service.findOne(id, req.user);
   }
 
   @Post()
-  @Auth("admin", "operario")
+  @Auth("admin", "supervisor")
   @ApiOperation({
     summary: "Crear despacho (transacción: precio → monto → vale → saldo)",
   })

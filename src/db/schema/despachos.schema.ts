@@ -12,6 +12,7 @@ import { clientes } from "./clientes.schema";
 import { vehiculos } from "./vehiculos.schema";
 import { pilotos } from "./pilotos.schema";
 import { usuarios } from "./usuarios.schema";
+import { operarios } from "./operarios.schema";
 import { preciosCombustible } from "./precios-combustible.schema";
 
 export const despachos = pgTable(
@@ -30,9 +31,13 @@ export const despachos = pgTable(
     piloto_id: uuid("piloto_id")
       .notNull()
       .references(() => pilotos.id),
+    // Quién inició sesión y registró el vale (supervisor/admin).
     despachador_id: uuid("despachador_id")
       .notNull()
       .references(() => usuarios.id),
+    // Quién físicamente despachó, elegido de un listado. Nullable para migrar
+    // vales anteriores a la separación supervisor/operario.
+    operario_id: uuid("operario_id").references(() => operarios.id),
     precio_id: uuid("precio_id")
       .notNull()
       .references(() => preciosCombustible.id),

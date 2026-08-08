@@ -16,6 +16,7 @@ import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
 const CAMPOS_PUBLICOS = {
   id: usuarios.id,
   email: usuarios.email,
+  telefono: usuarios.telefono,
   nombre: usuarios.nombre,
   rol: usuarios.rol,
   gasolinera_id: usuarios.gasolinera_id,
@@ -50,19 +51,41 @@ export class UsuariosService {
 
   async create(dto: CreateUsuarioDto) {
     const { password, ...datos } = dto;
-    const email = datos.email.toLowerCase();
 
-    const [existente] = await this.db.db
-      .select({ id: usuarios.id })
-      .from(usuarios)
-      .where(eq(usuarios.email, email))
-      .limit(1);
-    if (existente) throw new BadRequestException("El email ya está registrado");
+    // El correo es opcional: un cliente puede tener sólo teléfono. Se exige al
+    // menos uno de los dos como identificador de acceso.
+    const email = datos.email ? datos.email.toLowerCase() : null;
+    const telefono = datos.telefono ? datos.telefono.trim() : null;
+    if (!email && !telefono) {
+      throw new BadRequestException(
+        "Debe indicar un correo o un número de teléfono",
+      );
+    }
+
+    if (email) {
+      const [existente] = await this.db.db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(eq(usuarios.email, email))
+        .limit(1);
+      if (existente)
+        throw new BadRequestException("El email ya está registrado");
+    }
+    if (telefono) {
+      const [existente] = await this.db.db
+        .select({ id: usuarios.id })
+        .from(usuarios)
+        .where(eq(usuarios.telefono, telefono))
+        .limit(1);
+      if (existente)
+        throw new BadRequestException("El teléfono ya está registrado");
+    }
 
     const [row] = await this.db.db
       .insert(usuarios)
       .values({
         email,
+        telefono,
         nombre: datos.nombre,
         password_hash: await this.passwords.hashear(password),
         rol: datos.rol,
@@ -80,6 +103,7 @@ export class UsuariosService {
 
     const cambios: Partial<typeof usuarios.$inferInsert> = { ...resto };
     if (resto.email) cambios.email = resto.email.toLowerCase();
+    if (resto.telefono) cambios.telefono = resto.telefono.trim();
 
     if (password) {
       cambios.password_hash = await this.passwords.hashear(password);

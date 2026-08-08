@@ -7,11 +7,12 @@ import type { Role } from "./roles.decorator";
 
 type Usuario = typeof usuarios.$inferSelect;
 
-/** El operario vive en una tablet en la bomba: no debe reloguear a media jornada. */
+/** El supervisor vive en una tablet en la bomba: no debe reloguear a media jornada. */
 const REFRESH_TTL_DIAS: Record<Role, number> = {
-  operario: 30,
+  supervisor: 30,
   admin: 7,
   cliente: 7,
+  jefe_pista: 7,
 };
 
 /**
@@ -19,9 +20,10 @@ const REFRESH_TTL_DIAS: Record<Role, number> = {
  * techo una familia activa se renovaría para siempre y una robada también.
  */
 const FAMILIA_TTL_DIAS: Record<Role, number> = {
-  operario: 90,
+  supervisor: 90,
   admin: 30,
   cliente: 30,
+  jefe_pista: 30,
 };
 
 const dias = (n: number) => n * 24 * 60 * 60 * 1000;

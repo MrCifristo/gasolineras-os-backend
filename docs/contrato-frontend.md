@@ -15,22 +15,31 @@ Cada punto de abajo era una divergencia real y verificada entre los dos lados. N
 
 **Decisión:**
 
-`POST /api/v1/auth/login` devuelve los tokens **en el body**, no como `Set-Cookie`:
+`POST /api/v1/auth/login` recibe **`identificador`** (correo **o** teléfono) + `password`
+—ya no `email`— y devuelve los tokens **en el body**, no como `Set-Cookie`:
 
 ```jsonc
+// body: { "identificador": "correo o teléfono", "password": "..." }
 {
   "access_token": "<jwt>",     // 15 min
-  "refresh_token": "<opaco>",  // 30d operario, 7d admin/cliente
+  "refresh_token": "<opaco>",  // 30d supervisor, 7d admin/cliente/jefe_pista
   "usuario": {                 // "usuario", NO "user"
     "id": "uuid",
-    "email": "...",
+    "email": "... | null",     // email OPCIONAL: un usuario puede tener sólo teléfono
+    "telefono": "... | null",
     "nombre": "...",
-    "rol": "admin" | "operario" | "cliente",
+    "rol": "admin" | "supervisor" | "cliente" | "jefe_pista",
     "gasolinera_id": "uuid | null",
     "cliente_id": "uuid | null"
   }
 }
 ```
+
+> **Roles renombrados/añadidos:** `operario` → **`supervisor`** (el que inicia sesión en la
+> tablet). Nuevo **`jefe_pista`** (sólo cambia precios de ambas gasolineras). El operario que
+> físicamente despacha ya no es una cuenta: es una fila de `operarios` (sin login) que el
+> supervisor elige de un listado. Ver `POST /api/v1/despachos.operario_id` (§2) y
+> `GET /api/v1/operarios?gasolinera_id=`.
 
 El backend es una **API bearer pura** y JWT estándar. El navegador la consume **directo** (no hay BFF ni proxy intermedio): el frontend guarda `access_token`/`refresh_token` de la respuesta y los manda como `Authorization: Bearer` en cada request (`src/lib/api/http.ts`). `AuthGuard` valida ese Bearer.
 
@@ -56,9 +65,10 @@ El precio autoritativo vive en el servidor. El frontend nunca calcula dinero.
   "cliente_id": "uuid",
   "vehiculo_id": "uuid",
   "piloto_id": "uuid",
+  "operario_id": "uuid",     // ← operario elegido del listado (NO el supervisor logueado)
   "turno": "manana" | "tarde",
   "tipo_combustible": "diesel" | "super" | "regular" | "gas_lp",
-  "monto": "1552.05",        // ← lo que teclea el operario
+  "monto": "1552.05",        // ← lo que teclea el supervisor
   "bomba_numero": 3,         // opcional
   "kilometraje": "187420",   // opcional
   "firma_piloto_base64": "data:image/png;base64,..."

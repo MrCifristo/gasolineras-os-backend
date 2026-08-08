@@ -1,90 +1,61 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code / developers working in the GasFuel OS backend
+(package `gasfuel-backend`). NestJS 11 + Drizzle ORM over `node-postgres`.
 
-## Project Overview
+## Project
 
-GasFuel OS backend — a NestJS REST API for managing fuel dispatch operations at gas stations. It handles fuel vouchers (despachos), customer balance ledgers, pilots, vehicles, and generates Excel/PDF reports.
+Fuel dispatch REST API for gas stations: fuel vouchers (`despachos`), customer
+prepaid balance ledgers, pilots (`pilotos`), vehicles, and Excel/PDF reports.
+**Domain language is Spanish throughout** — schema columns, DTOs, routes, and
+user-facing error strings. Keep it that way; do not anglicize identifiers.
 
-## Commands
+Setup: `pnpm setup` (env + docker postgres + migrations), then
+`pnpm bootstrap:admin` (a **separate** step, not part of setup). The real
+integration suite is `pnpm test:e2e:gasfuel` (needs live Postgres + `.env`).
+**`docs/contrato-frontend.md` is the binding frontend/backend contract** — read
+it before changing anything at the API seam.
 
-```bash
-# First-time setup (installs deps, starts Docker Postgres, runs migrations)
-pnpm setup
+## Conventions that bite
 
-# Development
-pnpm dev                    # watch mode
-pnpm start:prod             # production
+- **All queries go through `DbService.db`**, assigned in `onModuleInit`
+  (undefined at construction — never touch it from a constructor). `DbModule`
+  is `@Global()`, so feature modules do **not** import it.
+- **Guards are opt-in per route, never global.** `@Auth(...roles)` = `AuthGuard`
+  + `RolesGuard`; `RolesGuard` with no `@Roles` metadata returns `true`, so bare
+  `@Auth()` means "any authenticated role". Role scoping (`operario` →
+  `gasolinera_id`, `cliente` → `cliente_id`) is enforced **ad-hoc inside
+  services**, not by a guard — so `findOne(id)` must scope by hand or it IDORs.
+- **Auth is internal (not Supabase).** Argon2id password hashing (`@node-rs/argon2`)
+  + HS256 access JWT the app signs itself (15 min) + opaque rotating refresh
+  tokens with reuse-detection (a replayed refresh revokes the whole session
+  family). Login returns `{access_token, refresh_token, usuario}` in the body.
+  Signatures upload to Cloudflare R2 (S3-compatible; MinIO in dev), stored as
+  `firma_key`, read back via the auth-scoped proxy `GET /despachos/:id/firma`.
+- Global prefix `api/v1`; `ValidationPipe` with `whitelist` +
+  `forbidNonWhitelisted`, so unknown body keys **400** rather than being stripped
+  (e2e bootstraps must replicate this pipe config).
+- Soft delete (`activo`) and blocking (`bloqueado`) are separate concepts;
+  `DELETE` routes update, never remove.
+- Raw `sql` templates carry the aggregate/date logic (`FILTER (WHERE …)`,
+  `date_trunc`) rather than doing it in JS.
 
-# Database
-pnpm db:generate            # generate Drizzle migrations from schema changes
-pnpm db:migrate             # apply migrations
-pnpm db:push                # push schema directly (dev only)
-pnpm db:studio              # open Drizzle Studio
+## Dispatch creation — read this first (`despachos.service.ts`)
 
-# Testing
-pnpm test                   # unit tests
-pnpm test:e2e               # all e2e tests (requires running DB)
-pnpm test:e2e:gasfuel       # run gasfuel-specific e2e spec
-pnpm test:cov               # coverage
+The heart of the system. Validation cascades through system → gasolinera →
+cliente → vehículo block levels, then the per-vehicle limit matrix
+(monto/volumen/transacciones × transacción/día/semana/mes), allowed products,
+allowed days, and hour window. Only then a transaction opens with
+`pg_advisory_xact_lock(hashtext(gasolinera_id || ':' || serie_vale))` to
+serialize vale numbering, inserts the despacho, writes the `movimientos_saldo`
+debit, and decrements `saldos_cliente`. Things that surprise people:
 
-# Single unit test file
-pnpm test -- --testPathPattern=clientes
-
-# Lint / format
-pnpm lint
-pnpm format
-
-# Bootstrap first admin user (after DB is migrated)
-pnpm bootstrap:admin
-```
-
-## Environment Variables
-
-Copy `.env.example` to `.env`. Required vars:
-
-| Var | Purpose |
-|-----|---------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key for server-side Supabase Auth calls |
-| `FRONTEND_URL` | CORS allowed origin (default: `http://localhost:3001`) |
-| `PORT` | HTTP port (default: `3000`) |
-
-## Architecture
-
-### Stack
-- **NestJS 11** with `@nestjs/config` (global)
-- **Drizzle ORM** over `node-postgres` (`pg`) — all queries go through `DbService.db`
-- **Supabase Auth** for identity — JWTs are validated server-side by calling `supabase.auth.getUser(token)`; the app never signs its own JWTs
-- **class-validator + class-transformer** for DTO validation (global `ValidationPipe` with `whitelist: true, forbidNonWhitelisted: true`)
-- **Swagger** at `/api/docs`; global prefix `/api/v1`
-
-### Database
-Schema lives in `src/db/schema/` (one file per entity, all re-exported from `index.ts`). Migrations are generated by Drizzle Kit into `./drizzle/`. Docker Compose runs a local Postgres 16 instance.
-
-Key entities and relationships:
-- `gasolineras` → has `usuarios` (operarios), `precios_combustible` (per-day, per-fuel-type), `despachos`
-- `clientes` → have `vehiculos`, `pilotos`, `saldos_cliente` (current balance), `movimientos_saldo` (ledger)
-- `despachos` — the central fact table: links gasolinera + cliente + vehiculo + piloto + precio; creation auto-calculates `monto_total`, debits `saldos_cliente`, and inserts a `movimientos_saldo` row — all inside a DB transaction with a `pg_advisory_xact_lock` to serialize vale numbering per gasolinera+serie
-
-### Auth & Authorization
-- `AuthGuard` validates Bearer token via Supabase, then looks up the local `usuarios` row and attaches it as `request.user`
-- `RolesGuard` checks `request.user.rol` against `@Roles()` metadata
-- `@Auth(...roles)` decorator combines both guards — use on any protected route
-- Three roles: `admin`, `operario`, `cliente`
-- `operario` is scoped to their `gasolinera_id`; `cliente` is scoped to their `cliente_id`; `admin` sees everything
-
-### Module Layout
-Each feature module in `src/modules/<name>/` follows the standard NestJS pattern:
-- `<name>.module.ts` — imports `DbModule`
-- `<name>.controller.ts` — maps HTTP routes, uses `@Auth()` for protection
-- `<name>.service.ts` — business logic, queries via `DbService`
-- `dto/create-<name>.dto.ts` / `dto/update-<name>.dto.ts`
-
-### Export Services
-- `DespachosExcelService` — generates multi-sheet `.xlsx` via ExcelJS (despachos list + summary + applied filters)
-- `ReportesPdfService` — renders PDF via Puppeteer from an HTML template (`html-template.ts` builds the HTML string; charts are passed as base64 image strings from the frontend)
-
-### Swagger
-All controllers are documented with `@ApiTags`, `@ApiBearerAuth('JWT')`, and `@ApiOperation`. The Swagger UI at `/api/docs` is the primary API reference.
+- `monto_total` is computed **before** the transaction, so all pre-lock checks
+  are TOCTOU-racy by design.
+- There is **no insufficient-funds check** — balances go negative on purpose,
+  and an e2e test asserts it.
+- Dispatch create takes `monto` (quetzales); the server derives `galones` from
+  its own price. `serie_vale` comes from `gasolineras.serie_vale_actual`, not
+  the client.
+- All time math hardcodes **UTC-6** for Guatemala (`getGuatemalaTime()`, plus
+  `- INTERVAL '6 hours'` in raw SQL). No DST, no `AT TIME ZONE`.

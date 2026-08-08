@@ -97,8 +97,7 @@ export class VehiculosService {
       if (p.plantilla_trans_mes != null)
         plantilla.limite_trans_mes = p.plantilla_trans_mes;
       if (p.plantilla_productos_permitidos?.length)
-        plantilla.productos_permitidos =
-          p.plantilla_productos_permitidos as string[];
+        plantilla.productos_permitidos = p.plantilla_productos_permitidos;
     }
 
     const merged = { ...plantilla, ...dto };

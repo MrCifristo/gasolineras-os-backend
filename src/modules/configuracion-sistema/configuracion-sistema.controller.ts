@@ -11,7 +11,7 @@ export class ConfiguracionSistemaController {
   constructor(private readonly service: ConfiguracionSistemaService) {}
 
   @Get()
-  @Auth("admin", "operario")
+  @Auth("admin", "supervisor")
   @ApiOperation({ summary: "Leer estado del sistema (bloqueado/activo)" })
   findOne() {
     return this.service.findOne();

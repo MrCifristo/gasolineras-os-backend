@@ -5,6 +5,7 @@ export * from "./pilotos.schema";
 export * from "./pilotos-vehiculos.schema";
 export * from "./precios-combustible.schema";
 export * from "./usuarios.schema";
+export * from "./operarios.schema";
 export * from "./sesiones.schema";
 export * from "./despachos.schema";
 export * from "./saldos-cliente.schema";

@@ -26,7 +26,7 @@ export class PilotosController {
   constructor(private readonly service: PilotosService) {}
 
   @Get()
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar pilotos, filtrable por cliente_id" })
   @ApiQuery({ name: "cliente_id", required: false })
   findAll(@Query("cliente_id") clienteId?: string) {
@@ -34,7 +34,7 @@ export class PilotosController {
   }
 
   @Get(":id")
-  @Auth("admin", "operario", "cliente")
+  @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener piloto con sus vehículos asignados" })
   findOne(@Param("id") id: string) {
     return this.service.findOne(id);
