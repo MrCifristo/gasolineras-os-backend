@@ -3,6 +3,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { AuthController } from "./auth.controller";
 import { AuthGuard } from "./auth.guard";
 import { AuthService } from "./auth.service";
+import { PasswordResetService } from "./password-reset.service";
 import { PasswordService } from "./password.service";
 import { RolesGuard } from "./roles.guard";
 import { SessionService } from "./session.service";
@@ -24,15 +25,18 @@ import { TokenService } from "./token.service";
     RolesGuard,
     AuthService,
     PasswordService,
+    PasswordResetService,
     TokenService,
     SessionService,
   ],
   // PasswordService sale para que usuarios.service hashee con los mismos
-  // parámetros; SessionService, para revocar sesiones al cambiar la contraseña.
+  // parámetros; SessionService, para revocar sesiones al cambiar la contraseña;
+  // PasswordResetService, para que el admin mande el enlace de reset.
   exports: [
     AuthGuard,
     RolesGuard,
     PasswordService,
+    PasswordResetService,
     SessionService,
     TokenService,
   ],

@@ -1,14 +1,17 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { eq } from "drizzle-orm";
+import { PasswordResetService } from "../../auth/password-reset.service";
 import { PasswordService } from "../../auth/password.service";
 import { SessionService } from "../../auth/session.service";
 import { DbService } from "../../db/db.service";
 import { usuarios } from "../../db/schema";
 import { CreateUsuarioDto } from "./dto/create-usuario.dto";
+import { ModoReset } from "./dto/reset-password-admin.dto";
 import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
 
 // El hash nunca sale del servicio: si se filtra en una respuesta, queda
@@ -26,10 +29,13 @@ const CAMPOS_PUBLICOS = {
 
 @Injectable()
 export class UsuariosService {
+  private readonly logger = new Logger("Usuarios");
+
   constructor(
     private readonly db: DbService,
     private readonly passwords: PasswordService,
     private readonly sesiones: SessionService,
+    private readonly reset: PasswordResetService,
   ) {}
 
   findAll() {
@@ -81,20 +87,73 @@ export class UsuariosService {
         throw new BadRequestException("El teléfono ya está registrado");
     }
 
+    // Si el admin no fija una, se genera. En ambos casos el texto plano sale
+    // una única vez en esta respuesta —para que el admin la descargue— y no se
+    // persiste en ningún lado.
+    const passwordTemporal = password ?? this.passwords.generarTemporal();
+
     const [row] = await this.db.db
       .insert(usuarios)
       .values({
         email,
         telefono,
         nombre: datos.nombre,
-        password_hash: await this.passwords.hashear(password),
+        password_hash: await this.passwords.hashear(passwordTemporal),
         rol: datos.rol,
         gasolinera_id: datos.gasolinera_id ?? null,
         cliente_id: datos.cliente_id ?? null,
       })
       .returning(CAMPOS_PUBLICOS);
 
-    return row;
+    // El cliente corporativo recibe el enlace para elegir su propia contraseña.
+    // Fire-and-forget: que el proveedor de correo falle no puede tumbar el alta
+    // del usuario, que ya está creado y con credenciales utilizables.
+    if (row.rol === "cliente" && row.email) {
+      this.reset
+        .enviarEnlace(row)
+        .catch((e: Error) =>
+          this.logger.error(
+            `No se pudo enviar el enlace de alta a ${row.email}`,
+            e,
+          ),
+        );
+    }
+
+    return { ...row, password_temporal: passwordTemporal };
+  }
+
+  /**
+   * Reset iniciado por el admin. "generar" devuelve una contraseña temporal en
+   * la respuesta; "enlace" manda el correo de recuperación y no devuelve nada
+   * que sirva para entrar.
+   */
+  async resetPassword(id: string, modo: ModoReset) {
+    const [usuario] = await this.db.db
+      .select()
+      .from(usuarios)
+      .where(eq(usuarios.id, id))
+      .limit(1);
+    if (!usuario) throw new NotFoundException("Usuario no encontrado");
+
+    if (modo === "enlace") {
+      await this.reset.enviarEnlace(usuario);
+      return { enviado: true };
+    }
+
+    const passwordTemporal = this.passwords.generarTemporal();
+    await this.db.db
+      .update(usuarios)
+      .set({
+        password_hash: await this.passwords.hashear(passwordTemporal),
+        password_actualizado_at: new Date(),
+      })
+      .where(eq(usuarios.id, id));
+
+    // Igual que en update(): la contraseña vieja no puede seguir dando acceso
+    // a través de un refresh token abierto.
+    await this.sesiones.revocarTodasDelUsuario(id);
+
+    return { password_temporal: passwordTemporal };
   }
 
   async update(id: string, dto: UpdateUsuarioDto) {

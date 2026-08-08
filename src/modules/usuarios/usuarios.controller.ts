@@ -10,6 +10,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
 import { CreateUsuarioDto } from "./dto/create-usuario.dto";
+import { ResetPasswordAdminDto } from "./dto/reset-password-admin.dto";
 import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
 import { UsuariosService } from "./usuarios.service";
 
@@ -36,10 +37,21 @@ export class UsuariosController {
   @Post()
   @Auth("admin")
   @ApiOperation({
-    summary: "Crear usuario (hashea la contraseña con argon2)",
+    summary:
+      "Crear usuario. Devuelve `password_temporal` en claro una sola vez; no se persiste.",
   })
   create(@Body() dto: CreateUsuarioDto) {
     return this.service.create(dto);
+  }
+
+  @Post(":id/reset-password")
+  @Auth("admin")
+  @ApiOperation({
+    summary:
+      'Resetear contraseña: "generar" devuelve una temporal, "enlace" manda el correo de recuperación',
+  })
+  resetPassword(@Param("id") id: string, @Body() dto: ResetPasswordAdminDto) {
+    return this.service.resetPassword(id, dto.modo);
   }
 
   @Patch(":id")

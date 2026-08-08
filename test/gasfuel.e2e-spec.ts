@@ -26,6 +26,8 @@ import { DbService } from "../src/db/db.service";
 import { PasswordService } from "../src/auth/password.service";
 import { StorageService } from "../src/storage/storage.service";
 import { InMemoryStorageService } from "../src/storage/in-memory-storage.service";
+import { MailService } from "../src/mail/mail.service";
+import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { usuarios } from "../src/db/schema";
 
 dotenv.config();
@@ -57,6 +59,7 @@ const TEST_PASSWORD = `E2ePass#${RUN_ID}`;
 describe("GasFuel OS — Suite E2E Completa", () => {
   let app: INestApplication<App>;
   let db: DbService;
+  let correos: InMemoryMailService;
 
   // ── Tokens por rol ────────────────────────────────────────────────────────
   let adminToken: string;
@@ -93,6 +96,12 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // instancie y falle al no haber env de R2.
       .overrideProvider(StorageService)
       .useClass(InMemoryStorageService)
+      // Igual con el correo: sin esto ResendMailService exigiría RESEND_API_KEY
+      // al boot y la suite dependería de la red y de la cuota del proveedor.
+      // Además el token de reset sólo existe dentro del correo, así que el fake
+      // es la única forma de leerlo.
+      .overrideProvider(MailService)
+      .useClass(InMemoryMailService)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -107,6 +116,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     await app.init();
 
     db = app.get(DbService);
+    correos = app.get(MailService);
     const passwords = app.get(PasswordService);
 
     // El admin se siembra acá con el mismo hashing que la app, en vez de
@@ -140,6 +150,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         `cliente.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.propio.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.ajeno.${RUN_ID}@gasfuel-e2e.test`,
+        `reset.${RUN_ID}@gasfuel-e2e.test`,
+        `alta.cliente.${RUN_ID}@gasfuel-e2e.test`,
       ]) {
         await db.db
           .update(usuarios)
@@ -1346,6 +1358,224 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/saldos/cliente/${cliente1Id}`)
         .set("Authorization", `Bearer ${supervisorToken}`);
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 15 — Contraseñas: alta, recuperación y reset del admin
+  // Va antes del soft-delete para que la gasolinera siga activa.
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("15. Contraseñas y recuperación", () => {
+    const emailReset = `reset.${RUN_ID}@gasfuel-e2e.test`;
+    let usuarioResetId: string;
+    let passwordVigente: string;
+    let tokenReset: string;
+    let accessPrevio: string;
+
+    /** El token sólo existe dentro del correo: acá se lo saca del enlace. */
+    const tokenDelUltimoCorreo = (para: string): string => {
+      const correo = correos.ultimoPara(para);
+      expect(correo).toBeDefined();
+      const match = /token=([\w-]+)/.exec(correo!.texto ?? correo!.html);
+      expect(match).not.toBeNull();
+      return match![1];
+    };
+
+    it("admin crea un usuario sin contraseña → 201 y la devuelve una sola vez", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/usuarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          nombre: tag("Usuario Reset"),
+          email: emailReset,
+          rol: "supervisor",
+          gasolinera_id: gasolineraId,
+        });
+
+      expect(res.status).toBe(201);
+      expect(typeof res.body.password_temporal).toBe("string");
+      expect(res.body.password_temporal.length).toBeGreaterThanOrEqual(12);
+      // El hash nunca sale, ni siquiera cuando sí sale la contraseña en claro.
+      expect(res.body.password_hash).toBeUndefined();
+
+      usuarioResetId = res.body.id;
+      passwordVigente = res.body.password_temporal;
+    });
+
+    it("la contraseña generada sirve para entrar → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({ identificador: emailReset, password: passwordVigente });
+
+      expect(res.status).toBe(200);
+      accessPrevio = res.body.access_token;
+    });
+
+    it("el alta de un usuario cliente con correo dispara el enlace de acceso", async () => {
+      correos.limpiar();
+      const email = `alta.cliente.${RUN_ID}@gasfuel-e2e.test`;
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/usuarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          nombre: tag("Cliente Con Alta"),
+          email,
+          rol: "cliente",
+          cliente_id: cliente1Id,
+        });
+
+      expect(res.status).toBe(201);
+      // El envío es fire-and-forget: se le da un tick al event loop.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(correos.enviados).toHaveLength(1);
+      expect(correos.enviados[0].para).toBe(email);
+    });
+
+    it("solicitar recuperación con un identificador inexistente → 204 sin correo", async () => {
+      correos.limpiar();
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/solicitar")
+        .send({ identificador: `nadie.${RUN_ID}@gasfuel-e2e.test` });
+
+      // 204 igual que con un usuario real: si respondiera distinto, este
+      // endpoint serviría para enumerar cuentas.
+      expect(res.status).toBe(204);
+      expect(correos.enviados).toHaveLength(0);
+    });
+
+    it("solicitar recuperación de un usuario real → 204 y manda el enlace", async () => {
+      correos.limpiar();
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/solicitar")
+        .send({ identificador: emailReset });
+
+      expect(res.status).toBe(204);
+      expect(correos.enviados).toHaveLength(1);
+      tokenReset = tokenDelUltimoCorreo(emailReset);
+      expect(tokenReset.length).toBeGreaterThan(20);
+    });
+
+    it("rechaza una contraseña de menos de 8 caracteres → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/reset")
+        .send({ token: tokenReset, password: "corta" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("el reset fija la contraseña nueva → 204", async () => {
+      passwordVigente = `NuevaPass#${RUN_ID}`;
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/reset")
+        .send({ token: tokenReset, password: passwordVigente });
+
+      expect(res.status).toBe(204);
+    });
+
+    it("el reset revoca las sesiones abiertas → 401 con el token anterior", async () => {
+      const res = await request(app.getHttpServer())
+        .get("/api/v1/auth/me")
+        .set("Authorization", `Bearer ${accessPrevio}`);
+
+      expect(res.status).toBe(401);
+    });
+
+    it("se puede entrar con la contraseña nueva → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({ identificador: emailReset, password: passwordVigente });
+
+      expect(res.status).toBe(200);
+    });
+
+    it("reusar el mismo token de recuperación → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/reset")
+        .send({ token: tokenReset, password: `OtraMas#${RUN_ID}` });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("un token inventado → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/reset")
+        .send({ token: "a".repeat(43), password: `OtraMas#${RUN_ID}` });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("una solicitud nueva invalida el enlace anterior → 400", async () => {
+      correos.limpiar();
+      await request(app.getHttpServer())
+        .post("/api/v1/auth/password/solicitar")
+        .send({ identificador: emailReset });
+      const primero = tokenDelUltimoCorreo(emailReset);
+
+      correos.limpiar();
+      await request(app.getHttpServer())
+        .post("/api/v1/auth/password/solicitar")
+        .send({ identificador: emailReset });
+      const segundo = tokenDelUltimoCorreo(emailReset);
+
+      expect(segundo).not.toBe(primero);
+
+      // El primero ya no sirve: si no, cada solicitud dejaría otro enlace vivo
+      // suelto en una bandeja de entrada.
+      const viejo = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/reset")
+        .send({ token: primero, password: `TerceraVez#${RUN_ID}` });
+      expect(viejo.status).toBe(400);
+    });
+
+    it("admin resetea en modo generar → devuelve una contraseña utilizable", async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/usuarios/${usuarioResetId}/reset-password`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ modo: "generar" });
+
+      expect(res.status).toBe(201);
+      expect(typeof res.body.password_temporal).toBe("string");
+
+      const login = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({
+          identificador: emailReset,
+          password: res.body.password_temporal,
+        });
+      expect(login.status).toBe(200);
+    });
+
+    it("admin resetea en modo enlace → manda correo y no devuelve contraseña", async () => {
+      correos.limpiar();
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/usuarios/${usuarioResetId}/reset-password`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ modo: "enlace" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.password_temporal).toBeUndefined();
+      expect(correos.enviados).toHaveLength(1);
+      expect(correos.enviados[0].para).toBe(emailReset);
+    });
+
+    it("rechaza un modo desconocido → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/usuarios/${usuarioResetId}/reset-password`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ modo: "telepatia" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("un supervisor no puede resetear contraseñas → 403", async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/usuarios/${usuarioResetId}/reset-password`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({ modo: "generar" });
 
       expect(res.status).toBe(403);
     });

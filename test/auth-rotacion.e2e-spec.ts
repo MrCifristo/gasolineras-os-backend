@@ -22,6 +22,8 @@ import { PasswordService } from "../src/auth/password.service";
 import { SessionService } from "../src/auth/session.service";
 import { StorageService } from "../src/storage/storage.service";
 import { InMemoryStorageService } from "../src/storage/in-memory-storage.service";
+import { MailService } from "../src/mail/mail.service";
+import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { sesiones, usuarios } from "../src/db/schema";
 
 dotenv.config();
@@ -63,6 +65,9 @@ describe("Auth — rotación y ciclo de vida de sesiones", () => {
       // Evita que R2StorageService se instancie y falle sin env de R2.
       .overrideProvider(StorageService)
       .useClass(InMemoryStorageService)
+      // Ídem con ResendMailService y RESEND_API_KEY/MAIL_FROM.
+      .overrideProvider(MailService)
+      .useClass(InMemoryMailService)
       .compile();
 
     app = moduleFixture.createNestApplication();

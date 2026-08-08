@@ -49,6 +49,44 @@ El backend es una **API bearer pura** y JWT estándar. El navegador la consume *
 
 ---
 
+## 1b. Contraseñas: alta, recuperación y reset del admin
+
+**Alta.** `password` es **opcional** en `POST /api/v1/usuarios`. Si se omite, el servidor genera una y la respuesta trae **`password_temporal` en claro**:
+
+```jsonc
+// respuesta de POST /usuarios (201)
+{ "id": "uuid", "email": "...", "rol": "supervisor", /* … */,
+  "password_temporal": "Kx7mQp2rTn9v" }   // sólo en esta respuesta
+```
+
+Ese texto plano **no se persiste y no vuelve a estar disponible**: es la única oportunidad de mostrarlo o descargarlo. `password_hash` nunca sale en ninguna respuesta.
+
+Al crear un usuario con `rol: "cliente"` **y** correo, el backend le manda automáticamente el enlace de recuperación para que elija su propia contraseña. El envío es *fire-and-forget*: si el proveedor falla, el alta igual devuelve 201 (el usuario ya existe y su `password_temporal` sirve).
+
+**Recuperación (público, sin token de sesión).**
+
+| Endpoint | Body | Respuesta |
+|---|---|---|
+| `POST /api/v1/auth/password/solicitar` | `{ "identificador": "correo o teléfono" }` | **204 siempre** |
+| `POST /api/v1/auth/password/reset` | `{ "token": "...", "password": "min 8" }` | 204, o 400 |
+
+`solicitar` responde **204 en todos los casos** — exista o no el identificador, tenga o no correo, falle o no el proveedor. No hay forma de distinguirlos, y es a propósito: cualquier diferencia convertiría el endpoint en un oráculo para enumerar cuentas. **El frontend no debe intentar inferir nada de la respuesta**; muestra siempre el mismo mensaje ("si la cuenta existe, te llegará un correo").
+
+El enlace del correo apunta a `${FRONTEND_URL}/reset?token=<token>`, así que el frontend necesita una ruta pública `/reset` que lea `token` del query string, y `/recuperar` para pedirlo. Ambas van **fuera** del matcher de autenticación del middleware.
+
+El token vence en **60 minutos**, sirve **una sola vez**, y **cada solicitud nueva invalida la anterior**. Cualquier fallo —token inexistente, vencido, ya usado o de un usuario inactivo— devuelve el mismo 400 con el mismo mensaje. Un reset exitoso **revoca todas las sesiones abiertas** del usuario: los tokens que el frontend tuviera guardados pasan a dar 401 y hay que reloguear.
+
+**Reset por el admin.** `POST /api/v1/usuarios/:id/reset-password`, `@Auth("admin")`, body `{ "modo": "generar" | "enlace" }`:
+
+- `"generar"` → `{ "password_temporal": "..." }` y revoca las sesiones del usuario.
+- `"enlace"` → `{ "enviado": true }`, manda el correo y **no** devuelve credencial. Da **400** si el usuario no tiene correo registrado.
+
+Ambos responden **201** (es un `POST` sin `@HttpCode`), no 200.
+
+Los límites de tasa aplican: `solicitar` 5/min, `reset` 10/min, por IP.
+
+---
+
 ## 2. Crear despacho: se manda `monto`, no `galones`
 
 **Divergencia:** `CreateDespachoDto` exige `galones: string` (`@IsNumberString`) y no tiene campo `monto`. Pero el operario **teclea quetzales en la bomba** (commits `5552543`/`49a1ed9`/`57cc894` movieron el formulario a eso deliberadamente), y `DespachoForm.tsx:143` deriva galones en el navegador. Con `forbidNonWhitelisted: true`, mandar `monto` es un 400 duro.

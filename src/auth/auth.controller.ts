@@ -16,6 +16,9 @@ import { AuthService } from "./auth.service";
 import { AuthGuard, COOKIE_ACCESS } from "./auth.guard";
 import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { SolicitarResetDto } from "./dto/solicitar-reset.dto";
+import { PasswordResetService } from "./password-reset.service";
 import { TokenService } from "./token.service";
 import type { MetaSesion } from "./session.service";
 
@@ -29,6 +32,7 @@ export class AuthController {
   constructor(
     private readonly service: AuthService,
     private readonly tokens: TokenService,
+    private readonly reset: PasswordResetService,
   ) {}
 
   /**
@@ -53,6 +57,30 @@ export class AuthController {
   @ApiOperation({ summary: "Rotar el refresh token" })
   refresh(@Body() dto: RefreshDto, @Req() req: Request) {
     return this.service.refresh(dto.refresh_token, meta(req));
+  }
+
+  /**
+   * Público. Responde 204 siempre — exista o no el identificador, tenga o no
+   * correo, falle o no el proveedor. Cualquier diferencia de respuesta serviría
+   * para enumerar cuentas.
+   */
+  @Post("password/solicitar")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: "Solicitar enlace de recuperación de contraseña" })
+  async solicitarReset(@Body() dto: SolicitarResetDto) {
+    await this.reset.solicitar(dto.identificador);
+  }
+
+  /** Público: la credencial acá es el token del correo, no una sesión. */
+  @Post("password/reset")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: "Fijar contraseña nueva con el token del correo" })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.reset.reset(dto.token, dto.password);
   }
 
   /** Revoca la familia entera de la sesión actual, no sólo el eslabón vigente. */

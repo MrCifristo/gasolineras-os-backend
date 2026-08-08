@@ -1,5 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { hash, verify } from "@node-rs/argon2";
+import { randomInt } from "node:crypto";
+
+// Sin I/l/1/O/0: la contraseña temporal se dicta por teléfono o se copia de un
+// papel, y esos caracteres se confunden.
+const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
 
 // El enum Algorithm de @node-rs/argon2 es un `const enum`, que no se puede
 // importar bajo isolatedModules. Argon2id === 2 en ese enum.
@@ -25,6 +30,21 @@ export class PasswordService {
 
   async hashear(passwordPlano: string): Promise<string> {
     return hash(passwordPlano, this.opciones);
+  }
+
+  /**
+   * Contraseña temporal para el alta de un usuario o un reset del admin. Se
+   * devuelve en claro una sola vez, en la respuesta, y nunca se persiste así.
+   *
+   * `randomInt` y no `randomBytes % n`: el módulo sesga el reparto hacia los
+   * primeros caracteres del alfabeto.
+   */
+  generarTemporal(largo = 14): string {
+    let salida = "";
+    for (let i = 0; i < largo; i++) {
+      salida += ALFABETO[randomInt(ALFABETO.length)];
+    }
+    return salida;
   }
 
   /**

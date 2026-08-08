@@ -15,6 +15,13 @@
       "when": 1784688559306,
       "tag": "0001_aspiring_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786209654590,
+      "tag": "0002_tan_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

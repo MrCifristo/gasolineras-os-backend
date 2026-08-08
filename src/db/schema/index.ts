@@ -7,6 +7,7 @@ export * from "./precios-combustible.schema";
 export * from "./usuarios.schema";
 export * from "./operarios.schema";
 export * from "./sesiones.schema";
+export * from "./tokens-reset.schema";
 export * from "./despachos.schema";
 export * from "./saldos-cliente.schema";
 export * from "./movimientos-saldo.schema";

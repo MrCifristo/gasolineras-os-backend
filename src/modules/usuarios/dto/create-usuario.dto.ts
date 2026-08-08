@@ -41,13 +41,16 @@ export class CreateUsuarioDto {
   @IsEnum(["admin", "supervisor", "cliente", "jefe_pista"])
   rol: "admin" | "supervisor" | "cliente" | "jefe_pista";
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: "Contraseña123!",
-    description: "Contraseña temporal para el nuevo usuario",
+    description:
+      "Contraseña temporal. Si se omite, el servidor genera una y la devuelve en la respuesta (una sola vez).",
   })
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password: string;
+  @MaxLength(200)
+  password?: string;
 
   @ApiPropertyOptional({ example: "uuid-de-gasolinera" })
   @IsOptional()

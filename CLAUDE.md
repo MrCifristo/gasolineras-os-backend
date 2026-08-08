@@ -32,6 +32,18 @@ it before changing anything at the API seam.
   family). Login returns `{access_token, refresh_token, usuario}` in the body.
   Signatures upload to Cloudflare R2 (S3-compatible; MinIO in dev), stored as
   `firma_key`, read back via the auth-scoped proxy `GET /despachos/:id/firma`.
+- **Two swappable infrastructure ports**, both `@Global()` and both keyed by an
+  abstract class so `overrideProvider` can replace them in e2e: `StorageService`
+  (R2 / in-memory) and `MailService` (Resend / in-memory). Both **fail at boot**
+  when their env is missing — `R2_*`, and `RESEND_API_KEY` + `MAIL_FROM`. A
+  password reset that silently sends no mail is worse than a backend that
+  refuses to start.
+- **Password plaintext leaves the server exactly once.** `POST /usuarios` and
+  `POST /usuarios/:id/reset-password` (`modo: "generar"`) return
+  `password_temporal` in the response body and never persist it.
+  `forbidNonWhitelisted` only constrains requests, so returning an extra key is
+  fine. Reset tokens are stored as SHA-256 only, expire in 60 min, are
+  single-use, and a new request invalidates the previous one.
 - Global prefix `api/v1`; `ValidationPipe` with `whitelist` +
   `forbidNonWhitelisted`, so unknown body keys **400** rather than being stripped
   (e2e bootstraps must replicate this pipe config).
