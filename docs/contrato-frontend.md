@@ -170,6 +170,47 @@ Un vale sigue siendo **una fila header**, así que la numeración por advisory l
 
 ---
 
+## 1e. Inventario de insumos y sus ventas
+
+La estación vende insumos (aceites, refrigerante, filtros) aparte del combustible.
+
+**Catálogo** — `/api/v1/inventario/productos`. `GET` es `admin` + `supervisor` (el supervisor necesita el catálogo para vender en la bomba); `POST`, `PATCH` y `DELETE` son sólo `admin`. `DELETE` es baja lógica.
+
+`stock_actual` **no se puede editar por `PATCH`** — devuelve 400. El stock sólo se mueve con `POST /inventario/productos/:id/stock` (`{ tipo: "entrada"|"salida", cantidad, motivo?, referencia? }`, `admin` + `supervisor`), que deja el movimiento en el kardex. Editarlo a mano dejaría un faltante que después nadie puede explicar.
+
+`GET /inventario/productos/bajos` lista lo que está en o por debajo de su `stock_minimo`. `GET /inventario/productos/:id/movimientos` es el kardex (`admin`).
+
+**A diferencia del saldo del cliente, el stock nunca queda negativo**: una salida que lo dejaría bajo cero devuelve 400 con `"Stock insuficiente…"`.
+
+**Ventas** — `POST /api/v1/ventas-insumos`, `admin` + `supervisor`:
+
+```jsonc
+{
+  "forma_pago": "efectivo" | "cargo_cliente",
+  "cliente_id": "uuid",      // OBLIGATORIO con cargo_cliente, PROHIBIDO con efectivo (400)
+  "operario_id": "uuid",     // opcional: quién entregó
+  "bomba_numero": 1,         // opcional, pero sólo 1 o 3 (400 en cualquier otra)
+  "detalles": [{ "producto_id": "uuid", "cantidad": 2 }]
+}
+```
+
+La diferencia de fondo entre las dos formas de pago:
+
+| | efectivo | cargo_cliente |
+|---|---|---|
+| Stock | descuenta | descuenta |
+| Kardex | movimiento de salida | movimiento de salida |
+| Saldo del cliente | **no lo toca** | lo debita |
+| Estado de cuenta | no aparece | **aparece**, junto al combustible |
+
+Un producto no puede repetirse en dos renglones (400): agrupá la cantidad. Una venta que exceda el stock se rechaza **entera**, no parcialmente. Un cliente bloqueado o con crédito suspendido no acepta cargos.
+
+Las ventas llevan **su propia serie de vale**, independiente de la de combustible: son documentos distintos y numerarlos juntos haría ilegible la conciliación. `precio_unitario` queda congelado en el renglón, así que cambiar el precio del producto no reescribe ventas pasadas.
+
+`GET /ventas-insumos` y `GET /ventas-insumos/:id` aplican el mismo scoping por rol que despachos: el supervisor ve su estación, el cliente sólo lo suyo.
+
+---
+
 ## 2. Crear despacho: se manda `monto`, no `galones`
 
 **Divergencia:** `CreateDespachoDto` exige `galones: string` (`@IsNumberString`) y no tiene campo `monto`. Pero el operario **teclea quetzales en la bomba** (commits `5552543`/`49a1ed9`/`57cc894` movieron el formulario a eso deliberadamente), y `DespachoForm.tsx:143` deriva galones en el navegador. Con `forbidNonWhitelisted: true`, mandar `monto` es un 400 duro.

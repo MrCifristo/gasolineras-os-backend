@@ -80,6 +80,27 @@ amount; the header keeps `monto_total`/`galones` as the **sum**.
   (`tipo_combustible` + `monto` at the root) and normalizes it to one `vehiculo`
   line. Sending both shapes is a 400.
 
+## Supplies inventory (`inventario` / `ventas-insumos`)
+
+- **Stock never goes negative.** Unlike client balances (which go negative on
+  purpose), a stock movement that would cross zero is a 400. Sales check stock
+  with the product rows locked `FOR UPDATE`, so two concurrent sales of the last
+  item can't both succeed.
+- **`stock_actual` is not editable via `PATCH`** — it's omitted from the update
+  DTO, so `forbidNonWhitelisted` rejects it. Stock only moves through
+  `POST /inventario/productos/:id/stock`, which writes to the
+  `inventario_movimientos` kardex. Every change to the number has a row
+  explaining it, including the opening balance.
+- **`forma_pago` decides whether the ledger is touched**: `efectivo` only moves
+  stock; `cargo_cliente` also writes a `movimientos_saldo` debit and decrements
+  the balance, so it shows up in the account statement next to fuel. `cliente_id`
+  is required for the first and forbidden for the second.
+- Sales carry **their own vale series** with their own advisory-lock key
+  (`gasolinera_id || ':INSUMOS:' || serie`), so they never contend with fuel
+  numbering. `precio_unitario` is frozen per line.
+- Pumps 1 and 3 are a **DTO-level rule** (`@IsIn([1, 3])`), not a schema entity —
+  there is no pump table.
+
 ## Dispatch creation — read this first (`despachos.service.ts`)
 
 The heart of the system. Validation cascades through system → gasolinera →

@@ -1852,6 +1852,286 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 18 — Inventario de insumos y ventas
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("18. Inventario de insumos y ventas", () => {
+    let productoId: string;
+    let productoEscasoId: string;
+    let clienteInsumosId: string;
+    const PRECIO = 185.5;
+    const STOCK_INICIAL = 20;
+
+    it("admin crea un producto con existencia inicial → 201", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/inventario/productos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          nombre: tag("Aceite 15W-40"),
+          sku: `ACE-${RUN_ID}`,
+          precio: PRECIO,
+          stock_actual: STOCK_INICIAL,
+          stock_minimo: 5,
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.stock_actual).toBe(STOCK_INICIAL);
+      productoId = res.body.id;
+    });
+
+    it("la existencia inicial queda en el kardex → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/inventario/productos/${productoId}/movimientos`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].tipo).toBe("entrada");
+      expect(res.body[0].cantidad).toBe(STOCK_INICIAL);
+    });
+
+    it("una entrada de stock suma y deja rastro → 201", async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/inventario/productos/${productoId}/stock`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ tipo: "entrada", cantidad: 10, motivo: "Compra E2E" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.stock_actual).toBe(STOCK_INICIAL + 10);
+    });
+
+    it("no se puede sacar más stock del que hay → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/inventario/productos/${productoId}/stock`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ tipo: "salida", cantidad: 9999 });
+
+      // A diferencia del saldo del cliente, el stock no puede quedar negativo:
+      // o el producto está en bodega o no está.
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("Stock insuficiente");
+    });
+
+    it("el stock no se puede editar por PATCH → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/inventario/productos/${productoId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ stock_actual: 999 });
+
+      // Cambiarlo sin pasar por el kardex dejaría un faltante inexplicable.
+      expect(res.status).toBe(400);
+    });
+
+    it("una venta en EFECTIVO descuenta stock y no toca ningún saldo → 201", async () => {
+      const cli = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente Insumos"), saldo_inicial: 10000 });
+      clienteInsumosId = cli.body.id;
+
+      const antes = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteInsumosId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const saldoAntes = parseFloat(antes.body.saldo_actual);
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "efectivo",
+          operario_id: operarioId,
+          bomba_numero: 1,
+          detalles: [{ producto_id: productoId, cantidad: 2 }],
+        });
+
+      expect(res.status).toBe(201);
+      expect(parseFloat(res.body.monto_total)).toBeCloseTo(PRECIO * 2, 2);
+
+      const producto = await request(app.getHttpServer())
+        .get(`/api/v1/inventario/productos/${productoId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(producto.body.stock_actual).toBe(STOCK_INICIAL + 10 - 2);
+
+      const despues = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteInsumosId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      // El efectivo entra a caja: la cuenta del cliente queda intacta.
+      expect(parseFloat(despues.body.saldo_actual)).toBeCloseTo(saldoAntes, 2);
+    });
+
+    it("una venta a CARGO del cliente sí debita su saldo → 201", async () => {
+      const antes = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteInsumosId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const saldoAntes = parseFloat(antes.body.saldo_actual);
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "cargo_cliente",
+          cliente_id: clienteInsumosId,
+          operario_id: operarioId,
+          bomba_numero: 3,
+          detalles: [{ producto_id: productoId, cantidad: 3 }],
+        });
+
+      expect(res.status).toBe(201);
+      const monto = parseFloat(res.body.monto_total);
+      expect(monto).toBeCloseTo(PRECIO * 3, 2);
+
+      const despues = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteInsumosId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(parseFloat(despues.body.saldo_actual)).toBeCloseTo(
+        saldoAntes - monto,
+        2,
+      );
+    });
+
+    it("la venta a cargo aparece en el estado de cuenta → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteInsumosId}/estado-cuenta`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      // Va al mismo ledger que los despachos: el cliente ve combustible e
+      // insumos en un solo documento.
+      const insumos = res.body.movimientos.filter((m: any) =>
+        (m.descripcion ?? "").startsWith("Insumos"),
+      );
+      expect(insumos).toHaveLength(1);
+      expect(parseFloat(res.body.total_debitos)).toBeCloseTo(PRECIO * 3, 2);
+    });
+
+    it("una venta en efectivo no acepta cliente → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "efectivo",
+          cliente_id: clienteInsumosId,
+          detalles: [{ producto_id: productoId, cantidad: 1 }],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("una venta a cargo sin cliente → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "cargo_cliente",
+          detalles: [{ producto_id: productoId, cantidad: 1 }],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rechaza una bomba distinta de 1 o 3 → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "efectivo",
+          bomba_numero: 2,
+          detalles: [{ producto_id: productoId, cantidad: 1 }],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rechaza el mismo producto en dos renglones → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "efectivo",
+          detalles: [
+            { producto_id: productoId, cantidad: 1 },
+            { producto_id: productoId, cantidad: 2 },
+          ],
+        });
+
+      // Repetirlo saltaría la verificación de stock, que mira cada producto
+      // una sola vez.
+      expect(res.status).toBe(400);
+    });
+
+    it("una venta que excede el stock se rechaza entera → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          forma_pago: "efectivo",
+          detalles: [{ producto_id: productoId, cantidad: 9999 }],
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("Stock insuficiente");
+    });
+
+    it("el umbral de stock bajo lista sólo lo que toca reponer → 200", async () => {
+      const escaso = await request(app.getHttpServer())
+        .post("/api/v1/inventario/productos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          nombre: tag("Refrigerante"),
+          precio: 60,
+          stock_actual: 2,
+          stock_minimo: 5,
+        });
+      productoEscasoId = escaso.body.id;
+
+      const res = await request(app.getHttpServer())
+        .get("/api/v1/inventario/productos/bajos")
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const ids = res.body.map((p: any) => p.id);
+      expect(ids).toContain(productoEscasoId);
+      // El primero tiene stock de sobra, no debe aparecer.
+      expect(ids).not.toContain(productoId);
+    });
+
+    it("un cliente no puede vender insumos → 403", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${clienteUserToken}`)
+        .send({
+          forma_pago: "efectivo",
+          detalles: [{ producto_id: productoId, cantidad: 1 }],
+        });
+
+      expect(res.status).toBe(403);
+    });
+
+    it("un supervisor no puede crear productos → 403", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/inventario/productos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({ nombre: tag("No debería"), precio: 10 });
+
+      expect(res.status).toBe(403);
+    });
+
+    it("desactivar un producto lo saca del catálogo → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .delete(`/api/v1/inventario/productos/${productoEscasoId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.activo).toBe(false);
+
+      const lista = await request(app.getHttpServer())
+        .get("/api/v1/inventario/productos")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(lista.body.map((p: any) => p.id)).not.toContain(productoEscasoId);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   // BLOQUE 15 — Contraseñas: alta, recuperación y reset del admin
   // Va antes del soft-delete para que la gasolinera siga activa.
   // ════════════════════════════════════════════════════════════════════════

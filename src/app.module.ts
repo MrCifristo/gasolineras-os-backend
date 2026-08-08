@@ -15,6 +15,8 @@ import { ReportesModule } from "./modules/reportes/reportes.module";
 import { UsuariosModule } from "./modules/usuarios/usuarios.module";
 import { SaldosModule } from "./modules/saldos/saldos.module";
 import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/configuracion-sistema.module";
+import { InventarioModule } from "./modules/inventario/inventario.module";
+import { VentasInsumosModule } from "./modules/ventas-insumos/ventas-insumos.module";
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/conf
     UsuariosModule,
     SaldosModule,
     ConfiguracionSistemaModule,
+    InventarioModule,
+    VentasInsumosModule,
   ],
 })
 export class AppModule {}

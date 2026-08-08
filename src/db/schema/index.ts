@@ -14,3 +14,6 @@ export * from "./saldos-cliente.schema";
 export * from "./movimientos-saldo.schema";
 export * from "./cuadres.schema";
 export * from "./configuracion-sistema.schema";
+export * from "./productos.schema";
+export * from "./inventario-movimientos.schema";
+export * from "./ventas-insumos.schema";
