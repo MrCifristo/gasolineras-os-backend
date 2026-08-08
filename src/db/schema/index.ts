@@ -9,6 +9,7 @@ export * from "./operarios.schema";
 export * from "./sesiones.schema";
 export * from "./tokens-reset.schema";
 export * from "./despachos.schema";
+export * from "./despacho-detalles.schema";
 export * from "./saldos-cliente.schema";
 export * from "./movimientos-saldo.schema";
 export * from "./cuadres.schema";

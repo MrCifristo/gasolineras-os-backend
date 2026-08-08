@@ -9,6 +9,7 @@ import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
+  despachoDetalles,
   movimientosSaldo,
   preciosCombustible,
   saldosCliente,
@@ -18,6 +19,7 @@ import {
   clientes,
   configuracionSistema,
   usuarios,
+  type Renglon,
 } from "../../db/schema";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
@@ -127,10 +129,14 @@ export class DespachosService {
       conditions.push(eq(despachos.piloto_id, rest.piloto_id));
     if (rest.turno) conditions.push(eq(despachos.turno, rest.turno));
     if (rest.tipo_combustible) {
-      // Filtra via JOIN con preciosCombustible — el tipo está en la tabla de precios
+      // Se busca en los renglones, no en el precio del header: en un vale mixto
+      // el header sólo refleja el renglón principal, así que filtrar por él
+      // perdería los vales donde ese combustible fue a una caneca.
       conditions.push(
-        sql`${despachos.precio_id} IN (
-          SELECT id FROM precios_combustible WHERE tipo_combustible = ${rest.tipo_combustible}
+        sql`EXISTS (
+          SELECT 1 FROM despacho_detalles dd
+          WHERE dd.despacho_id = ${despachos.id}
+            AND dd.tipo_combustible = ${rest.tipo_combustible}
         )`,
       );
     }
@@ -185,10 +191,12 @@ export class DespachosService {
         cliente: clientes,
       })
       .from(despachos)
-      .innerJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
-      .innerJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
+      // leftJoin y no innerJoin: un vale sólo de canecas no tiene vehículo ni
+      // piloto, y con innerJoin desaparecería del resultado — un 404 fantasma.
+      .leftJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
+      .leftJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
       .innerJoin(gasolineras, eq(despachos.gasolinera_id, gasolineras.id))
-      .innerJoin(
+      .leftJoin(
         preciosCombustible,
         eq(despachos.precio_id, preciosCombustible.id),
       )
@@ -197,7 +205,15 @@ export class DespachosService {
       .limit(1);
 
     if (!result.length) throw new NotFoundException("Despacho no encontrado");
-    return result[0];
+
+    // Los renglones van aparte: son 1:N y traerlos en el mismo select
+    // multiplicaría las filas del vale.
+    const detalles = await this.db.db
+      .select()
+      .from(despachoDetalles)
+      .where(eq(despachoDetalles.despacho_id, id));
+
+    return { ...result[0], detalles };
   }
 
   /**
@@ -269,34 +285,67 @@ export class DespachosService {
       );
     }
 
-    // ── Restricciones del vehículo ──────────────────────────────────
-    const [v] = await this.db.db
-      .select()
-      .from(vehiculos)
-      .where(eq(vehiculos.id, dto.vehiculo_id))
-      .limit(1);
+    // ── Renglones del vale ───────────────────────────────────────────────
+    const lineas = this.normalizarRenglones(dto);
+    const hayRenglonVehiculo = lineas.some((l) => l.renglon === "vehiculo");
 
-    if (!v) throw new NotFoundException("Vehículo no encontrado");
-
-    if (v.bloqueado) {
-      throw new ForbiddenException(
-        "Vehículo bloqueado — consulte con su administrador",
+    // Vehículo y piloto van juntos: un renglón a vehículo sin piloto deja el
+    // vale sin a quién atribuirle el combustible.
+    if (Boolean(dto.vehiculo_id) !== Boolean(dto.piloto_id)) {
+      throw new BadRequestException(
+        "Vehículo y piloto deben venir juntos o ninguno de los dos",
+      );
+    }
+    if (hayRenglonVehiculo && !dto.vehiculo_id) {
+      throw new BadRequestException(
+        "El renglón de vehículo requiere vehiculo_id y piloto_id",
+      );
+    }
+    if (!hayRenglonVehiculo && dto.vehiculo_id) {
+      throw new BadRequestException(
+        "Se indicó vehículo pero ningún renglón le despacha combustible",
       );
     }
 
-    if (
-      v.productos_permitidos &&
-      v.productos_permitidos.length > 0 &&
-      !v.productos_permitidos.includes(dto.tipo_combustible)
-    ) {
-      throw new ForbiddenException(
-        `Este vehículo no puede cargar ${dto.tipo_combustible}`,
-      );
+    // ── Restricciones del vehículo ──────────────────────────────────
+    // Sólo aplican si el vale toca un vehículo; un despacho a canecas no tiene
+    // vehículo al que exigirle horario, productos ni límites.
+    let v: typeof vehiculos.$inferSelect | null = null;
+    if (dto.vehiculo_id) {
+      const [fila] = await this.db.db
+        .select()
+        .from(vehiculos)
+        .where(eq(vehiculos.id, dto.vehiculo_id))
+        .limit(1);
+
+      if (!fila) throw new NotFoundException("Vehículo no encontrado");
+      v = fila;
+
+      if (v.bloqueado) {
+        throw new ForbiddenException(
+          "Vehículo bloqueado — consulte con su administrador",
+        );
+      }
+
+      // Los productos permitidos son del vehículo, así que sólo restringen el
+      // renglón que le despacha a él: en una caneca puede ir otro combustible.
+      if (v.productos_permitidos && v.productos_permitidos.length > 0) {
+        for (const l of lineas) {
+          if (
+            l.renglon === "vehiculo" &&
+            !v.productos_permitidos.includes(l.tipo_combustible)
+          ) {
+            throw new ForbiddenException(
+              `Este vehículo no puede cargar ${l.tipo_combustible}`,
+            );
+          }
+        }
+      }
     }
 
     const { dayName, totalMinutes } = getGuatemalaTime();
 
-    if (v.dias_permitidos && v.dias_permitidos.length > 0) {
+    if (v?.dias_permitidos && v.dias_permitidos.length > 0) {
       if (!v.dias_permitidos.includes(dayName)) {
         throw new ForbiddenException(
           `Despacho no permitido hoy (${dayName}) para este vehículo`,
@@ -304,7 +353,7 @@ export class DespachosService {
       }
     }
 
-    if (v.hora_inicio && v.hora_fin) {
+    if (v?.hora_inicio && v.hora_fin) {
       const inicio = hhmm(v.hora_inicio);
       const fin = hhmm(v.hora_fin);
       if (totalMinutes < inicio || totalMinutes > fin) {
@@ -314,33 +363,59 @@ export class DespachosService {
       }
     }
 
-    // ── Cálculo de precio (antes de la matriz de límites) ────────────
+    // ── Cálculo de precio por renglón (antes de la matriz de límites) ─
+    // Cada renglón resuelve su propio precio del día: una caneca puede llevar
+    // otro combustible que el vehículo, y el vale debe cobrar cada uno al suyo.
     const today = new Date().toISOString().split("T")[0];
-    const precio = await this.db.db
-      .select()
-      .from(preciosCombustible)
-      .where(
-        and(
-          eq(preciosCombustible.gasolinera_id, user.gasolinera_id),
-          eq(preciosCombustible.fecha, today),
-          eq(preciosCombustible.tipo_combustible, dto.tipo_combustible),
-        ),
-      )
-      .limit(1);
+    const renglones = await Promise.all(
+      lineas.map(async (l) => {
+        const [precioRow] = await this.db.db
+          .select()
+          .from(preciosCombustible)
+          .where(
+            and(
+              eq(preciosCombustible.gasolinera_id, user.gasolinera_id),
+              eq(preciosCombustible.fecha, today),
+              eq(preciosCombustible.tipo_combustible, l.tipo_combustible),
+            ),
+          )
+          .limit(1);
 
-    if (!precio.length) {
-      throw new BadRequestException(
-        `No hay precio registrado para ${dto.tipo_combustible} hoy en esta gasolinera`,
-      );
-    }
+        if (!precioRow) {
+          throw new BadRequestException(
+            `No hay precio registrado para ${l.tipo_combustible} hoy en esta gasolinera`,
+          );
+        }
 
-    // El operario teclea el monto en quetzales; los galones se derivan del
-    // precio autoritativo del servidor. Así el total del vale es exactamente lo
-    // que paga el cliente, sin desajustes de redondeo.
-    const precioRow = precio[0];
-    const montoEstimado = parseFloat(dto.monto);
+        // El operario teclea el monto en quetzales; los galones se derivan del
+        // precio autoritativo del servidor. Así el total del vale es exactamente
+        // lo que paga el cliente, sin desajustes de redondeo.
+        const monto = parseFloat(l.monto);
+        if (!(monto > 0)) {
+          throw new BadRequestException(
+            "El monto de cada renglón debe ser mayor a cero",
+          );
+        }
+        const galones = monto / parseFloat(precioRow.precio_galon);
+        return { ...l, precioRow, monto, galones };
+      }),
+    );
+
+    const sumaMonto = (rs: typeof renglones) =>
+      rs.reduce((acc, r) => acc + r.monto, 0);
+    const sumaGalones = (rs: typeof renglones) =>
+      rs.reduce((acc, r) => acc + r.galones, 0);
+
+    const montoEstimado = sumaMonto(renglones);
+    const galonesEstimado = sumaGalones(renglones);
     const montoTotal = montoEstimado.toFixed(3);
-    const galonesEstimado = montoEstimado / parseFloat(precioRow.precio_galon);
+
+    // Los límites del vehículo miran SÓLO sus renglones: cobrarle al vehículo
+    // el combustible que se fue en canecas sobrecontaría su cupo.
+    const renglonesVehiculo = renglones.filter((r) => r.renglon === "vehiculo");
+    const montoVehiculo = sumaMonto(renglonesVehiculo);
+    const galonesVehiculo = sumaGalones(renglonesVehiculo);
+
     const num = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
 
     // ── 4. Límites de gasto a nivel cuenta ──────────────────────────
@@ -384,79 +459,94 @@ export class DespachosService {
     }
 
     // ── Límites por transacción (sin query) ──────────────────────────
-    const lmt = num(v.limite_monto_transaccion);
-    if (lmt != null && montoEstimado > lmt)
+    // Miden el renglón del vehículo, no el total del vale.
+    const lmt = num(v?.limite_monto_transaccion);
+    if (lmt != null && montoVehiculo > lmt)
       throw new ForbiddenException(
         `Monto por transacción supera el límite (Q${lmt.toFixed(2)})`,
       );
-    const lvt = num(v.limite_volumen_transaccion);
-    if (lvt != null && galonesEstimado > lvt)
+    const lvt = num(v?.limite_volumen_transaccion);
+    if (lvt != null && galonesVehiculo > lvt)
       throw new ForbiddenException(
         `Volumen por transacción supera el límite (${lvt.toFixed(2)} gal)`,
       );
 
     // ── Límites acumulados (una query con FILTER) ────────────────────
     const needsAggregate =
-      v.limite_monto_dia != null ||
-      v.limite_monto_semana != null ||
-      v.limite_monto_mes != null ||
-      v.limite_volumen_dia != null ||
-      v.limite_volumen_semana != null ||
-      v.limite_volumen_mes != null ||
-      v.limite_trans_dia != null ||
-      v.limite_trans_semana != null ||
-      v.limite_trans_mes != null;
-    if (needsAggregate) {
+      v != null &&
+      (v.limite_monto_dia != null ||
+        v.limite_monto_semana != null ||
+        v.limite_monto_mes != null ||
+        v.limite_volumen_dia != null ||
+        v.limite_volumen_semana != null ||
+        v.limite_volumen_mes != null ||
+        v.limite_trans_dia != null ||
+        v.limite_trans_semana != null ||
+        v.limite_trans_mes != null);
+    if (needsAggregate && v) {
+      // Monto y volumen salen de `despacho_detalles` filtrando el renglón del
+      // vehículo: sumar `despachos.monto_total` incluiría las canecas del mismo
+      // vale y le comería el cupo al vehículo. Las transacciones sí se cuentan
+      // sobre el header, porque un vale mixto es UNA transacción.
+      //
+      // La migración rellenó un renglón 'vehiculo' por cada despacho anterior,
+      // así que el histórico entra completo en este agregado.
       const [agg] = await this.db.db
         .select({
-          monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-          monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-          monto_mes: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-          vol_dia: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-          vol_semana: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-          vol_mes: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-          trans_dia: sql<number>`COUNT(*) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
-          trans_semana: sql<number>`COUNT(*) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours'))`,
-          trans_mes: sql<number>`COUNT(*) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
+          monto_dia: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+          monto_semana: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+          monto_mes: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+          vol_dia: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+          vol_semana: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+          vol_mes: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+          trans_dia: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
+          trans_semana: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours'))`,
+          trans_mes: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
         })
-        .from(despachos)
-        .where(eq(despachos.vehiculo_id, dto.vehiculo_id));
+        .from(despachoDetalles)
+        .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
+        .where(
+          and(
+            eq(despachos.vehiculo_id, dto.vehiculo_id!),
+            eq(despachoDetalles.renglon, "vehiculo"),
+          ),
+        );
 
       const checks: Array<[number | null, number, number, string]> = [
         [
           num(v.limite_monto_dia),
           parseFloat(String(agg.monto_dia)),
-          montoEstimado,
+          montoVehiculo,
           `Límite diario de monto superado`,
         ],
         [
           num(v.limite_monto_semana),
           parseFloat(String(agg.monto_semana)),
-          montoEstimado,
+          montoVehiculo,
           `Límite semanal de monto superado`,
         ],
         [
           num(v.limite_monto_mes),
           parseFloat(String(agg.monto_mes)),
-          montoEstimado,
+          montoVehiculo,
           `Límite mensual de monto superado`,
         ],
         [
           num(v.limite_volumen_dia),
           parseFloat(String(agg.vol_dia)),
-          galonesEstimado,
+          galonesVehiculo,
           `Límite diario de volumen superado`,
         ],
         [
           num(v.limite_volumen_semana),
           parseFloat(String(agg.vol_semana)),
-          galonesEstimado,
+          galonesVehiculo,
           `Límite semanal de volumen superado`,
         ],
         [
           num(v.limite_volumen_mes),
           parseFloat(String(agg.vol_mes)),
-          galonesEstimado,
+          galonesVehiculo,
           `Límite mensual de volumen superado`,
         ],
       ];
@@ -483,7 +573,8 @@ export class DespachosService {
     // ────────────────────────────────────────────────────────────────
 
     // ── 10. Validación de kilometraje ────────────────────────────────────
-    if (dto.kilometraje) {
+    // Sólo tiene sentido con vehículo: una caneca no trae odómetro.
+    if (dto.kilometraje && dto.vehiculo_id) {
       const [lastKmRow] = await this.db.db
         .select({ max_km: sql<number>`MAX(${despachos.kilometraje}::numeric)` })
         .from(despachos)
@@ -534,7 +625,9 @@ export class DespachosService {
             piloto_id: dto.piloto_id,
             despachador_id: user.id,
             operario_id: dto.operario_id,
-            precio_id: precioRow.id,
+            // El header guarda el precio del renglón principal para que los
+            // lectores viejos sigan resolviendo un tipo de combustible.
+            precio_id: (renglonesVehiculo[0] ?? renglones[0]).precioRow.id,
             numero_vale: numeroVale,
             serie_vale: serieVale,
             turno: dto.turno,
@@ -554,13 +647,26 @@ export class DespachosService {
         throw e;
       }
 
+      await tx.insert(despachoDetalles).values(
+        renglones.map((r) => ({
+          despacho_id: despacho.id,
+          renglon: r.renglon,
+          tipo_combustible: r.tipo_combustible,
+          precio_id: r.precioRow.id,
+          monto: r.monto.toFixed(3),
+          galones: r.galones.toFixed(3),
+        })),
+      );
+
+      // UN solo débito por la suma, aunque el vale tenga varios renglones: así
+      // se preserva el 1:1 con el despacho y el estado de cuenta sigue cuadrando.
       await tx.insert(movimientosSaldo).values({
         cliente_id: dto.cliente_id,
         gasolinera_id: user.gasolinera_id,
         despacho_id: despacho.id,
         tipo: "debito",
         monto: montoTotal,
-        descripcion: `Despacho ${dto.tipo_combustible} ${galonesEstimado.toFixed(3)} galones - Vale ${serieVale}-${numeroVale}`,
+        descripcion: `Despacho ${this.resumenRenglones(renglones)} - Vale ${serieVale}-${numeroVale}`,
       });
 
       await tx
@@ -571,8 +677,70 @@ export class DespachosService {
         })
         .where(eq(saldosCliente.cliente_id, dto.cliente_id));
 
-      return despacho;
+      // Los renglones vuelven con el vale: el frontend los necesita para
+      // imprimirlo sin una segunda vuelta a la API.
+      return {
+        ...despacho,
+        detalles: renglones.map((r) => ({
+          renglon: r.renglon,
+          tipo_combustible: r.tipo_combustible,
+          monto: r.monto.toFixed(3),
+          galones: r.galones.toFixed(3),
+          precio_galon: r.precioRow.precio_galon,
+        })),
+      };
     });
+  }
+
+  /**
+   * Lleva las dos formas del DTO a una sola lista de renglones.
+   *
+   * La forma vieja (`tipo_combustible` + `monto` en la raíz) se mantiene por
+   * compatibilidad: el frontend se despliega aparte y no puede cambiar en el
+   * mismo instante que el backend. Equivale a un único renglón `vehiculo`.
+   */
+  private normalizarRenglones(
+    dto: CreateDespachoDto,
+  ): { renglon: Renglon; tipo_combustible: string; monto: string }[] {
+    const tieneForma1 = dto.tipo_combustible != null || dto.monto != null;
+    const tieneForma2 = dto.detalles != null && dto.detalles.length > 0;
+
+    if (tieneForma1 && tieneForma2) {
+      throw new BadRequestException(
+        "Mandá `detalles` o `tipo_combustible`+`monto`, no las dos formas",
+      );
+    }
+    if (tieneForma2) {
+      return dto.detalles!.map((d) => ({
+        renglon: d.renglon,
+        tipo_combustible: d.tipo_combustible,
+        monto: d.monto,
+      }));
+    }
+    if (dto.tipo_combustible == null || dto.monto == null) {
+      throw new BadRequestException(
+        "Falta el detalle del despacho: mandá `detalles`, o `tipo_combustible` y `monto`",
+      );
+    }
+    return [
+      {
+        renglon: "vehiculo",
+        tipo_combustible: dto.tipo_combustible,
+        monto: dto.monto,
+      },
+    ];
+  }
+
+  /** Texto del movimiento de saldo: "diesel 80.000 gal + caneca super 5.000 gal". */
+  private resumenRenglones(
+    renglones: { renglon: string; tipo_combustible: string; galones: number }[],
+  ): string {
+    return renglones
+      .map((r) => {
+        const etiqueta = r.renglon === "vehiculo" ? "" : `${r.renglon} `;
+        return `${etiqueta}${r.tipo_combustible} ${r.galones.toFixed(3)} gal`;
+      })
+      .join(" + ");
   }
 
   async update(id: string, dto: UpdateDespachoDto) {

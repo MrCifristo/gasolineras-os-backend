@@ -128,6 +128,48 @@ Un **saldo negativo es válido y esperado**: no hay control de fondos insuficien
 
 ---
 
+## 1d. Vale multi-renglón: canecas y toneles
+
+Un vale puede repartirse entre el vehículo, canecas y toneles, **en cualquier combinación, incluso sin vehículo**. Cada renglón lleva su propio combustible y su propio monto; el vale unifica el total.
+
+**Forma nueva** de `POST /api/v1/despachos`:
+
+```jsonc
+{
+  "cliente_id": "uuid",
+  "operario_id": "uuid",
+  "turno": "manana",
+  "vehiculo_id": "uuid",   // OPCIONAL — omitir en un vale sólo de contenedores
+  "piloto_id": "uuid",     // OPCIONAL — pero va junto con vehiculo_id
+  "detalles": [
+    { "renglon": "vehiculo", "tipo_combustible": "diesel", "monto": "300.000" },
+    { "renglon": "caneca",   "tipo_combustible": "super",  "monto": "400.000" }
+  ]
+}
+```
+
+`renglon` es `"vehiculo" | "caneca" | "tonel"`. Entre 1 y 10 renglones, cada monto mayor que cero.
+
+**La forma vieja sigue funcionando**: `tipo_combustible` + `monto` en la raíz equivalen a un único renglón `vehiculo`. Mandar las dos formas a la vez es un **400**, igual que mandar ninguna.
+
+Reglas que devuelven **400**:
+- `vehiculo_id` sin `piloto_id`, o al revés.
+- Un renglón `vehiculo` sin `vehiculo_id`.
+- `vehiculo_id` presente pero ningún renglón `vehiculo`.
+
+**Respuesta**: el vale creado con un arreglo `detalles`, donde cada entrada trae `renglon`, `tipo_combustible`, `monto`, `galones` y `precio_galon`. El frontend tiene todo para imprimir sin una segunda llamada. `monto_total` y `galones` del header son la **suma** de los renglones.
+
+**Lo que cambia al leer:**
+- `despachos.vehiculo_id`, `piloto_id` y `precio_id` ahora pueden ser **`null`**. `GET /despachos/:id` devuelve `vehiculo: null` y `piloto: null` en esos vales, más `detalles[]`. Los tipos del frontend y el vale impreso deben tolerarlo.
+- El filtro `?tipo_combustible=` busca en los **renglones**, no en el precio del header: un vale cuyo super fue a una caneca ahora aparece en ese filtro.
+- El Excel suma una columna **Renglones** con el desglose (`diesel 20.000 gal + caneca super 5.000 gal`).
+
+**Límites, y esto importa:** los límites del vehículo (monto y volumen, por transacción y acumulados) miden **sólo los renglones `vehiculo`**. Cobrarle al vehículo el combustible que se fue en canecas le comería su cupo. Los límites de la **cuenta** y el débito de saldo sí usan el **total** del vale. Un vale mixto cuenta como **una** transacción.
+
+Un vale sigue siendo **una fila header**, así que la numeración por advisory lock no cambió y los números siguen sin repetirse.
+
+---
+
 ## 2. Crear despacho: se manda `monto`, no `galones`
 
 **Divergencia:** `CreateDespachoDto` exige `galones: string` (`@IsNumberString`) y no tiene campo `monto`. Pero el operario **teclea quetzales en la bomba** (commits `5552543`/`49a1ed9`/`57cc894` movieron el formulario a eso deliberadamente), y `DespachoForm.tsx:143` deriva galones en el navegador. Con `forbidNonWhitelisted: true`, mandar `monto` es un 400 duro.

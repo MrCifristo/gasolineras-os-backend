@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import ExcelJS from "exceljs";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
+  despachoDetalles,
   vehiculos,
   pilotos,
   gasolineras,
@@ -47,9 +48,13 @@ export class DespachosExcelService {
       conditions.push(eq(despachos.piloto_id, filters.piloto_id));
     if (filters.turno) conditions.push(eq(despachos.turno, filters.turno));
     if (filters.tipo_combustible) {
+      // Igual que en findAll: se busca en los renglones. El precio del header
+      // sólo refleja el renglón principal del vale.
       conditions.push(
-        sql`${despachos.precio_id} IN (
-          SELECT id FROM precios_combustible WHERE tipo_combustible = ${filters.tipo_combustible}
+        sql`EXISTS (
+          SELECT 1 FROM despacho_detalles dd
+          WHERE dd.despacho_id = ${despachos.id}
+            AND dd.tipo_combustible = ${filters.tipo_combustible}
         )`,
       );
     }
@@ -62,37 +67,43 @@ export class DespachosExcelService {
         sql`${despachos.despachado_at}::date <= ${filters.fecha_hasta}::date`,
       );
 
-    return this.db.db
-      .select({
-        numero_vale: despachos.numero_vale,
-        serie_vale: despachos.serie_vale,
-        despachado_at: despachos.despachado_at,
-        turno: despachos.turno,
-        bomba_numero: despachos.bomba_numero,
-        galones: despachos.galones,
-        monto_total: despachos.monto_total,
-        kilometraje: despachos.kilometraje,
-        gasolinera: gasolineras.nombre,
-        cliente: clientes.nombre,
-        placa: vehiculos.placa,
-        marca: vehiculos.marca,
-        modelo: vehiculos.modelo,
-        piloto: pilotos.nombre_completo,
-        codigo_piloto: pilotos.codigo,
-        tipo_combustible: preciosCombustible.tipo_combustible,
-        precio_galon: preciosCombustible.precio_galon,
-      })
-      .from(despachos)
-      .innerJoin(gasolineras, eq(despachos.gasolinera_id, gasolineras.id))
-      .innerJoin(clientes, eq(despachos.cliente_id, clientes.id))
-      .innerJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
-      .innerJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
-      .innerJoin(
-        preciosCombustible,
-        eq(despachos.precio_id, preciosCombustible.id),
-      )
-      .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(sql`${despachos.despachado_at} DESC`);
+    return (
+      this.db.db
+        .select({
+          id: despachos.id,
+          numero_vale: despachos.numero_vale,
+          serie_vale: despachos.serie_vale,
+          despachado_at: despachos.despachado_at,
+          turno: despachos.turno,
+          bomba_numero: despachos.bomba_numero,
+          galones: despachos.galones,
+          monto_total: despachos.monto_total,
+          kilometraje: despachos.kilometraje,
+          gasolinera: gasolineras.nombre,
+          cliente: clientes.nombre,
+          placa: vehiculos.placa,
+          marca: vehiculos.marca,
+          modelo: vehiculos.modelo,
+          piloto: pilotos.nombre_completo,
+          codigo_piloto: pilotos.codigo,
+          tipo_combustible: preciosCombustible.tipo_combustible,
+          precio_galon: preciosCombustible.precio_galon,
+        })
+        .from(despachos)
+        .innerJoin(gasolineras, eq(despachos.gasolinera_id, gasolineras.id))
+        .innerJoin(clientes, eq(despachos.cliente_id, clientes.id))
+        // leftJoin: un vale sólo de canecas no tiene vehículo, piloto ni precio
+        // de header. Con innerJoin desaparecía del export contable en silencio,
+        // que es la peor forma de perder un despacho.
+        .leftJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
+        .leftJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
+        .leftJoin(
+          preciosCombustible,
+          eq(despachos.precio_id, preciosCombustible.id),
+        )
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(sql`${despachos.despachado_at} DESC`)
+    );
   }
 
   private async buildWorkbook(
@@ -103,7 +114,7 @@ export class DespachosExcelService {
     wb.creator = "GasFuel OS";
     wb.created = new Date();
 
-    this.addDespachosSheet(wb, rows);
+    this.addDespachosSheet(wb, rows, await this.fetchRenglones(rows));
     this.addResumenSheet(wb, rows);
     this.addFiltrosSheet(wb, filters);
 
@@ -111,17 +122,50 @@ export class DespachosExcelService {
     return Buffer.from(buf);
   }
 
+  /**
+   * Desglose de renglones por vale, ya formateado para la celda.
+   *
+   * Una sola query para todo el export en vez de una por fila: el reporte
+   * mensual son miles de vales.
+   */
+  private async fetchRenglones(
+    rows: Awaited<ReturnType<DespachosExcelService["fetchRows"]>>,
+  ): Promise<Map<string, string>> {
+    const ids = rows.map((r) => r.id);
+    if (!ids.length) return new Map();
+
+    const filas = await this.db.db
+      .select()
+      .from(despachoDetalles)
+      .where(inArray(despachoDetalles.despacho_id, ids));
+
+    const porDespacho = new Map<string, string[]>();
+    for (const d of filas) {
+      const etiqueta = d.renglon === "vehiculo" ? "" : `${d.renglon} `;
+      const texto = `${etiqueta}${d.tipo_combustible} ${parseFloat(d.galones).toFixed(3)} gal`;
+      porDespacho.set(d.despacho_id, [
+        ...(porDespacho.get(d.despacho_id) ?? []),
+        texto,
+      ]);
+    }
+
+    return new Map(
+      [...porDespacho].map(([id, partes]) => [id, partes.join(" + ")]),
+    );
+  }
+
   // ─── Hoja 1: Despachos ──────────────────────────────────────────
   private addDespachosSheet(
     wb: ExcelJS.Workbook,
     rows: Awaited<ReturnType<DespachosExcelService["fetchRows"]>>,
+    renglones: Map<string, string>,
   ) {
     const ws = wb.addWorksheet("Despachos", {
       views: [{ state: "frozen", ySplit: 3 }],
     });
 
     // Título
-    ws.mergeCells("A1:S1");
+    ws.mergeCells("A1:T1");
     const title = ws.getCell("A1");
     title.value = "⛽  GasFuel OS — Reporte de Despachos";
     title.font = {
@@ -139,7 +183,7 @@ export class DespachosExcelService {
     ws.getRow(1).height = 30;
 
     // Subtítulo con fecha de generación
-    ws.mergeCells("A2:S2");
+    ws.mergeCells("A2:T2");
     const sub = ws.getCell("A2");
     sub.value = `Generado el ${new Date().toLocaleString("es-GT", { dateStyle: "long", timeStyle: "short" })}   ·   ${rows.length} registro${rows.length !== 1 ? "s" : ""}`;
     sub.font = {
@@ -186,6 +230,10 @@ export class DespachosExcelService {
       { header: "Cód. Piloto", key: "codigo_piloto", width: 12 },
       { header: "Piloto", key: "piloto", width: 24 },
       { header: "Tipo Combustible", key: "tipo_combustible", width: 16 },
+      // Un vale puede repartirse entre el vehículo, canecas y toneles, con
+      // combustibles distintos. Sin esta columna la fila diría un solo tipo y
+      // el export mentiría sobre lo que realmente se despachó.
+      { header: "Renglones", key: "renglones", width: 40 },
       {
         header: "Precio/Gal (Q)",
         key: "precio_galon",
@@ -254,6 +302,7 @@ export class DespachosExcelService {
         codigo_piloto: r.codigo_piloto,
         piloto: r.piloto,
         tipo_combustible: r.tipo_combustible,
+        renglones: renglones.get(r.id) ?? "",
         precio_galon:
           r.precio_galon != null ? parseFloat(String(r.precio_galon)) : null,
         galones: r.galones != null ? parseFloat(String(r.galones)) : null,

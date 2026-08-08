@@ -1599,6 +1599,259 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   });
 
   // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 17 — Vale multi-renglón: canecas y toneles
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("17. Despacho multi-renglón (canecas y toneles)", () => {
+    // Cliente y flota propios: este bloque juega con límites y no debe
+    // contaminar los conteos de los bloques anteriores.
+    let clienteMultiId: string;
+    let vehiculoMultiId: string;
+    let pilotoMultiId: string;
+    const LIMITE_DIA_VEHICULO = 500;
+
+    it("prepara cliente, vehículo con límite diario y piloto → 201", async () => {
+      const cli = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente Multi") });
+      expect(cli.status).toBe(201);
+      clienteMultiId = cli.body.id;
+
+      const veh = await request(app.getHttpServer())
+        .post("/api/v1/vehiculos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          placa: `E2E-${RUN_ID}M`,
+          marca: "Freightliner",
+          modelo: "Cascadia",
+          tipo_vehiculo: "camion",
+          limite_monto_dia: LIMITE_DIA_VEHICULO,
+        });
+      expect(veh.status).toBe(201);
+      vehiculoMultiId = veh.body.id;
+
+      const pil = await request(app.getHttpServer())
+        .post("/api/v1/pilotos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          nombre_completo: tag("Piloto Multi"),
+          codigo: `PM-${RUN_ID}`,
+        });
+      expect(pil.status).toBe(201);
+      pilotoMultiId = pil.body.id;
+    });
+
+    it("vale mixto: el límite del vehículo cuenta SOLO su renglón → 201", async () => {
+      // Vehículo 300 + caneca 400 = 700 en total, por encima del límite diario
+      // de 500 del vehículo. Debe pasar: al vehículo sólo le tocan 300.
+      // Con el agregado viejo (SUM sobre despachos.monto_total) esto daba 403.
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          vehiculo_id: vehiculoMultiId,
+          piloto_id: pilotoMultiId,
+          turno: "manana",
+          detalles: [
+            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "300.000" },
+            { renglon: "caneca", tipo_combustible: "super", monto: "400.000" },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      // El header lleva la SUMA de los renglones.
+      expect(parseFloat(res.body.monto_total)).toBeCloseTo(700, 2);
+      expect(res.body.detalles).toHaveLength(2);
+    });
+
+    it("el vale mixto dejó UN solo débito por la suma → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/saldos/cliente/${clienteMultiId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      const debitos = res.body.movimientos.filter(
+        (m: any) => m.tipo === "debito",
+      );
+      expect(debitos).toHaveLength(1);
+      expect(parseFloat(debitos[0].monto)).toBeCloseTo(700, 2);
+      // Saldo negativo: no hay control de fondos, y es a propósito.
+      expect(parseFloat(res.body.saldo_actual)).toBeCloseTo(-700, 2);
+    });
+
+    it("pero el renglón del vehículo sí acumula contra su límite → 403", async () => {
+      // Ya lleva 300 de los 500 del día; otros 300 lo pasan.
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          vehiculo_id: vehiculoMultiId,
+          piloto_id: pilotoMultiId,
+          turno: "manana",
+          detalles: [
+            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "300.000" },
+          ],
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toContain("Límite diario de monto");
+    });
+
+    it("un vale sólo de contenedores no necesita vehículo ni piloto → 201", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          turno: "tarde",
+          detalles: [
+            { renglon: "tonel", tipo_combustible: "diesel", monto: "1000.000" },
+            { renglon: "caneca", tipo_combustible: "diesel", monto: "200.000" },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.vehiculo_id).toBeNull();
+      expect(res.body.piloto_id).toBeNull();
+      expect(parseFloat(res.body.monto_total)).toBeCloseTo(1200, 2);
+    });
+
+    it("el vale sólo-contenedores se puede leer por ID → 200 con sus renglones", async () => {
+      const lista = await request(app.getHttpServer())
+        .get(`/api/v1/despachos?cliente_id=${clienteMultiId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const soloContenedor = lista.body.find(
+        (d: any) => d.vehiculo_id === null,
+      );
+      expect(soloContenedor).toBeDefined();
+
+      // Antes esto era un 404 fantasma: findOne unía vehículo y piloto con
+      // innerJoin y el vale desaparecía del resultado.
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${soloContenedor.id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.detalles).toHaveLength(2);
+      expect(res.body.vehiculo).toBeNull();
+      expect(res.body.piloto).toBeNull();
+    });
+
+    it("el filtro por combustible encuentra el vale por su renglón → 200", async () => {
+      // El super de este cliente sólo existió en una caneca; el header apunta
+      // al renglón del vehículo (diesel). Filtrar por el header lo perdería.
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos?cliente_id=${clienteMultiId}&tipo_combustible=super`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.length).toBeGreaterThan(0);
+    });
+
+    it("rechaza mandar las dos formas del payload a la vez → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          turno: "manana",
+          tipo_combustible: "diesel",
+          monto: "100.000",
+          detalles: [
+            { renglon: "caneca", tipo_combustible: "diesel", monto: "100.000" },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rechaza un vehículo sin piloto → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          vehiculo_id: vehiculoMultiId,
+          turno: "manana",
+          detalles: [
+            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "50.000" },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rechaza un renglón de vehículo sin indicar vehículo → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          turno: "manana",
+          detalles: [
+            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "50.000" },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rechaza un vale sin ningún renglón → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          turno: "manana",
+          detalles: [],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rechaza un renglón con monto cero → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          turno: "manana",
+          detalles: [
+            { renglon: "caneca", tipo_combustible: "diesel", monto: "0" },
+          ],
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("la numeración de vale sigue siendo monótona con vales multi-renglón", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos?gasolinera_id=${gasolineraId}&limit=100`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      const numeros = res.body
+        .map((d: any) => parseInt(d.numero_vale, 10))
+        .sort((a: number, b: number) => a - b);
+      // Un vale = una fila header, así que el advisory lock no cambió: los
+      // números siguen sin repetirse.
+      expect(new Set(numeros).size).toBe(numeros.length);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
   // BLOQUE 15 — Contraseñas: alta, recuperación y reset del admin
   // Va antes del soft-delete para que la gasolinera siga activa.
   // ════════════════════════════════════════════════════════════════════════

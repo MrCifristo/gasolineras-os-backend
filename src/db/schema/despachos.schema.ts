@@ -25,12 +25,10 @@ export const despachos = pgTable(
     cliente_id: uuid("cliente_id")
       .notNull()
       .references(() => clientes.id),
-    vehiculo_id: uuid("vehiculo_id")
-      .notNull()
-      .references(() => vehiculos.id),
-    piloto_id: uuid("piloto_id")
-      .notNull()
-      .references(() => pilotos.id),
+    // Nullables desde el vale multi-renglón: un despacho puede ser sólo a
+    // canecas o toneles, sin vehículo ni piloto involucrados.
+    vehiculo_id: uuid("vehiculo_id").references(() => vehiculos.id),
+    piloto_id: uuid("piloto_id").references(() => pilotos.id),
     // Quién inició sesión y registró el vale (supervisor/admin).
     despachador_id: uuid("despachador_id")
       .notNull()
@@ -38,14 +36,17 @@ export const despachos = pgTable(
     // Quién físicamente despachó, elegido de un listado. Nullable para migrar
     // vales anteriores a la separación supervisor/operario.
     operario_id: uuid("operario_id").references(() => operarios.id),
-    precio_id: uuid("precio_id")
-      .notNull()
-      .references(() => preciosCombustible.id),
+    // Precio del renglón principal. Se conserva —y nullable— para que los
+    // lectores viejos (filtro por tipo, Excel) sigan funcionando; el detalle
+    // real por renglón vive en `despacho_detalles`.
+    precio_id: uuid("precio_id").references(() => preciosCombustible.id),
     numero_vale: varchar("numero_vale").notNull(),
     serie_vale: varchar("serie_vale").notNull(),
     turno: varchar("turno").notNull(),
     bomba_numero: integer("bomba_numero"),
     kilometraje: numeric("kilometraje", { precision: 10, scale: 3 }),
+    // Denormalizados a propósito: son la SUMA de los renglones. Reportes,
+    // Excel, límites de cuenta y el débito de saldo siguen leyendo de acá.
     galones: numeric("galones", { precision: 10, scale: 3 }).notNull(),
     monto_total: numeric("monto_total", { precision: 10, scale: 3 }).notNull(),
     // Key del objeto en R2, no el blob. Los base64 de firma inflaban esta

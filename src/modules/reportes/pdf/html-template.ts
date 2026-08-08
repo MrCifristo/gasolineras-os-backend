@@ -17,8 +17,11 @@ interface PorGasolinera {
   total_monto: string | null;
 }
 
+// Los ids son nullable desde el vale multi-renglón: despachos.vehiculo_id y
+// piloto_id pueden ser null. En la práctica estas filas vienen de un innerJoin
+// y nunca traen null, pero el tipo lo refleja igual.
 interface VehiculoRow {
-  vehiculo_id: string;
+  vehiculo_id: string | null;
   placa: string;
   marca: string | null;
   modelo: string | null;
@@ -28,7 +31,7 @@ interface VehiculoRow {
 }
 
 interface PilotoRow {
-  piloto_id: string;
+  piloto_id: string | null;
   nombre_completo: string;
   codigo: string | null;
   total_despachos: number | string | null;

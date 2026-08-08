@@ -58,6 +58,28 @@ it before changing anything at the API seam.
 - Raw `sql` templates carry the aggregate/date logic (`FILTER (WHERE …)`,
   `date_trunc`) rather than doing it in JS.
 
+## Multi-line vouchers (`despacho_detalles`)
+
+A voucher splits across the vehicle, canecas and toneles in any combination —
+including **no vehicle at all**. Each line carries its own fuel type, price and
+amount; the header keeps `monto_total`/`galones` as the **sum**.
+
+- `despachos.vehiculo_id`, `piloto_id` and `precio_id` are **nullable**. Every
+  read path must use `leftJoin` — an `innerJoin` silently drops container-only
+  vouchers, which is how you lose a dispatch from an accounting export.
+- **Vehicle limits aggregate over `despacho_detalles` filtered to
+  `renglon = 'vehiculo'`**, never `despachos.monto_total`. Summing the header
+  would charge the vehicle for fuel that went into drums. Client limits and the
+  balance debit *do* use the total. A mixed voucher is **one** transaction.
+- Migration `0004` backfilled one `vehiculo` line per pre-existing dispatch. That
+  backfill is load-bearing: without it the aggregate reads zero for all history
+  and a vehicle past its monthly cap would dispatch again unblocked.
+- One voucher is still **one header row**, so the advisory-lock numbering is
+  unchanged.
+- `POST /despachos` still accepts the old single-line shape
+  (`tipo_combustible` + `monto` at the root) and normalizes it to one `vehiculo`
+  line. Sending both shapes is a 400.
+
 ## Dispatch creation — read this first (`despachos.service.ts`)
 
 The heart of the system. Validation cascades through system → gasolinera →
