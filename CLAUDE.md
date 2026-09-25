@@ -30,7 +30,7 @@ it before changing anything at the API seam.
   + HS256 access JWT the app signs itself (15 min) + opaque rotating refresh
   tokens with reuse-detection (a replayed refresh revokes the whole session
   family). Login returns `{access_token, refresh_token, usuario}` in the body.
-  Signatures upload to Cloudflare R2 (S3-compatible; MinIO in dev), stored as
+  Signatures upload to Cloudflare R2 (S3-compatible; RustFS in dev — MinIO stopped publishing images), stored as
   `firma_key`, read back via the auth-scoped proxy `GET /despachos/:id/firma`.
 - **Two swappable infrastructure ports**, both `@Global()` and both keyed by an
   abstract class so `overrideProvider` can replace them in e2e: `StorageService`

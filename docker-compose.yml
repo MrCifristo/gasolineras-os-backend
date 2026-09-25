@@ -12,18 +12,20 @@ services:
 
   # Almacenamiento S3-compatible para desarrollo (equivalente local de R2).
   # En prod se usa Cloudflare R2; el SDK y el código son los mismos.
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+  # RustFS reemplaza a MinIO, que dejó de publicar imágenes en Docker Hub.
+  # Se conservan las credenciales gasfuel_minio para no tocar los .env.
+  rustfs:
+    image: rustfs/rustfs:1.0.0
     environment:
-      MINIO_ROOT_USER: gasfuel_minio
-      MINIO_ROOT_PASSWORD: gasfuel_minio_pass
+      RUSTFS_ACCESS_KEY: gasfuel_minio
+      RUSTFS_SECRET_KEY: gasfuel_minio_pass
+      RUSTFS_CONSOLE_ENABLE: 'true'
     ports:
       - '9000:9000' # API S3
       - '9001:9001' # consola web
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
 
 volumes:
   postgres_data:
-  minio_data:
+  rustfs_data:
