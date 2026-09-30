@@ -1,6 +1,13 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsDefined, IsNotEmpty, IsString, IsUrl, MaxLength, ValidateNested } from "class-validator";
+import {
+  IsDefined,
+  IsNotEmpty,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateNested,
+} from "class-validator";
 
 class ClavesSuscripcionDto {
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(255) p256dh: string;

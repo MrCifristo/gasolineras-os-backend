@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, Post, Request } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Post,
+  Request,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
 import { PushService } from "../../push/push.service";
@@ -9,11 +17,16 @@ import { BorrarSuscripcionDto } from "./dto/borrar-suscripcion.dto";
 @ApiTags("push")
 @Controller("push")
 export class PushController {
-  constructor(private readonly push: PushService, private readonly service: SuscripcionesPushService) {}
+  constructor(
+    private readonly push: PushService,
+    private readonly service: SuscripcionesPushService,
+  ) {}
 
   // Pública a propósito: la clave VAPID pública no es un secreto.
   @Get("vapid-public-key")
-  @ApiOperation({ summary: "Clave pública VAPID (null si el push está desactivado)" })
+  @ApiOperation({
+    summary: "Clave pública VAPID (null si el push está desactivado)",
+  })
   clave() {
     return { key: this.push.clavePublica() };
   }

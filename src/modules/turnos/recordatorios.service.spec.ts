@@ -31,7 +31,9 @@ describe("RecordatoriosService", () => {
       {} as any,
       {} as any,
     );
-    const spy = jest.spyOn(s, "ejecutar").mockRejectedValue(new Error("BD caída"));
+    const spy = jest
+      .spyOn(s, "ejecutar")
+      .mockRejectedValue(new Error("BD caída"));
     await expect(s.tick()).resolves.toBeUndefined();
     expect(spy).toHaveBeenCalledTimes(1);
   });

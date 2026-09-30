@@ -16,7 +16,11 @@ const VAPID = {
   VAPID_PRIVATE_KEY: "priv",
   VAPID_SUBJECT: "mailto:admin@example.com",
 };
-const destino = { endpoint: "https://push.example/abc", p256dh: "p", auth: "a" };
+const destino = {
+  endpoint: "https://push.example/abc",
+  p256dh: "p",
+  auth: "a",
+};
 const mensaje = { title: "t", body: "b", url: "/jefe" };
 
 describe("WebPushService", () => {
@@ -35,7 +39,9 @@ describe("WebPushService", () => {
   });
 
   it("con VAPID envía el mensaje como JSON", async () => {
-    (webpush.sendNotification as jest.Mock).mockResolvedValue({ statusCode: 201 });
+    (webpush.sendNotification as jest.Mock).mockResolvedValue({
+      statusCode: 201,
+    });
     const s = new WebPushService(config(VAPID));
     expect(s.clavePublica()).toBe("pub");
     expect(await s.enviar(destino, mensaje)).toBe("ok");
@@ -45,14 +51,19 @@ describe("WebPushService", () => {
     );
   });
 
-  it.each([404, 410])("un %i marca la suscripción como expirada", async (statusCode) => {
-    (webpush.sendNotification as jest.Mock).mockRejectedValue({ statusCode });
-    const s = new WebPushService(config(VAPID));
-    expect(await s.enviar(destino, mensaje)).toBe("expirada");
-  });
+  it.each([404, 410])(
+    "un %i marca la suscripción como expirada",
+    async (statusCode) => {
+      (webpush.sendNotification as jest.Mock).mockRejectedValue({ statusCode });
+      const s = new WebPushService(config(VAPID));
+      expect(await s.enviar(destino, mensaje)).toBe("expirada");
+    },
+  );
 
   it("un 500 es error, no expirada", async () => {
-    (webpush.sendNotification as jest.Mock).mockRejectedValue({ statusCode: 500 });
+    (webpush.sendNotification as jest.Mock).mockRejectedValue({
+      statusCode: 500,
+    });
     const s = new WebPushService(config(VAPID));
     expect(await s.enviar(destino, mensaje)).toBe("error");
   });

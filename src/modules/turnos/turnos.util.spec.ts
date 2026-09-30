@@ -22,7 +22,10 @@ describe("segmentos", () => {
 });
 
 describe("seSolapan", () => {
-  const t = (hora_inicio: string, hora_fin: string) => ({ hora_inicio, hora_fin });
+  const t = (hora_inicio: string, hora_fin: string) => ({
+    hora_inicio,
+    hora_fin,
+  });
   it("turnos contiguos no se solapan", () => {
     expect(seSolapan(t("06:00", "14:00"), t("14:00", "22:00"))).toBe(false);
   });

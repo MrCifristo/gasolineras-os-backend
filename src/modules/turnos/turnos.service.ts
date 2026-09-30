@@ -1,5 +1,9 @@
 // src/modules/turnos/turnos.service.ts
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { and, asc, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import { turnosGasolinera } from "../../db/schema";
@@ -43,7 +47,11 @@ export class TurnosService {
     return rows.map(aFila);
   }
 
-  async actualizar(gasolineraId: string, turno: string, dto: UpdateTurnoDto): Promise<FilaTurno> {
+  async actualizar(
+    gasolineraId: string,
+    turno: string,
+    dto: UpdateTurnoDto,
+  ): Promise<FilaTurno> {
     if (!(TURNOS as readonly string[]).includes(turno)) {
       throw new BadRequestException("El turno debe ser 'manana' o 'tarde'");
     }
@@ -64,7 +72,9 @@ export class TurnosService {
     };
 
     if (nuevo.hora_inicio === nuevo.hora_fin) {
-      throw new BadRequestException("La hora de inicio y la de fin no pueden ser iguales");
+      throw new BadRequestException(
+        "La hora de inicio y la de fin no pueden ser iguales",
+      );
     }
     if (seSolapan(nuevo, otro)) {
       throw new BadRequestException(
@@ -74,13 +84,26 @@ export class TurnosService {
 
     const [row] = await this.db.db
       .update(turnosGasolinera)
-      .set({ ...nuevo, recordatorio_activo: dto.recordatorio_activo ?? actual.recordatorio_activo, updated_at: new Date() })
-      .where(and(eq(turnosGasolinera.gasolinera_id, gasolineraId), eq(turnosGasolinera.turno, turno)))
+      .set({
+        ...nuevo,
+        recordatorio_activo:
+          dto.recordatorio_activo ?? actual.recordatorio_activo,
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(turnosGasolinera.gasolinera_id, gasolineraId),
+          eq(turnosGasolinera.turno, turno),
+        ),
+      )
       .returning();
     return aFila(row);
   }
 
-  async turnoActual(gasolineraId: string, ahoraUtc: Date = new Date()): Promise<{ turno: Turno | null }> {
+  async turnoActual(
+    gasolineraId: string,
+    ahoraUtc: Date = new Date(),
+  ): Promise<{ turno: Turno | null }> {
     const turnos = await this.listar(gasolineraId);
     const hit = turnoEnMinuto(turnos, ahoraGuatemala(ahoraUtc).minutos);
     return { turno: hit?.turno ?? null };

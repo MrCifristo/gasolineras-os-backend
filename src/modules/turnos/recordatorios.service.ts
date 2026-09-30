@@ -117,7 +117,11 @@ export class RecordatoriosService {
       .insert(recordatoriosTurno)
       .values({ gasolinera_id: c.gasolinera_id, turno: c.turno, fecha })
       .onConflictDoNothing({
-        target: [recordatoriosTurno.gasolinera_id, recordatoriosTurno.turno, recordatoriosTurno.fecha],
+        target: [
+          recordatoriosTurno.gasolinera_id,
+          recordatoriosTurno.turno,
+          recordatoriosTurno.fecha,
+        ],
       })
       .returning({ id: recordatoriosTurno.id });
     if (!reclamo) return null;

@@ -23,7 +23,8 @@ export function armarRecordatorio(e: {
   const ruta = e.rol === "jefe_pista" ? "/jefe" : "/admin/precios";
   const turno = NOMBRE_TURNO[e.turno];
   const precios = [...e.precios].sort(
-    (a, b) => ORDEN.indexOf(a.tipo_combustible) - ORDEN.indexOf(b.tipo_combustible),
+    (a, b) =>
+      ORDEN.indexOf(a.tipo_combustible) - ORDEN.indexOf(b.tipo_combustible),
   );
   const nombre = (t: string) => NOMBRE_COMBUSTIBLE[t] ?? t;
 
@@ -50,7 +51,9 @@ ${precios.length ? `<p>Precios vigentes:</p><ul>${lineas.map((l) => `<li>${escap
     title: `Turno ${turno} · ${e.horaInicio}`,
     body: `${e.gasolinera}: ${
       precios.length
-        ? precios.map((p) => `${nombre(p.tipo_combustible)} ${q(p.precio_galon)}`).join(" · ")
+        ? precios
+            .map((p) => `${nombre(p.tipo_combustible)} ${q(p.precio_galon)}`)
+            .join(" · ")
         : "Sin precios cargados hoy"
     }`,
     url: ruta,

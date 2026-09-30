@@ -1,5 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { PushService, type DestinoPush, type MensajePush, type ResultadoPush } from "./push.service";
+import {
+  PushService,
+  type DestinoPush,
+  type MensajePush,
+  type ResultadoPush,
+} from "./push.service";
 
 /** Fake en memoria para los tests: guarda lo enviado, sin red ni VAPID. */
 @Injectable()
@@ -14,7 +19,8 @@ export class InMemoryPushService extends PushService {
   }
 
   enviar(destino: DestinoPush, mensaje: MensajePush): Promise<ResultadoPush> {
-    if (this.expirados.has(destino.endpoint)) return Promise.resolve("expirada");
+    if (this.expirados.has(destino.endpoint))
+      return Promise.resolve("expirada");
     this.enviados.push({ destino: { ...destino }, mensaje: { ...mensaje } });
     return Promise.resolve("ok");
   }

@@ -1,4 +1,8 @@
-import { ahoraGuatemala, aMinutos, sumarDias } from "../../common/hora-guatemala";
+import {
+  ahoraGuatemala,
+  aMinutos,
+  sumarDias,
+} from "../../common/hora-guatemala";
 import type { Turno } from "./turnos.constants";
 
 export const MINUTOS_ANTES = 30;
@@ -16,7 +20,12 @@ interface Horario {
 export function segmentos(inicio: string, fin: string): [number, number][] {
   const a = aMinutos(inicio);
   const b = aMinutos(fin);
-  return b > a ? [[a, b]] : [[a, DIA], [0, b]];
+  return b > a
+    ? [[a, b]]
+    : [
+        [a, DIA],
+        [0, b],
+      ];
 }
 
 export function seSolapan(x: Horario, y: Horario): boolean {
