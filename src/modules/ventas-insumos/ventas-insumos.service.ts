@@ -18,6 +18,7 @@ import {
   ventasInsumos,
 } from "../../db/schema";
 import { CreateVentaInsumoDto, FormaPago } from "./dto/create-venta-insumo.dto";
+import { fechaGtSql } from "../../common/hora-guatemala";
 
 export interface FiltrosVenta {
   gasolinera_id?: string;
@@ -51,11 +52,11 @@ export class VentasInsumosService {
       );
     if (filtros.fecha_desde)
       condiciones.push(
-        sql`${ventasInsumos.vendido_at}::date >= ${filtros.fecha_desde}::date`,
+        sql`${fechaGtSql(ventasInsumos.vendido_at)} >= ${filtros.fecha_desde}::date`,
       );
     if (filtros.fecha_hasta)
       condiciones.push(
-        sql`${ventasInsumos.vendido_at}::date <= ${filtros.fecha_hasta}::date`,
+        sql`${fechaGtSql(ventasInsumos.vendido_at)} <= ${filtros.fecha_hasta}::date`,
       );
 
     return this.db.db

@@ -11,6 +11,7 @@ import {
 import { ReportesService, ReporteFilters } from "../reportes.service";
 import { GenerarPdfDto } from "./reportes-pdf.dto";
 import { buildPdfHtml, PdfTemplateData } from "./html-template";
+import { fechaGtSql } from "../../../common/hora-guatemala";
 
 @Injectable()
 export class ReportesPdfService {
@@ -80,11 +81,11 @@ export class ReportesPdfService {
       conditions.push(eq(despachos.gasolinera_id, filtros.gasolinera_id));
     if (filtros.fecha_desde)
       conditions.push(
-        sql`${despachos.despachado_at}::date >= ${filtros.fecha_desde}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} >= ${filtros.fecha_desde}::date`,
       );
     if (filtros.fecha_hasta)
       conditions.push(
-        sql`${despachos.despachado_at}::date <= ${filtros.fecha_hasta}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} <= ${filtros.fecha_hasta}::date`,
       );
 
     const where = conditions.length ? and(...conditions) : undefined;
