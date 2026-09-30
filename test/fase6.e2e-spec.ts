@@ -21,6 +21,7 @@ import { InMemoryStorageService } from "../src/storage/in-memory-storage.service
 import { MailService } from "../src/mail/mail.service";
 import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { gasolineras, turnosGasolinera, usuarios } from "../src/db/schema";
+import { fechaGuatemala } from "../src/common/hora-guatemala";
 
 dotenv.config();
 process.env.RECORDATORIOS_ACTIVOS = "false";
@@ -257,6 +258,52 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .get(`/api/v1/turnos/actual?gasolinera_id=${gasAId}`)
         .set("Authorization", `Bearer ${adminToken}`);
       expect(delSupervisor.body).toEqual(deA.body);
+    });
+  });
+
+  describe("Permisos del jefe de pista", () => {
+    it("lee la lista de gasolineras", async () => {
+      const res = await http().get("/api/v1/gasolineras").set("Authorization", `Bearer ${jefeToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+
+    it("lee una gasolinera por id", async () => {
+      const res = await http().get(`/api/v1/gasolineras/${gasBId}`).set("Authorization", `Bearer ${jefeToken}`);
+      expect(res.status).toBe(200);
+    });
+
+    it("lee precios filtrados por gasolinera", async () => {
+      const res = await http()
+        .get(`/api/v1/precios-combustible?gasolinera_id=${gasBId}`)
+        .set("Authorization", `Bearer ${jefeToken}`);
+      expect(res.status).toBe(200);
+    });
+
+    it("lee los precios de hoy de cualquier gasolinera", async () => {
+      await http()
+        .post("/api/v1/precios-combustible")
+        .set("Authorization", `Bearer ${jefeToken}`)
+        .send({ gasolinera_id: gasBId, fecha: fechaGuatemala(), tipo_combustible: "diesel", precio_galon: "30.500" })
+        .expect(201);
+      const res = await http()
+        .get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`)
+        .set("Authorization", `Bearer ${jefeToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.map((p: any) => p.tipo_combustible)).toContain("diesel");
+    });
+
+    it("el supervisor sigue viendo sólo los precios de su gasolinera en /hoy", async () => {
+      const res = await http()
+        .get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.every((p: any) => p.gasolinera_id === gasAId)).toBe(true);
+    });
+
+    it("/hoy sin gasolinera_id para admin → 400", async () => {
+      const res = await http().get("/api/v1/precios-combustible/hoy").set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(400);
     });
   });
 });

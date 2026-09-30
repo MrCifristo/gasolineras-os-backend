@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -26,7 +27,7 @@ export class PreciosCombustibleController {
   constructor(private readonly service: PreciosCombustibleService) {}
 
   @Get()
-  @Auth("admin", "supervisor")
+  @Auth("admin", "supervisor", "jefe_pista")
   @ApiOperation({
     summary: "Listar precios, filtrable por gasolinera_id y fecha",
   })
@@ -40,12 +41,16 @@ export class PreciosCombustibleController {
   }
 
   @Get("hoy")
-  @Auth("admin", "supervisor")
+  @Auth("admin", "supervisor", "jefe_pista")
   @ApiOperation({
-    summary: "Precios de hoy para la gasolinera del operario autenticado",
+    summary: "Precios de hoy (hora de Guatemala) de una gasolinera",
   })
-  findHoy(@Request() req: any) {
-    return this.service.findHoy(req.user.gasolinera_id);
+  @ApiQuery({ name: "gasolinera_id", required: false })
+  findHoy(@Request() req: any, @Query("gasolinera_id") gasolineraId?: string) {
+    // El supervisor sólo ve su gasolinera; admin y jefe de pista eligen.
+    const id = req.user.rol === "supervisor" ? req.user.gasolinera_id : gasolineraId;
+    if (!id) throw new BadRequestException("Falta gasolinera_id");
+    return this.service.findHoy(id);
   }
 
   @Post()
