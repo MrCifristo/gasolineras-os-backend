@@ -705,6 +705,57 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.cliente.id).toBe(cliente1Id);
     });
 
+    it("el detalle trae el operario que despachó", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.operario).toEqual({ id: operarioId, nombre: tag("Operario Bomba") });
+    });
+
+    it("rechaza un operario de otra gasolinera → 400", async () => {
+      const otra = await request(app.getHttpServer())
+        .post("/api/v1/gasolineras")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Otra estación"), direccion: "Km 2", ciudad: "Puerto Barrios" });
+      const ajeno = await request(app.getHttpServer())
+        .post("/api/v1/operarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ gasolinera_id: otra.body.id, nombre: tag("Operario ajeno") });
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: cliente1Id, operario_id: ajeno.body.id,
+          vehiculo_id: vehiculo1Id, piloto_id: piloto1Id,
+          tipo_combustible: "diesel", turno: "manana", monto: "100.000",
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe("El operario no pertenece a esta gasolinera o está inactivo.");
+    });
+
+    it("rechaza un operario inactivo → 400", async () => {
+      const inactivo = await request(app.getHttpServer())
+        .post("/api/v1/operarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ gasolinera_id: gasolineraId, nombre: tag("Operario inactivo") });
+      await request(app.getHttpServer())
+        .delete(`/api/v1/operarios/${inactivo.body.id}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: cliente1Id, operario_id: inactivo.body.id,
+          vehiculo_id: vehiculo1Id, piloto_id: piloto1Id,
+          tipo_combustible: "diesel", turno: "manana", monto: "100.000",
+        });
+      expect(res.status).toBe(400);
+    });
+
     it("rechaza despacho de combustible sin precio registrado hoy → 400", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/despachos")
@@ -768,6 +819,13 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const ids = res.body.map((d: any) => d.id);
       expect(ids).toContain(despacho1Id);
       expect(ids).toContain(despacho2Id);
+    });
+
+    it("cada despacho del listado trae su operario", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos?cliente_id=${cliente1Id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.body.every((d: any) => d.operario?.id === operarioId)).toBe(true);
     });
 
     it("filtra despachos por cliente → solo aparecen los del cliente E2E", async () => {

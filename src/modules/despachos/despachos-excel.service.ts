@@ -7,6 +7,7 @@ import {
   despachoDetalles,
   vehiculos,
   pilotos,
+  operarios,
   gasolineras,
   clientes,
   preciosCombustible,
@@ -87,6 +88,7 @@ export class DespachosExcelService {
           modelo: vehiculos.modelo,
           piloto: pilotos.nombre_completo,
           codigo_piloto: pilotos.codigo,
+          operario: operarios.nombre,
           tipo_combustible: preciosCombustible.tipo_combustible,
           precio_galon: preciosCombustible.precio_galon,
         })
@@ -98,6 +100,7 @@ export class DespachosExcelService {
         // que es la peor forma de perder un despacho.
         .leftJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
         .leftJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
+        .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
         .leftJoin(
           preciosCombustible,
           eq(despachos.precio_id, preciosCombustible.id),
@@ -230,6 +233,7 @@ export class DespachosExcelService {
       { header: "Vehículo", key: "vehiculo", width: 20 },
       { header: "Cód. Piloto", key: "codigo_piloto", width: 12 },
       { header: "Piloto", key: "piloto", width: 24 },
+      { header: "Operario", key: "operario", width: 22 },
       { header: "Tipo Combustible", key: "tipo_combustible", width: 16 },
       // Un vale puede repartirse entre el vehículo, canecas y toneles, con
       // combustibles distintos. Sin esta columna la fila diría un solo tipo y
@@ -302,6 +306,7 @@ export class DespachosExcelService {
         vehiculo: `${r.marca ?? ""} ${r.modelo ?? ""}`.trim(),
         codigo_piloto: r.codigo_piloto,
         piloto: r.piloto,
+        operario: r.operario ?? "",
         tipo_combustible: r.tipo_combustible,
         renglones: renglones.get(r.id) ?? "",
         precio_galon:

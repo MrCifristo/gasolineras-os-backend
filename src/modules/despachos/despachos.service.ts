@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, gte, lte, sql } from "drizzle-orm";
 import {
   ahoraGuatemala,
   aMinutos,
@@ -25,6 +25,7 @@ import {
   clientes,
   configuracionSistema,
   usuarios,
+  operarios,
   type Renglon,
 } from "../../db/schema";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
@@ -150,8 +151,12 @@ export class DespachosService {
       );
 
     return this.db.db
-      .select()
+      .select({
+        ...getTableColumns(despachos),
+        operario: { id: operarios.id, nombre: operarios.nombre },
+      })
       .from(despachos)
+      .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(sql`${despachos.despachado_at} DESC`)
       .limit(limit)
@@ -188,12 +193,15 @@ export class DespachosService {
         gasolinera: gasolineras,
         precio: preciosCombustible,
         cliente: clientes,
+        operario: { id: operarios.id, nombre: operarios.nombre },
       })
       .from(despachos)
       // leftJoin y no innerJoin: un vale sólo de canecas no tiene vehículo ni
       // piloto, y con innerJoin desaparecería del resultado — un 404 fantasma.
       .leftJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
       .leftJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
+      // leftJoin: los vales anteriores a la Fase 1 no tienen operario.
+      .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
       .innerJoin(gasolineras, eq(despachos.gasolinera_id, gasolineras.id))
       .leftJoin(
         preciosCombustible,
@@ -264,6 +272,26 @@ export class DespachosService {
     }
     // La serie sale de la gasolinera, no del cliente: el operario no la elige.
     const serieVale = gas.serie_vale_actual;
+
+    // ── 2b. Operario de esta gasolinera y activo ─────────────────────────
+    // La FK sólo garantiza que existe. Sin esto un supervisor podía cargar el
+    // vale a un operario de la otra estación o a uno dado de baja.
+    const [operario] = await this.db.db
+      .select({ id: operarios.id })
+      .from(operarios)
+      .where(
+        and(
+          eq(operarios.id, dto.operario_id),
+          eq(operarios.gasolinera_id, user.gasolinera_id),
+          eq(operarios.activo, true),
+        ),
+      )
+      .limit(1);
+    if (!operario) {
+      throw new BadRequestException(
+        "El operario no pertenece a esta gasolinera o está inactivo.",
+      );
+    }
 
     // ── 3. Bloqueo de cliente ────────────────────────────────────────────
     const [clienteRow] = await this.db.db
