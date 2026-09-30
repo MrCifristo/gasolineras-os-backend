@@ -48,6 +48,7 @@ describe("WebPushService", () => {
     expect(webpush.sendNotification).toHaveBeenCalledWith(
       { endpoint: destino.endpoint, keys: { p256dh: "p", auth: "a" } },
       JSON.stringify(mensaje),
+      { timeout: 10_000 },
     );
   });
 

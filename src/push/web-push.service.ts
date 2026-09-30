@@ -50,6 +50,7 @@ export class WebPushService extends PushService {
           keys: { p256dh: destino.p256dh, auth: destino.auth },
         },
         JSON.stringify(mensaje),
+        { timeout: 10_000 },
       );
       return "ok";
     } catch (e: any) {
