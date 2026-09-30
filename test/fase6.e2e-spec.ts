@@ -294,11 +294,22 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("el supervisor sigue viendo sólo los precios de su gasolinera en /hoy", async () => {
+      // Crear un precio para gasAId (regular) para verificar que el supervisor lo ve
+      // aunque pida precios de gasBId
+      await http()
+        .post("/api/v1/precios-combustible")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ gasolinera_id: gasAId, fecha: fechaGuatemala(), tipo_combustible: "regular", precio_galon: "28.750" })
+        .expect(201);
+
+      // El supervisor pide precios de gasBId pero solo ve los de su gasolinera (gasAId)
       const res = await http()
         .get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`)
         .set("Authorization", `Bearer ${supervisorToken}`);
       expect(res.status).toBe(200);
+      expect(res.body.length).toBeGreaterThan(0);
       expect(res.body.every((p: any) => p.gasolinera_id === gasAId)).toBe(true);
+      expect(res.body.some((p: any) => p.gasolinera_id === gasBId)).toBe(false);
     });
 
     it("/hoy sin gasolinera_id para admin → 400", async () => {
