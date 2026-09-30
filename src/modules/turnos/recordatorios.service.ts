@@ -116,7 +116,9 @@ export class RecordatoriosService {
     const [reclamo] = await this.db.db
       .insert(recordatoriosTurno)
       .values({ gasolinera_id: c.gasolinera_id, turno: c.turno, fecha })
-      .onConflictDoNothing()
+      .onConflictDoNothing({
+        target: [recordatoriosTurno.gasolinera_id, recordatoriosTurno.turno, recordatoriosTurno.fecha],
+      })
       .returning({ id: recordatoriosTurno.id });
     if (!reclamo) return null;
 

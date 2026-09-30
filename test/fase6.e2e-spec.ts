@@ -454,7 +454,15 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(correos.enviados[0].texto).toContain("Súper: Q 34.750");
     });
 
-    it("turno que empieza a las 00:15: el aviso de las 23:50 GT (05:50 UTC) lleva la fecha GT del día siguiente", async () => {
+    it("turno que empieza a las 00:15: el aviso de las 23:50 GT (05:50 UTC) lleva la fecha GT del día siguiente y sus precios", async () => {
+      const poner = (fecha: string, tipo: string, precio: string) =>
+        http()
+          .post("/api/v1/precios-combustible")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({ gasolinera_id: gasRId, fecha, tipo_combustible: tipo, precio_galon: precio })
+          .expect(201);
+      await poner("2030-01-15", "diesel", "31.250");
+      await poner("2030-01-14", "regular", "29.000");
       await db.db
         .update(turnosGasolinera)
         .set({ hora_inicio: "00:15", hora_fin: "06:00" })
@@ -463,13 +471,19 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .update(turnosGasolinera)
         .set({ hora_inicio: "06:00", hora_fin: "00:15" })
         .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "tarde")));
-      const r = await recordatorios.ejecutar(instante("2030-01-14", "23:50"));
-      expect(r.enviados).toEqual([expect.objectContaining({ turno: "manana", fecha: "2030-01-15" })]);
-      // Restaurar horario por defecto
-      await db.db.update(turnosGasolinera).set({ hora_inicio: "06:00", hora_fin: "14:00" })
-        .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "manana")));
-      await db.db.update(turnosGasolinera).set({ hora_inicio: "14:00", hora_fin: "22:00" })
-        .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "tarde")));
+      try {
+        const r = await recordatorios.ejecutar(instante("2030-01-14", "23:50"));
+        expect(r.enviados).toEqual([expect.objectContaining({ turno: "manana", fecha: "2030-01-15" })]);
+        expect(correos.enviados.length).toBeGreaterThan(0);
+        expect(correos.enviados[0].texto).toContain("Diésel: Q 31.250");
+        expect(correos.enviados[0].texto).not.toContain("Regular");
+      } finally {
+        // Restaurar horario por defecto aunque falle una aserción
+        await db.db.update(turnosGasolinera).set({ hora_inicio: "06:00", hora_fin: "14:00" })
+          .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "manana")));
+        await db.db.update(turnosGasolinera).set({ hora_inicio: "14:00", hora_fin: "22:00" })
+          .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "tarde")));
+      }
     });
 
     it("un admin sin email no rompe el envío y un jefe inactivo no recibe nada", async () => {
@@ -482,9 +496,12 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
     it("una gasolinera bloqueada no recibe recordatorios", async () => {
       await db.db.update(gasolineras).set({ bloqueado: true }).where(eq(gasolineras.id, gasRId));
-      const r = await recordatorios.ejecutar(instante("2030-01-17", "13:45"));
-      expect(r.enviados).toHaveLength(0);
-      await db.db.update(gasolineras).set({ bloqueado: false }).where(eq(gasolineras.id, gasRId));
+      try {
+        const r = await recordatorios.ejecutar(instante("2030-01-17", "13:45"));
+        expect(r.enviados).toHaveLength(0);
+      } finally {
+        await db.db.update(gasolineras).set({ bloqueado: false }).where(eq(gasolineras.id, gasRId));
+      }
     });
 
     it("una suscripción que responde 410 se elimina", async () => {
