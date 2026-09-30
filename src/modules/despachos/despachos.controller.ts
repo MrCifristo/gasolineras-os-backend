@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -21,6 +22,16 @@ import { DespachosExcelService } from "./despachos-excel.service";
 import { DespachosService } from "./despachos.service";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
+
+/** page/limit: entero >= 1 (limit <= 100 por clamp); basura -> 400. */
+function parsePagina(valor: string | undefined, nombre: string, max?: number) {
+  if (valor === undefined || valor === "") return undefined;
+  if (!/^\d+$/.test(valor) || Number(valor) < 1) {
+    throw new BadRequestException(`${nombre} debe ser un entero mayor o igual a 1`);
+  }
+  const n = Number(valor);
+  return max ? Math.min(n, max) : n;
+}
 
 @ApiTags("despachos")
 @ApiBearerAuth("JWT")
@@ -71,8 +82,8 @@ export class DespachosController {
         fecha_hasta: fechaHasta,
         turno,
         tipo_combustible: tipoCombustible,
-        page: page ? parseInt(page) : undefined,
-        limit: limit ? parseInt(limit) : undefined,
+        page: parsePagina(page, "page"),
+        limit: parsePagina(limit, "limit", 100),
       },
       req.user,
     );

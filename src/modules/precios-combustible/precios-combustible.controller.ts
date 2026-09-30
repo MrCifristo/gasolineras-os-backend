@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -34,7 +35,7 @@ export class PreciosCombustibleController {
   @ApiQuery({ name: "gasolinera_id", required: false })
   @ApiQuery({ name: "fecha", required: false, example: "2026-05-21" })
   findAll(
-    @Query("gasolinera_id") gasolineraId?: string,
+    @Query("gasolinera_id", new ParseUUIDPipe({ optional: true })) gasolineraId?: string,
     @Query("fecha") fecha?: string,
   ) {
     return this.service.findAll(gasolineraId, fecha);
@@ -46,7 +47,7 @@ export class PreciosCombustibleController {
     summary: "Precios de hoy (hora de Guatemala) de una gasolinera",
   })
   @ApiQuery({ name: "gasolinera_id", required: false })
-  findHoy(@Request() req: any, @Query("gasolinera_id") gasolineraId?: string) {
+  findHoy(@Request() req: any, @Query("gasolinera_id", new ParseUUIDPipe({ optional: true })) gasolineraId?: string) {
     // El supervisor sólo ve su gasolinera; admin y jefe de pista eligen.
     const id = req.user.rol === "supervisor" ? req.user.gasolinera_id : gasolineraId;
     if (!id) throw new BadRequestException("Falta gasolinera_id");

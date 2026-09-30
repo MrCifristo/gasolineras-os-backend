@@ -160,7 +160,7 @@ export class DespachosService {
         .from(despachos)
         .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
         .where(where)
-        .orderBy(sql`${despachos.despachado_at} DESC`)
+        .orderBy(sql`${despachos.despachado_at} DESC`, sql`${despachos.id} DESC`)
         .limit(limit)
         .offset(offset),
       this.db.db

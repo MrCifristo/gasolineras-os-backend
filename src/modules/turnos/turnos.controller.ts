@@ -48,7 +48,7 @@ export class TurnosController {
   @Auth("admin", "supervisor")
   @ApiOperation({ summary: "Turno vigente según la hora de Guatemala" })
   @ApiQuery({ name: "gasolinera_id", required: false })
-  actual(@Request() req: any, @Query("gasolinera_id") gasolineraId?: string) {
+  actual(@Request() req: any, @Query("gasolinera_id", new ParseUUIDPipe({ optional: true })) gasolineraId?: string) {
     // El supervisor sólo opera su gasolinera: el query se ignora.
     const id =
       req.user.rol === "supervisor" ? req.user.gasolinera_id : gasolineraId;
