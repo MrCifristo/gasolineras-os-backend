@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { tokensReset, usuarios } from "../db/schema";
+import { escaparHtml } from "../common/escapar-html";
 import { MailService } from "../mail/mail.service";
 import { PasswordService } from "./password.service";
 import { SessionService } from "./session.service";
@@ -172,12 +173,4 @@ export class PasswordResetService {
     // reset no sirve para recuperar una cuenta ya comprometida.
     await this.sesiones.revocarTodasDelUsuario(usuario.id);
   }
-}
-
-function escaparHtml(valor: string): string {
-  return valor
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
