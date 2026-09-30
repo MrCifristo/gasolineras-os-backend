@@ -17,7 +17,7 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ThrottlerGuard } from "@nestjs/throttler";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import * as dotenv from "dotenv";
 import request from "supertest";
 import { App } from "supertest/types";
@@ -30,7 +30,7 @@ import { MailService } from "../src/mail/mail.service";
 import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { PushService } from "../src/push/push.service";
 import { InMemoryPushService } from "../src/push/in-memory-push.service";
-import { usuarios } from "../src/db/schema";
+import { gasolineras, usuarios } from "../src/db/schema";
 
 // moduleNameMapper resuelve "puppeteer" al mock de test/__mocks__. El cast es
 // para llegar a los ayudantes del mock, que los tipos reales no declaran.
@@ -177,6 +177,12 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           .set({ activo: false })
           .where(eq(usuarios.email, email));
       }
+      // Las estaciones creadas por la corrida (p. ej. "Otra estación") nacen con
+      // turnos de recordatorio activos: se desactivan para que no reciban avisos.
+      await db.db
+        .update(gasolineras)
+        .set({ activo: false })
+        .where(like(gasolineras.nombre, `[E2E-${RUN_ID}] %`));
     } catch {
       // Limpieza best-effort: la DB de test se recrea con docker compose down -v.
     }
@@ -1001,8 +1007,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(Array.isArray(res.body)).toBe(true);
 
       // Debe haber al menos el mes actual con los despachos de este test
-      const mesActual = new Date().getMonth() + 1;
-      const anioActual = new Date().getFullYear();
+      const [anioActual, mesActual] = fechaGuatemala().split("-").map(Number);
       const entradaHoy = res.body.find(
         (m: any) => m.mes === mesActual && m.anio === anioActual,
       );
@@ -1909,6 +1914,16 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(400);
     });
+
+    it.each(["page=0", "limit=abc", "limit=0", "page=-1"])(
+      "paginación inválida (%s) → 400, nunca 500",
+      async (qs) => {
+        const res = await request(app.getHttpServer())
+          .get(`/api/v1/despachos?${qs}`)
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(400);
+      },
+    );
 
     it("la numeración de vale sigue siendo monótona con vales multi-renglón", async () => {
       const res = await request(app.getHttpServer())

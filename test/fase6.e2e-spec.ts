@@ -9,7 +9,7 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ThrottlerGuard } from "@nestjs/throttler";
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, inArray, like, ne } from "drizzle-orm";
 import * as dotenv from "dotenv";
 import request from "supertest";
 import { App } from "supertest/types";
@@ -232,6 +232,13 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(res.status).toBe(403);
     });
 
+    it("GET /turnos/actual con gasolinera_id que no es UUID → 400", async () => {
+      const res = await http()
+        .get("/api/v1/turnos/actual?gasolinera_id=abc")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(400);
+    });
+
     it("GET /turnos/actual responde con la forma { turno }", async () => {
       const res = await http()
         .get(`/api/v1/turnos/actual?gasolinera_id=${gasAId}`)
@@ -365,6 +372,18 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(res.status).toBe(403);
     });
 
+    it("endpoint sin esquema → 400", async () => {
+      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`)
+        .send({ endpoint: "push.example.com/abc", keys: body.keys });
+      expect(res.status).toBe(400);
+    });
+
+    it("expirationTime null (toJSON del navegador) se acepta → 201", async () => {
+      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`)
+        .send({ ...body, expirationTime: null });
+      expect(res.status).toBe(201);
+    });
+
     it("body sin keys → 400", async () => {
       const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send({ endpoint });
       expect(res.status).toBe(400);
@@ -378,6 +397,8 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     const instante = (fechaGt: string, hhmmGt: string) =>
       new Date(new Date(`${fechaGt}T${hhmmGt}:00Z`).getTime() + 6 * 3600 * 1000);
 
+    let turnosActivosPrevios: string[] = [];
+
     beforeAll(async () => {
       recordatorios = app.get(RecordatoriosService);
       const res = await http()
@@ -386,7 +407,17 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .send({ nombre: `[F6-${RUN_ID}] Estación R`, direccion: "Km 1", ciudad: "Morales" });
       gasRId = res.body.id;
       // Sólo esta gasolinera tiene recordatorio: aislamos de otras de la BD.
-      await db.db.update(turnosGasolinera).set({ recordatorio_activo: false });
+      const activos = await db.db
+        .select({ id: turnosGasolinera.id })
+        .from(turnosGasolinera)
+        .where(and(eq(turnosGasolinera.recordatorio_activo, true), ne(turnosGasolinera.gasolinera_id, gasRId)));
+      turnosActivosPrevios = activos.map((t) => t.id);
+      if (turnosActivosPrevios.length) {
+        await db.db
+          .update(turnosGasolinera)
+          .set({ recordatorio_activo: false })
+          .where(inArray(turnosGasolinera.id, turnosActivosPrevios));
+      }
       await db.db
         .update(turnosGasolinera)
         .set({ recordatorio_activo: true })
@@ -395,7 +426,12 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
     afterAll(async () => {
       // Restaurar el flag del resto de gasolineras de la BD de desarrollo.
-      await db.db.update(turnosGasolinera).set({ recordatorio_activo: true });
+      if (turnosActivosPrevios.length) {
+        await db.db
+          .update(turnosGasolinera)
+          .set({ recordatorio_activo: true })
+          .where(inArray(turnosGasolinera.id, turnosActivosPrevios));
+      }
       await db.db.update(gasolineras).set({ activo: false }).where(eq(gasolineras.id, gasRId));
     });
 
