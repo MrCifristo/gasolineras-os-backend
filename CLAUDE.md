@@ -165,7 +165,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 ## Testing
 
 - Unit (`pnpm test`): 36 tests in 6 suites.
-- E2E (`pnpm test:e2e`): 197 tests — `gasfuel` 152, `auth-rotacion` 8,
-  `fase6` 37. Needs live Postgres and a migrated DB; run with
+- E2E (`pnpm test:e2e`): 204 tests — `gasfuel` 156, `auth-rotacion` 8,
+  `fase6` 40. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

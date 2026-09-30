@@ -262,7 +262,7 @@ Un cron interno corre cada minuto y, 30 minutos antes del inicio de cada turno c
 { "key": "BPx…" }   // null si el backend no tiene VAPID configurado: el push está desactivado
 ```
 
-`POST /push/suscripciones` — `admin`, `jefe_pista`. Body: el `PushSubscription.toJSON()` del navegador **sin** `expirationTime` (está prohibido: `forbidNonWhitelisted` lo rechaza con 400):
+`POST /push/suscripciones` — `admin`, `jefe_pista`. Body: el `PushSubscription.toJSON()` del navegador tal cual. `expirationTime` (normalmente `null`) se acepta y se ignora. `endpoint` debe ser una URL `https://` con esquema explícito (si no, 400):
 
 ```jsonc
 { "endpoint": "https://fcm.googleapis.com/fcm/send/…",
@@ -286,7 +286,7 @@ Ya **no** responde un arreglo. Ahora:
 }
 ```
 
-`page` (default 1) y `limit` (default 20) siguen siendo query params. `total` ya cuenta con los filtros aplicados, así que el frontend deja de adivinar si hay más páginas. Los filtros y el scoping por rol no cambian.
+`page` (default 1) y `limit` (default 20) siguen siendo query params. Deben ser enteros >= 1, si no la respuesta es 400; `limit` se recorta a 100. El orden es `despachado_at DESC, id DESC`, estable entre páginas. `total` ya cuenta con los filtros aplicados, así que el frontend deja de adivinar si hay más páginas. Los filtros y el scoping por rol no cambian.
 
 ### `operario` en las respuestas (H1/H2)
 

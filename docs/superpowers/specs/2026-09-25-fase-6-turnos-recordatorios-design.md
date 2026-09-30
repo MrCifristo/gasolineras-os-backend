@@ -247,3 +247,6 @@ Lo que quedó distinto de lo planeado al construir el backend:
 - `@nestjs/schedule@12.0.2` es sólo ESM. Jest (`package.json` y `test/jest-e2e.json`) transforma ese paquete con ts-jest; la app compilada depende de `require(esm)` de Node, que exige **Node >= 22.12**. No se añadió `engines`.
 - Los tres suites e2e fijan `RECORDATORIOS_ACTIVOS=false` para que el cron real no corra durante las pruebas.
 - `onConflictDoNothing` en `recordatorios_turno` usa el target explícito `(gasolinera_id, turno, fecha)`.
+- `CrearSuscripcionDto` acepta `expirationTime` (opcional, `number | null`) y lo ignora: `PushSubscription.toJSON()` lo envía y `forbidNonWhitelisted` lo convertía en 400. El `endpoint` exige esquema (`require_protocol`).
+- `GET /despachos` valida `page`/`limit` (400 si no son enteros >= 1; `limit` se recorta a 100) y ordena por `despachado_at DESC, id DESC`. `gasolinera_id` en `/turnos/actual` y `/precios-combustible` se valida como UUID.
+- El `Pool` de pg fija `TimeZone=UTC` en la sesión y los PDF/Excel formatean fechas con `America/Guatemala`.
