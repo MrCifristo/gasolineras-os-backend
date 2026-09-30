@@ -37,6 +37,7 @@ export class ReportesPdfService {
       ]);
 
     const fechaGen = new Date().toLocaleDateString("es-GT", {
+      timeZone: "America/Guatemala",
       day: "2-digit",
       month: "long",
       year: "numeric",

@@ -189,7 +189,7 @@ export class DespachosExcelService {
     // Subtítulo con fecha de generación
     ws.mergeCells("A2:T2");
     const sub = ws.getCell("A2");
-    sub.value = `Generado el ${new Date().toLocaleString("es-GT", { dateStyle: "long", timeStyle: "short" })}   ·   ${rows.length} registro${rows.length !== 1 ? "s" : ""}`;
+    sub.value = `Generado el ${new Date().toLocaleString("es-GT", { dateStyle: "long", timeStyle: "short", timeZone: "America/Guatemala" })}   ·   ${rows.length} registro${rows.length !== 1 ? "s" : ""}`;
     sub.font = {
       name: "Calibri",
       size: 10,

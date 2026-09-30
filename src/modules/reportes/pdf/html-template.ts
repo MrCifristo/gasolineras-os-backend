@@ -105,6 +105,7 @@ function fmtDate(d: Date | string | null): string {
   if (!d) return "—";
   const dt = typeof d === "string" ? new Date(d) : d;
   return dt.toLocaleDateString("es-GT", {
+    timeZone: "America/Guatemala", // presentación; el servidor corre en UTC
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

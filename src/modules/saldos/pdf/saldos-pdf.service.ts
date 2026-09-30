@@ -18,6 +18,7 @@ export class SaldosPdfService {
       cliente: { nombre: estado.cliente.nombre, nit: estado.cliente.nit },
       periodoLabel: this.periodoLabel(query),
       fechaGeneracion: new Date().toLocaleDateString("es-GT", {
+        timeZone: "America/Guatemala",
         day: "2-digit",
         month: "long",
         year: "numeric",
