@@ -4,6 +4,7 @@ import { DbModule } from "./db/db.module";
 import { AuthModule } from "./auth/auth.module";
 import { StorageModule } from "./storage/storage.module";
 import { MailModule } from "./mail/mail.module";
+import { PushModule } from "./push/push.module";
 import { GasolinerasModule } from "./modules/gasolineras/gasolineras.module";
 import { ClientesModule } from "./modules/clientes/clientes.module";
 import { VehiculosModule } from "./modules/vehiculos/vehiculos.module";
@@ -18,6 +19,7 @@ import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/conf
 import { InventarioModule } from "./modules/inventario/inventario.module";
 import { VentasInsumosModule } from "./modules/ventas-insumos/ventas-insumos.module";
 import { TurnosModule } from "./modules/turnos/turnos.module";
+import { PushSuscripcionesModule } from "./modules/push/push-suscripciones.module";
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { TurnosModule } from "./modules/turnos/turnos.module";
     AuthModule,
     StorageModule,
     MailModule,
+    PushModule,
     GasolinerasModule,
     ClientesModule,
     VehiculosModule,
@@ -40,6 +43,7 @@ import { TurnosModule } from "./modules/turnos/turnos.module";
     InventarioModule,
     VentasInsumosModule,
     TurnosModule,
+    PushSuscripcionesModule,
   ],
 })
 export class AppModule {}

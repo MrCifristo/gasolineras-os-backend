@@ -20,7 +20,9 @@ import { StorageService } from "../src/storage/storage.service";
 import { InMemoryStorageService } from "../src/storage/in-memory-storage.service";
 import { MailService } from "../src/mail/mail.service";
 import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
-import { gasolineras, turnosGasolinera, usuarios } from "../src/db/schema";
+import { PushService } from "../src/push/push.service";
+import { InMemoryPushService } from "../src/push/in-memory-push.service";
+import { gasolineras, suscripcionesPush, turnosGasolinera, usuarios } from "../src/db/schema";
 import { fechaGuatemala } from "../src/common/hora-guatemala";
 
 dotenv.config();
@@ -42,6 +44,7 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
   let db: DbService;
   let passwords: PasswordService;
   let correos: InMemoryMailService;
+  let pushes: InMemoryPushService;
   let adminToken: string;
   let supervisorToken: string;
   let jefeToken: string;
@@ -87,6 +90,8 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       .useClass(InMemoryStorageService)
       .overrideProvider(MailService)
       .useClass(InMemoryMailService)
+      .overrideProvider(PushService)
+      .useClass(InMemoryPushService)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -99,6 +104,7 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     db = app.get(DbService);
     passwords = app.get(PasswordService);
     correos = app.get(MailService);
+    pushes = app.get(PushService);
 
     const hash = await passwords.hashear(ADMIN_PASSWORD);
     await db.db
@@ -314,6 +320,52 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
     it("/hoy sin gasolinera_id para admin → 400", async () => {
       const res = await http().get("/api/v1/precios-combustible/hoy").set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("Suscripciones push", () => {
+    const endpoint = `https://push.example/${RUN_ID}`;
+    const body = { endpoint, keys: { p256dh: "clave-p256dh", auth: "clave-auth" } };
+
+    it("la clave pública VAPID es accesible sin login", async () => {
+      const res = await http().get("/api/v1/push/vapid-public-key");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ key: "clave-publica-de-prueba" });
+    });
+
+    it("el jefe de pista se suscribe → 201", async () => {
+      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send(body);
+      expect(res.status).toBe(201);
+    });
+
+    it("el mismo navegador suscrito por el admin reasigna la fila, no la duplica", async () => {
+      await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${adminToken}`).send(body).expect(201);
+      const filas = await db.db.select().from(suscripcionesPush).where(eq(suscripcionesPush.endpoint, endpoint));
+      expect(filas).toHaveLength(1);
+      const [admin] = await db.db.select().from(usuarios).where(eq(usuarios.email, ADMIN_EMAIL));
+      expect(filas[0].usuario_id).toBe(admin.id);
+    });
+
+    it("el jefe no puede borrar una suscripción que ya no es suya → 404", async () => {
+      const res = await http().delete("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send({ endpoint });
+      expect(res.status).toBe(404);
+    });
+
+    it("el admin borra la suya → 200", async () => {
+      const res = await http().delete("/api/v1/push/suscripciones").set("Authorization", `Bearer ${adminToken}`).send({ endpoint });
+      expect(res.status).toBe(200);
+    });
+
+    it.each([
+      ["supervisor", () => supervisorToken],
+    ])("%s no puede suscribirse → 403", async (_rol, token) => {
+      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${token()}`).send(body);
+      expect(res.status).toBe(403);
+    });
+
+    it("body sin keys → 400", async () => {
+      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send({ endpoint });
       expect(res.status).toBe(400);
     });
   });

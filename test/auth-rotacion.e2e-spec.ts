@@ -24,6 +24,8 @@ import { StorageService } from "../src/storage/storage.service";
 import { InMemoryStorageService } from "../src/storage/in-memory-storage.service";
 import { MailService } from "../src/mail/mail.service";
 import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
+import { PushService } from "../src/push/push.service";
+import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { sesiones, usuarios } from "../src/db/schema";
 
 dotenv.config();
@@ -68,6 +70,8 @@ describe("Auth — rotación y ciclo de vida de sesiones", () => {
       // Ídem con ResendMailService y RESEND_API_KEY/MAIL_FROM.
       .overrideProvider(MailService)
       .useClass(InMemoryMailService)
+      .overrideProvider(PushService)
+      .useClass(InMemoryPushService)
       .compile();
 
     app = moduleFixture.createNestApplication();

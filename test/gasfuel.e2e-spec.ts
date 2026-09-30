@@ -28,6 +28,8 @@ import { StorageService } from "../src/storage/storage.service";
 import { InMemoryStorageService } from "../src/storage/in-memory-storage.service";
 import { MailService } from "../src/mail/mail.service";
 import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
+import { PushService } from "../src/push/push.service";
+import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { usuarios } from "../src/db/schema";
 
 // moduleNameMapper resuelve "puppeteer" al mock de test/__mocks__. El cast es
@@ -115,6 +117,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // es la única forma de leerlo.
       .overrideProvider(MailService)
       .useClass(InMemoryMailService)
+      .overrideProvider(PushService)
+      .useClass(InMemoryPushService)
       .compile();
 
     app = moduleFixture.createNestApplication();
