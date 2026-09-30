@@ -131,11 +131,13 @@ export class ReportesService {
     const conds = this.buildConditions(filters);
     conds.push(gte(despachos.despachado_at, sql`NOW() - INTERVAL '12 months'`));
     const where = and(...conds);
+    // Agrupa por mes de Guatemala (UTC-6), no por mes UTC.
+    const fechaGt = fechaGtSql(despachos.despachado_at);
 
     return this.db.db
       .select({
-        anio: sql<number>`EXTRACT(YEAR FROM ${despachos.despachado_at})::int`,
-        mes: sql<number>`EXTRACT(MONTH FROM ${despachos.despachado_at})::int`,
+        anio: sql<number>`EXTRACT(YEAR FROM ${fechaGt})::int`,
+        mes: sql<number>`EXTRACT(MONTH FROM ${fechaGt})::int`,
         total_galones: sum(despachos.galones),
         total_monto: sum(despachos.monto_total),
         total_despachos: count(despachos.id),
@@ -143,12 +145,12 @@ export class ReportesService {
       .from(despachos)
       .where(where)
       .groupBy(
-        sql`EXTRACT(YEAR FROM ${despachos.despachado_at})`,
-        sql`EXTRACT(MONTH FROM ${despachos.despachado_at})`,
+        sql`EXTRACT(YEAR FROM ${fechaGt})`,
+        sql`EXTRACT(MONTH FROM ${fechaGt})`,
       )
       .orderBy(
-        sql`EXTRACT(YEAR FROM ${despachos.despachado_at})`,
-        sql`EXTRACT(MONTH FROM ${despachos.despachado_at})`,
+        sql`EXTRACT(YEAR FROM ${fechaGt})`,
+        sql`EXTRACT(MONTH FROM ${fechaGt})`,
       );
   }
 
