@@ -150,17 +150,25 @@ export class DespachosService {
         sql`${fechaGtSql(despachos.despachado_at)} <= ${rest.fecha_hasta}::date`,
       );
 
-    return this.db.db
-      .select({
-        ...getTableColumns(despachos),
-        operario: { id: operarios.id, nombre: operarios.nombre },
-      })
-      .from(despachos)
-      .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
-      .where(conditions.length ? and(...conditions) : undefined)
-      .orderBy(sql`${despachos.despachado_at} DESC`)
-      .limit(limit)
-      .offset(offset);
+    const where = conditions.length ? and(...conditions) : undefined;
+    const [data, [{ total }]] = await Promise.all([
+      this.db.db
+        .select({
+          ...getTableColumns(despachos),
+          operario: { id: operarios.id, nombre: operarios.nombre },
+        })
+        .from(despachos)
+        .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
+        .where(where)
+        .orderBy(sql`${despachos.despachado_at} DESC`)
+        .limit(limit)
+        .offset(offset),
+      this.db.db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(despachos)
+        .where(where),
+    ]);
+    return { data, total, page, limit };
   }
 
   async findOne(id: string, user: Usuario) {

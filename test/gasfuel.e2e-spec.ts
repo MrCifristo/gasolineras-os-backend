@@ -808,24 +808,30 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   describe("9. Consultas y Filtros de Despachos", () => {
     const today = fechaGuatemala();
 
-    it("admin lista despachos con paginación → 200", async () => {
+    it("admin lista despachos con paginación y total → 200", async () => {
       const res = await request(app.getHttpServer())
-        .get("/api/v1/despachos?page=1&limit=10")
+        .get(`/api/v1/despachos?cliente_id=${cliente1Id}&page=1&limit=1`)
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      // Deben aparecer los 2 despachos de este run
-      const ids = res.body.map((d: any) => d.id);
-      expect(ids).toContain(despacho1Id);
-      expect(ids).toContain(despacho2Id);
+      expect(res.body).toEqual(
+        expect.objectContaining({ total: 2, page: 1, limit: 1 }),
+      );
+      expect(res.body.data).toHaveLength(1);
+
+      const pag2 = await request(app.getHttpServer())
+        .get(`/api/v1/despachos?cliente_id=${cliente1Id}&page=2&limit=1`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      const ids = [res.body.data[0].id, pag2.body.data[0].id];
+      expect(ids).toEqual(expect.arrayContaining([despacho1Id, despacho2Id]));
     });
 
     it("cada despacho del listado trae su operario", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/despachos?cliente_id=${cliente1Id}`)
         .set("Authorization", `Bearer ${adminToken}`);
-      expect(res.body.every((d: any) => d.operario?.id === operarioId)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      expect(res.body.data.every((d: any) => d.operario?.id === operarioId)).toBe(true);
     });
 
     it("filtra despachos por cliente → solo aparecen los del cliente E2E", async () => {
@@ -834,8 +840,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.length).toBe(2);
-      expect(res.body.every((d: any) => d.cliente_id === cliente1Id)).toBe(
+      expect(res.body.data.length).toBe(2);
+      expect(res.body.data.every((d: any) => d.cliente_id === cliente1Id)).toBe(
         true,
       );
     });
@@ -848,8 +854,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
-      expect(res.body[0].id).toBe(despacho1Id);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.data[0].id).toBe(despacho1Id);
     });
 
     it("filtra despachos por fecha_desde y fecha_hasta (hoy) → 2 resultados", async () => {
@@ -860,7 +866,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.length).toBe(2);
+      expect(res.body.data.length).toBe(2);
     });
 
     it("filtra por vehículo 1 → 1 despacho", async () => {
@@ -869,7 +875,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
+      expect(res.body.data.length).toBe(1);
     });
 
     it("filtra por piloto 2 → 1 despacho", async () => {
@@ -878,8 +884,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.length).toBe(1);
-      expect(res.body[0].id).toBe(despacho2Id);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.data[0].id).toBe(despacho2Id);
     });
 
     it("supervisor solo ve despachos de su gasolinera → 200", async () => {
@@ -889,9 +895,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       // Todos los despachos deben ser de la gasolinera del supervisor
-      expect(res.body.every((d: any) => d.gasolinera_id === gasolineraId)).toBe(
-        true,
-      );
+      expect(res.body.data.length).toBeGreaterThan(0);
+      expect(res.body.total).toBeGreaterThan(0);
+      expect(
+        res.body.data.every((d: any) => d.gasolinera_id === gasolineraId),
+      ).toBe(true);
     });
 
     it("obtiene despacho por id con JOIN completo (vehiculo, piloto, gasolinera, cliente) → 200", async () => {
@@ -1197,7 +1205,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         const r = await request(app.getHttpServer())
           .get(`/api/v1/despachos?vehiculo_id=${vehiculo1Id}`)
           .set("Authorization", `Bearer ${adminToken}`);
-        return r.body.length as number;
+        return r.body.total as number;
       };
       const antes = await contar();
 
@@ -1793,7 +1801,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const lista = await request(app.getHttpServer())
         .get(`/api/v1/despachos?cliente_id=${clienteMultiId}`)
         .set("Authorization", `Bearer ${adminToken}`);
-      const soloContenedor = lista.body.find(
+      const soloContenedor = lista.body.data.find(
         (d: any) => d.vehiculo_id === null,
       );
       expect(soloContenedor).toBeDefined();
@@ -1818,7 +1826,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.length).toBeGreaterThan(0);
+      expect(res.body.data.length).toBeGreaterThan(0);
     });
 
     it("rechaza mandar las dos formas del payload a la vez → 400", async () => {
@@ -1907,7 +1915,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .get(`/api/v1/despachos?gasolinera_id=${gasolineraId}&limit=100`)
         .set("Authorization", `Bearer ${adminToken}`);
 
-      const numeros = res.body
+      const numeros = res.body.data
         .map((d: any) => parseInt(d.numero_vale, 10))
         .sort((a: number, b: number) => a - b);
       // Un vale = una fila header, así que el advisory lock no cambió: los
