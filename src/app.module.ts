@@ -17,6 +17,7 @@ import { SaldosModule } from "./modules/saldos/saldos.module";
 import { ConfiguracionSistemaModule } from "./modules/configuracion-sistema/configuracion-sistema.module";
 import { InventarioModule } from "./modules/inventario/inventario.module";
 import { VentasInsumosModule } from "./modules/ventas-insumos/ventas-insumos.module";
+import { TurnosModule } from "./modules/turnos/turnos.module";
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { VentasInsumosModule } from "./modules/ventas-insumos/ventas-insumos.mod
     ConfiguracionSistemaModule,
     InventarioModule,
     VentasInsumosModule,
+    TurnosModule,
   ],
 })
 export class AppModule {}
