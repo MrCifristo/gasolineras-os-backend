@@ -29,6 +29,8 @@ import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { sesiones, usuarios } from "../src/db/schema";
 
 dotenv.config();
+// Sin cron real: el tick de recordatorios no debe correr contra la BD en estas suites.
+process.env.RECORDATORIOS_ACTIVOS = "false";
 
 const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
 

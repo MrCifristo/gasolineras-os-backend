@@ -1,10 +1,27 @@
 {
-  "moduleFileExtensions": ["js", "json", "ts"],
+  "moduleFileExtensions": [
+    "js",
+    "json",
+    "ts"
+  ],
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "node_modules/.+@nestjs\\+schedule.+\\.js$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "allowJs": true,
+          "module": "commonjs",
+          "moduleResolution": "node10",
+          "esModuleInterop": true,
+          "target": "ES2023"
+        },
+        "diagnostics": false
+      }
+    ],
+    "^.+\\.ts$": "ts-jest"
   },
   "moduleNameMapper": {
     "^puppeteer$": "<rootDir>/__mocks__/puppeteer.js",
@@ -12,5 +29,8 @@
   },
   "testTimeout": 30000,
   "verbose": true,
-  "forceExit": true
+  "forceExit": true,
+  "transformIgnorePatterns": [
+    "/node_modules/(?!.*@nestjs[+/]schedule)"
+  ]
 }

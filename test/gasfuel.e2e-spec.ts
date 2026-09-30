@@ -46,6 +46,8 @@ const puppeteerMock = puppeteerReal as unknown as {
 };
 
 dotenv.config();
+// Sin cron real: el tick de recordatorios no debe correr contra la BD en estas suites.
+process.env.RECORDATORIOS_ACTIVOS = "false";
 
 // ── Credenciales del admin bootstrap (creado con pnpm bootstrap:admin) ─────
 // Sin fallback a propósito: un default aquí termina siendo una credencial real
