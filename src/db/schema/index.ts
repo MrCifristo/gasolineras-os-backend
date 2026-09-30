@@ -17,3 +17,6 @@ export * from "./configuracion-sistema.schema";
 export * from "./productos.schema";
 export * from "./inventario-movimientos.schema";
 export * from "./ventas-insumos.schema";
+export * from "./turnos-gasolinera.schema";
+export * from "./recordatorios-turno.schema";
+export * from "./suscripciones-push.schema";

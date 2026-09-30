@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
-import { gasolineras } from "../../db/schema";
+import { gasolineras, turnosGasolinera } from "../../db/schema";
+import { TURNOS_POR_DEFECTO } from "../turnos/turnos.constants";
 import { CreateGasolineraDto } from "./dto/create-gasolinera.dto";
 import { UpdateGasolineraDto } from "./dto/update-gasolinera.dto";
 
@@ -27,8 +28,17 @@ export class GasolinerasService {
   }
 
   async create(dto: CreateGasolineraDto) {
-    const [row] = await this.db.db.insert(gasolineras).values(dto).returning();
-    return row;
+    // En la misma transacción: una gasolinera sin sus dos turnos rompería el
+    // turno vigente del formulario y los recordatorios.
+    return this.db.db.transaction(async (tx) => {
+      const [row] = await tx.insert(gasolineras).values(dto).returning();
+      await tx
+        .insert(turnosGasolinera)
+        .values(
+          TURNOS_POR_DEFECTO.map((t) => ({ ...t, gasolinera_id: row.id })),
+        );
+      return row;
+    });
   }
 
   async update(id: string, dto: UpdateGasolineraDto) {
