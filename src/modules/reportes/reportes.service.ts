@@ -7,6 +7,7 @@ import {
   pilotos,
   preciosCombustible,
 } from "../../db/schema";
+import { fechaGtSql } from "../../common/hora-guatemala";
 
 export interface ReporteFilters {
   cliente_id?: string;
@@ -27,11 +28,11 @@ export class ReportesService {
       conds.push(eq(despachos.gasolinera_id, filters.gasolinera_id));
     if (filters.fecha_desde)
       conds.push(
-        sql`${despachos.despachado_at}::date >= ${filters.fecha_desde}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} >= ${filters.fecha_desde}::date`,
       );
     if (filters.fecha_hasta)
       conds.push(
-        sql`${despachos.despachado_at}::date <= ${filters.fecha_hasta}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} <= ${filters.fecha_hasta}::date`,
       );
     return conds;
   }

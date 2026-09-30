@@ -6,6 +6,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
+import {
+  ahoraGuatemala,
+  aMinutos,
+  fechaGuatemala,
+  fechaGtSql,
+} from "../../common/hora-guatemala";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
@@ -38,15 +44,8 @@ const GT_DAYS = [
 ];
 
 function getGuatemalaTime(): { dayName: string; totalMinutes: number } {
-  const gtMs = Date.now() - 6 * 3600 * 1000;
-  const gt = new Date(gtMs);
-  const totalMinutes = gt.getUTCHours() * 60 + gt.getUTCMinutes();
-  return { dayName: GT_DAYS[gt.getUTCDay()], totalMinutes };
-}
-
-function hhmm(timeStr: string): number {
-  const [h, m] = timeStr.split(":").map(Number);
-  return h * 60 + m;
+  const { diaSemana, minutos } = ahoraGuatemala();
+  return { dayName: GT_DAYS[diaSemana], totalMinutes: minutos };
 }
 
 export interface DespachoFilters {
@@ -143,11 +142,11 @@ export class DespachosService {
     // Comparar por DATE para evitar problemas de zona horaria con TIMESTAMP
     if (rest.fecha_desde)
       conditions.push(
-        sql`${despachos.despachado_at}::date >= ${rest.fecha_desde}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} >= ${rest.fecha_desde}::date`,
       );
     if (rest.fecha_hasta)
       conditions.push(
-        sql`${despachos.despachado_at}::date <= ${rest.fecha_hasta}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} <= ${rest.fecha_hasta}::date`,
       );
 
     return this.db.db
@@ -354,8 +353,8 @@ export class DespachosService {
     }
 
     if (v?.hora_inicio && v.hora_fin) {
-      const inicio = hhmm(v.hora_inicio);
-      const fin = hhmm(v.hora_fin);
+      const inicio = aMinutos(v.hora_inicio);
+      const fin = aMinutos(v.hora_fin);
       if (totalMinutes < inicio || totalMinutes > fin) {
         throw new ForbiddenException(
           `Despacho fuera del horario autorizado (${v.hora_inicio}–${v.hora_fin})`,
@@ -366,7 +365,9 @@ export class DespachosService {
     // ── Cálculo de precio por renglón (antes de la matriz de límites) ─
     // Cada renglón resuelve su propio precio del día: una caneca puede llevar
     // otro combustible que el vehículo, y el vale debe cobrar cada uno al suyo.
-    const today = new Date().toISOString().split("T")[0];
+    // Fecha de Guatemala, no UTC: de 18:00 a 23:59 la fecha UTC ya es mañana y
+    // el despacho buscaría un precio que nadie cargó todavía.
+    const today = fechaGuatemala();
     const renglones = await Promise.all(
       lineas.map(async (l) => {
         const [precioRow] = await this.db.db
@@ -860,12 +861,13 @@ export class DespachosService {
     const dentroDeHorario = (() => {
       if (!v.hora_inicio || !v.hora_fin) return true;
       return (
-        totalMinutes >= hhmm(v.hora_inicio) && totalMinutes <= hhmm(v.hora_fin)
+        totalMinutes >= aMinutos(v.hora_inicio) &&
+        totalMinutes <= aMinutos(v.hora_fin)
       );
     })();
     const minutosRestantes = (() => {
       if (!v.hora_fin || !dentroDeHorario) return 0;
-      return Math.max(0, hhmm(v.hora_fin) - totalMinutes);
+      return Math.max(0, aMinutos(v.hora_fin) - totalMinutes);
     })();
 
     return {

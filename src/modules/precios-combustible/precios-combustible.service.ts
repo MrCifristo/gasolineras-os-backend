@@ -8,6 +8,7 @@ import { DbService } from "../../db/db.service";
 import { preciosCombustible } from "../../db/schema";
 import { CreatePrecioDto } from "./dto/create-precio.dto";
 import { UpdatePrecioDto } from "./dto/update-precio.dto";
+import { fechaGuatemala } from "../../common/hora-guatemala";
 
 @Injectable()
 export class PreciosCombustibleService {
@@ -27,7 +28,7 @@ export class PreciosCombustibleService {
   }
 
   findHoy(gasolineraId: string) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = fechaGuatemala();
     return this.db.db
       .select()
       .from(preciosCombustible)

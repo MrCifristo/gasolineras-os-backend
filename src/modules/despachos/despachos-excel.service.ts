@@ -12,6 +12,7 @@ import {
   preciosCombustible,
 } from "../../db/schema";
 import { DespachoFilters } from "./despachos.service";
+import { fechaGtSql } from "../../common/hora-guatemala";
 
 // Corporate Blue palette
 const NAVY = "0F2044";
@@ -60,11 +61,11 @@ export class DespachosExcelService {
     }
     if (filters.fecha_desde)
       conditions.push(
-        sql`${despachos.despachado_at}::date >= ${filters.fecha_desde}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} >= ${filters.fecha_desde}::date`,
       );
     if (filters.fecha_hasta)
       conditions.push(
-        sql`${despachos.despachado_at}::date <= ${filters.fecha_hasta}::date`,
+        sql`${fechaGtSql(despachos.despachado_at)} <= ${filters.fecha_hasta}::date`,
       );
 
     return (

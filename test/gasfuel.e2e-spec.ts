@@ -33,6 +33,7 @@ import { usuarios } from "../src/db/schema";
 // moduleNameMapper resuelve "puppeteer" al mock de test/__mocks__. El cast es
 // para llegar a los ayudantes del mock, que los tipos reales no declaran.
 import puppeteerReal from "puppeteer";
+import { fechaGuatemala, sumarDias } from "../src/common/hora-guatemala";
 const puppeteerMock = puppeteerReal as unknown as {
   __paginas: {
     jsHabilitado: boolean;
@@ -552,7 +553,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   // ════════════════════════════════════════════════════════════════════════
 
   describe("7. Precios de Combustible", () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = fechaGuatemala();
 
     it("admin registra precio de diesel hoy → 201", async () => {
       const res = await request(app.getHttpServer())
@@ -748,7 +749,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   // ════════════════════════════════════════════════════════════════════════
 
   describe("9. Consultas y Filtros de Despachos", () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = fechaGuatemala();
 
     it("admin lista despachos con paginación → 200", async () => {
       const res = await request(app.getHttpServer())
@@ -972,8 +973,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     });
 
     it("filtros de fecha en reportes funcionan correctamente", async () => {
-      const hoy = new Date().toISOString().split("T")[0];
-      const ayer = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+      const hoy = fechaGuatemala();
+      const ayer = sumarDias(hoy, -1);
 
       // Filtrando desde ayer hasta hoy: debe incluir los despachos de hoy
       const resHoy = await request(app.getHttpServer())

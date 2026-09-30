@@ -16,6 +16,7 @@ import { CreateCuadreDto } from "./dto/create-cuadre.dto";
 import { QueryCuadresDto } from "./dto/query-cuadres.dto";
 import { QueryEstadoCuentaDto } from "./dto/query-estado-cuenta.dto";
 import { QueryMovimientosDto } from "./dto/query-movimientos.dto";
+import { fechaGtSql } from "../../common/hora-guatemala";
 
 @Injectable()
 export class SaldosService {
@@ -54,11 +55,11 @@ export class SaldosService {
 
     if (fecha_desde)
       conditions.push(
-        sql`${movimientosSaldo.created_at}::date >= ${fecha_desde}::date`,
+        sql`${fechaGtSql(movimientosSaldo.created_at)} >= ${fecha_desde}::date`,
       );
     if (fecha_hasta)
       conditions.push(
-        sql`${movimientosSaldo.created_at}::date <= ${fecha_hasta}::date`,
+        sql`${fechaGtSql(movimientosSaldo.created_at)} <= ${fecha_hasta}::date`,
       );
     if (tipo) conditions.push(eq(movimientosSaldo.tipo, tipo));
 
@@ -104,7 +105,7 @@ export class SaldosService {
         and(
           eq(movimientosSaldo.cliente_id, clienteId),
           fecha_desde
-            ? sql`${movimientosSaldo.created_at}::date < ${fecha_desde}::date`
+            ? sql`${fechaGtSql(movimientosSaldo.created_at)} < ${fecha_desde}::date`
             : sql`false`,
         ),
       );
@@ -112,11 +113,11 @@ export class SaldosService {
     const condicionesRango = [eq(movimientosSaldo.cliente_id, clienteId)];
     if (fecha_desde)
       condicionesRango.push(
-        sql`${movimientosSaldo.created_at}::date >= ${fecha_desde}::date`,
+        sql`${fechaGtSql(movimientosSaldo.created_at)} >= ${fecha_desde}::date`,
       );
     if (fecha_hasta)
       condicionesRango.push(
-        sql`${movimientosSaldo.created_at}::date <= ${fecha_hasta}::date`,
+        sql`${fechaGtSql(movimientosSaldo.created_at)} <= ${fecha_hasta}::date`,
       );
 
     const movimientos = await this.db.db
