@@ -12,7 +12,7 @@ This is a private business system operated by ALBRAN INDUSTRIES S.A., but the co
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Node.js 20+ (developed on 26.x), TypeScript 5.7 |
+| Runtime | Node.js 22.12+ (developed on 24.x/26.x), TypeScript 5.7 |
 | Framework | NestJS 11 |
 | Database | PostgreSQL 16 |
 | ORM | Drizzle ORM over `node-postgres` (`pg`) + Drizzle Kit migrations |
@@ -82,7 +82,7 @@ A senior dev should be running this in under 10 minutes.
 
 ### Prerequisites
 
-- Node.js 20+ and [pnpm](https://pnpm.io/)
+- Node.js 22.12+ (required by `@nestjs/schedule`, which is ESM-only) and [pnpm](https://pnpm.io/)
 - Docker (for the local PostgreSQL 16 instance)
 - A Supabase project (for auth)
 
@@ -103,6 +103,8 @@ cp .env.example .env
 | `FRONTEND_URL` | CORS allowed origin (default `http://localhost:3001`) |
 | `PORT` | HTTP port (default `3000`) |
 | `NODE_ENV` | `development` / `production` |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Optional. Web Push for the price reminders; generate with `pnpm vapid:generate`. Without them push is disabled and the backend still boots |
+| `RECORDATORIOS_ACTIVOS` | Optional. `false` turns off the price-reminder cron (30 min before each shift). Default: on |
 
 ### 2. One-command setup
 

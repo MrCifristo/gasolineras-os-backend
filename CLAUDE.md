@@ -120,3 +120,52 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   the client.
 - All time math hardcodes **UTC-6** for Guatemala (`getGuatemalaTime()`, plus
   `- INTERVAL '6 hours'` in raw SQL). No DST, no `AT TIME ZONE`.
+
+## Shifts, reminders and push (Fase 6)
+
+- **`src/common/hora-guatemala.ts` — every "today" goes through here.**
+  `ahoraGuatemala()`, `fechaGuatemala()`, `sumarDias()`, `aMinutos()` and
+  `fechaGtSql(col)` (SQL: `(col - INTERVAL '6 hours')::date`). Never use
+  `new Date().toISOString()` or `timestamp::date` for a business date: from
+  18:00 to 23:59 Guatemala time the UTC date is already tomorrow, and price
+  lookups and date filters silently go wrong.
+- **`src/modules/turnos/`** — `turnos_gasolinera` holds two rows per station
+  (`manana`/`tarde`, `hora_inicio`/`hora_fin`, `recordatorio_activo`), created
+  with the station in the same transaction. Pure helpers live in `turnos.util.ts`
+  (`seSolapan`, `turnoEnMinuto`, `debeRecordar(ahoraUtc, horaInicio)` — it takes
+  the **UTC instant** and converts itself). Routes: `GET/PATCH
+  /gasolineras/:id/turnos`, `GET /turnos/actual` (the supervisor is pinned to
+  their own station).
+- **`RecordatoriosService`** — `@Cron(EVERY_MINUTE)` only wakes up; all logic is
+  in `ejecutar(ahoraUtc)` so tests call it with a fixed instant. It claims
+  `recordatorios_turno` with `ON CONFLICT (gasolinera_id, turno, fecha) DO NOTHING`
+  and only the inserter sends, so at most one notice per station/shift/GT date.
+  Sends email (`MailService`) and push to active `admin` + `jefe_pista`.
+  **`RECORDATORIOS_ACTIVOS=false` turns the cron off** (all three e2e suites
+  set it so the real cron never runs during tests).
+- **`src/push/`** — `PushService` is a third swappable port (abstract class,
+  `@Global`): `WebPushService` (web-push + VAPID) in production,
+  `InMemoryPushService` in e2e. **E2E bootstraps must
+  `.overrideProvider(PushService).useClass(InMemoryPushService)`**, like
+  `StorageService` and `MailService`. `src/modules/push/` holds the
+  subscription endpoints (`/push/vapid-public-key`, `/push/suscripciones`).
+  Expired endpoints (404/410 from the push service) are deleted.
+- **Optional env:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+  (generate with `pnpm vapid:generate`) and `RECORDATORIOS_ACTIVOS`. Unlike
+  `R2_*` and `RESEND_API_KEY`, they do **not** fail the boot: without VAPID the
+  push is disabled (`vapid-public-key` returns `{key: null}`) and email still goes.
+- **Node >= 22.12 required.** `@nestjs/schedule@12` is ESM-only; the compiled
+  app loads it through Node's `require(esm)`, and Jest transforms it with
+  ts-jest (`transformIgnorePatterns` in `package.json` and `test/jest-e2e.json`).
+  Verified on Node 24. No `engines` field is set yet.
+- `GET /despachos` returns `{ data, total, page, limit }` and every despacho
+  (list and detail) carries `operario: { id, nombre } | null`. `POST /despachos`
+  rejects an `operario_id` from another station or inactive (400).
+
+## Testing
+
+- Unit (`pnpm test`): 36 tests in 6 suites.
+- E2E (`pnpm test:e2e`): 197 tests — `gasfuel` 152, `auth-rotacion` 8,
+  `fase6` 37. Needs live Postgres and a migrated DB; run with
+  `DATABASE_URL` on the command line if port 5432 is taken by another project.
+- Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

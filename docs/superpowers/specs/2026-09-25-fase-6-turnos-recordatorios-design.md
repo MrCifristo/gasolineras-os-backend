@@ -86,13 +86,13 @@ Hoy `jefe_pista` puede escribir precios pero no leerlos. Se agrega `jefe_pista` 
 
 `RecordatoriosService` con `@Cron(CronExpression.EVERY_MINUTE)`. No hace nada si `RECORDATORIOS_ACTIVOS === 'false'`.
 
-**Predicado puro** (`src/modules/turnos/recordatorio.util.ts`), sin dependencias de Nest ni de la BD:
+**Predicado puro** (`src/modules/turnos/turnos.util.ts`), sin dependencias de Nest ni de la BD:
 
 ```ts
-debeRecordar(ahoraGt: Date, horaInicio: string /* "HH:mm" */): { fecha: string /* YYYY-MM-DD */ } | null
+debeRecordar(ahoraUtc: Date, horaInicio: string /* "HH:mm" */): { fecha: string /* YYYY-MM-DD */ } | null
 ```
 
-- `ahoraGt` es la hora de Guatemala (UTC−6 fijo, sin DST). Hoy `getGuatemalaTime()` es una función privada de `despachos.service.ts` que sólo devuelve `{dayName, totalMinutes}`. Se extrae a `src/common/hora-guatemala.ts` con una variante que devuelve fecha y minutos, y `despachos.service.ts` pasa a importarla, sin cambiar su comportamiento.
+- `ahoraUtc` es el instante UTC (`new Date()`); la función lo convierte internamente a hora de Guatemala (UTC−6 fijo, sin DST) con `ahoraGuatemala()`. *(Implementación: el texto original decía `ahoraGt`; se recibe el instante UTC para que ningún llamador tenga que convertir.)* Hoy `getGuatemalaTime()` es una función privada de `despachos.service.ts` que sólo devuelve `{dayName, totalMinutes}`. Se extrae a `src/common/hora-guatemala.ts` con una variante que devuelve fecha y minutos, y `despachos.service.ts` pasa a importarla, sin cambiar su comportamiento.
 - Calcula el **próximo** inicio del turno: hoy a `horaInicio` si todavía no pasó, o mañana si ya pasó.
 - Devuelve la fecha de ese inicio si `inicio − 30 min ≤ ahoraGt < inicio`; si no, `null`.
 - **Por qué una ventana y no el minuto exacto:** si el backend estuvo caído a las 13:30 y levanta a las 13:41, el recordatorio de las 14:00 igual sale.
@@ -232,3 +232,18 @@ Igual que en las fases anteriores: migración → endpoints → e2e → `docs/co
 - **Dos service workers:** mitigado registrando `sw.js` sólo fuera del modo demo. Si un navegador conserva registrado el SW de MSW de una sesión demo anterior, `src/lib/push.ts` lo desregistra antes de registrar `sw.js`.
 - **iPhone:** push sólo con la PWA instalada. El botón lo explica en lugar de fallar en silencio.
 - **H7 cambia la forma de la respuesta** de `GET /despachos`. Riesgo de romper consumidores no revisados; mitigado con la revisión previa y los e2e.
+
+---
+
+## 6. Desviaciones de la implementación
+
+Lo que quedó distinto de lo planeado al construir el backend:
+
+- `debeRecordar` recibe el instante UTC (ver §1.4), no la hora GT.
+- H9 también se aplicó a `ventas-insumos.service.ts` (`vendido_at`) y a `reportes/pdf/reportes-pdf.service.ts` (`despachado_at`), además de los archivos listados.
+- La migración `0006` necesitó casts `::time` en el seed de turnos; la línea duplicada del CHECK de H6 se reemplazó por `-- constraint ya existente desde 0001`.
+- `escaparHtml` se movió a `src/common/escapar-html.ts` y lo comparten el reset de contraseña y el mensaje del recordatorio.
+- `CrearSuscripcionDto.keys` lleva `@IsDefined()`: un body sin `keys` responde 400, no 500.
+- `@nestjs/schedule@12.0.2` es sólo ESM. Jest (`package.json` y `test/jest-e2e.json`) transforma ese paquete con ts-jest; la app compilada depende de `require(esm)` de Node, que exige **Node >= 22.12**. No se añadió `engines`.
+- Los tres suites e2e fijan `RECORDATORIOS_ACTIVOS=false` para que el cron real no corra durante las pruebas.
+- `onConflictDoNothing` en `recordatorios_turno` usa el target explícito `(gasolinera_id, turno, fecha)`.

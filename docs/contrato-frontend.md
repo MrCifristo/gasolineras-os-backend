@@ -211,6 +211,97 @@ Las ventas llevan **su propia serie de vale**, independiente de la de combustibl
 
 ---
 
+## 1f. Fase 6: turnos, recordatorios y push
+
+### Hora de Guatemala (H9)
+
+**"Hoy" es siempre la fecha de Guatemala (UTC−6 fijo, sin DST), nunca la del servidor ni la UTC.** Aplica al precio vigente al despachar, a `GET /precios-combustible/hoy`, a los filtros `fecha_desde`/`fecha_hasta` (despachos, Excel, reportes, saldos, ventas de insumos) y al turno vigente. Antes, de 18:00 a 23:59 GT el servidor buscaba el precio de mañana y todo despacho fallaba con "No hay precio registrado". El frontend debe calcular su "hoy" igual (UTC−6) y no con `toISOString()`.
+
+### Turnos — `/api/v1/gasolineras/:id/turnos`
+
+Cada gasolinera nace con dos turnos (`manana` 06:00–14:00 y `tarde` 14:00–22:00, recordatorio activo). Las horas viajan como `"HH:mm"` de 24 h.
+
+`GET /gasolineras/:id/turnos` — `admin`, `supervisor`, `jefe_pista`. Siempre dos filas, `manana` primero. 404 si la gasolinera no existe.
+
+```jsonc
+[
+  { "id": "uuid", "gasolinera_id": "uuid", "turno": "manana",
+    "hora_inicio": "06:00", "hora_fin": "14:00", "recordatorio_activo": true,
+    "updated_at": "2026-09-25T15:04:05.000Z" },
+  { "id": "uuid", "gasolinera_id": "uuid", "turno": "tarde",
+    "hora_inicio": "14:00", "hora_fin": "22:00", "recordatorio_activo": true,
+    "updated_at": null }
+]
+```
+
+`PATCH /gasolineras/:id/turnos/:turno` — sólo `admin`. `:turno` es `manana` o `tarde` (otro valor: 400). Todos los campos del body son opcionales, pero debe venir al menos uno:
+
+```jsonc
+{ "hora_inicio": "05:30", "hora_fin": "13:30", "recordatorio_activo": false }
+```
+
+Responde la fila actualizada (misma forma que arriba). Errores 400, todos en español: formato distinto de `HH:mm`; `hora_inicio` igual a `hora_fin`; solapamiento con el otro turno (`"El turno se solapa con el turno de la tarde (14:00–22:00)"`; turnos contiguos como 06:00–14:00 y 14:00–22:00 son válidos; un turno puede cruzar la medianoche); body vacío (`"No hay cambios que guardar"`); campos desconocidos (`forbidNonWhitelisted`). Supervisor y jefe de pista reciben 403.
+
+`GET /turnos/actual?gasolinera_id=` — `admin`, `supervisor`. Responde el turno vigente según la hora de Guatemala, o `null` fuera de ambos horarios:
+
+```jsonc
+{ "turno": "manana" }   // "manana" | "tarde" | null
+```
+
+El supervisor **siempre** recibe el de su propia gasolinera: el query se ignora. El admin debe mandar `gasolinera_id` (400 `"Falta gasolinera_id"` si no).
+
+### Recordatorio de precios
+
+Un cron interno corre cada minuto y, 30 minutos antes del inicio de cada turno con `recordatorio_activo`, avisa a todos los usuarios activos `admin` y `jefe_pista` por correo (Resend) y por push. Sale **una sola vez** por (gasolinera, turno, fecha GT). No hay endpoint: es efecto lateral. Se apaga con `RECORDATORIOS_ACTIVOS=false`.
+
+### Push — `/api/v1/push`
+
+`GET /push/vapid-public-key` — **pública** (sin token; la clave VAPID pública no es secreta):
+
+```jsonc
+{ "key": "BPx…" }   // null si el backend no tiene VAPID configurado: el push está desactivado
+```
+
+`POST /push/suscripciones` — `admin`, `jefe_pista`. Body: el `PushSubscription.toJSON()` del navegador **sin** `expirationTime` (está prohibido: `forbidNonWhitelisted` lo rechaza con 400):
+
+```jsonc
+{ "endpoint": "https://fcm.googleapis.com/fcm/send/…",
+  "keys": { "p256dh": "…", "auth": "…" } }
+```
+
+Responde `201 { "ok": true }`. Es un upsert por `endpoint`: si el mismo navegador inicia sesión con otro usuario, la suscripción pasa al nuevo. El `endpoint` debe ser `https`; `keys` es obligatorio (sin `keys`: 400). Supervisor y cliente reciben 403.
+
+`DELETE /push/suscripciones` — `admin`, `jefe_pista`. Body `{ "endpoint": "…" }`. Responde `200 { "ok": true }`; 404 `"Suscripción no encontrada"` si no existe **o si es de otro usuario**. El backend también borra por su cuenta las suscripciones que el servicio push declara expiradas (404/410).
+
+### `GET /despachos`: nueva forma paginada (cambio de contrato, H7)
+
+Ya **no** responde un arreglo. Ahora:
+
+```jsonc
+{
+  "data": [ { /* columnas de despachos */, "operario": { "id": "uuid", "nombre": "Juan Pérez" } /* o null */ } ],
+  "total": 137,   // filas que cumplen los filtros, sin paginar
+  "page": 1,
+  "limit": 20
+}
+```
+
+`page` (default 1) y `limit` (default 20) siguen siendo query params. `total` ya cuenta con los filtros aplicados, así que el frontend deja de adivinar si hay más páginas. Los filtros y el scoping por rol no cambian.
+
+### `operario` en las respuestas (H1/H2)
+
+- Cada fila de `GET /despachos` y `GET /despachos/:id` (dentro del objeto de respuesta, junto a `despacho`, `vehiculo`, `piloto`, …) incluyen `operario: { id, nombre } | null`. Es `null` en los vales anteriores a la Fase 1, que no tenían operario.
+- El Excel de despachos tiene una columna "Operario".
+- `POST /despachos` valida `operario_id`: debe existir, estar activo y ser de la **misma gasolinera** del despacho. Si no, 400 `"El operario no pertenece a esta gasolinera o está inactivo."`.
+
+### Permisos de lectura del jefe de pista
+
+`jefe_pista` ahora puede leer, además de escribir precios: `GET /gasolineras`, `GET /gasolineras/:id`, `GET /precios-combustible` y `GET /precios-combustible/hoy`. Y `GET /gasolineras/:id/turnos`.
+
+`GET /precios-combustible/hoy?gasolinera_id=` devuelve los precios vigentes hoy (fecha GT) de esa gasolinera. `admin` y `jefe_pista` eligen la gasolinera (sin `gasolinera_id`: 400 `"Falta gasolinera_id"`); el supervisor recibe siempre la suya y el query se ignora.
+
+---
+
 ## 2. Crear despacho: se manda `monto`, no `galones`
 
 **Divergencia:** `CreateDespachoDto` exige `galones: string` (`@IsNumberString`) y no tiene campo `monto`. Pero el operario **teclea quetzales en la bomba** (commits `5552543`/`49a1ed9`/`57cc894` movieron el formulario a eso deliberadamente), y `DespachoForm.tsx:143` deriva galones en el navegador. Con `forbidNonWhitelisted: true`, mandar `monto` es un 400 duro.
