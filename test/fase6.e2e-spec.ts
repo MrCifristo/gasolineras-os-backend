@@ -23,7 +23,7 @@ import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { PushService } from "../src/push/push.service";
 import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { RecordatoriosService } from "../src/modules/turnos/recordatorios.service";
-import { gasolineras, recordatoriosTurno, suscripcionesPush, turnosGasolinera, usuarios } from "../src/db/schema";
+import { clientes, gasolineras, recordatoriosTurno, suscripcionesPush, turnosGasolinera, usuarios } from "../src/db/schema";
 import { fechaGuatemala } from "../src/common/hora-guatemala";
 
 dotenv.config();
@@ -329,6 +329,61 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     it("/hoy sin gasolinera_id para admin → 400", async () => {
       const res = await http().get("/api/v1/precios-combustible/hoy").set("Authorization", `Bearer ${adminToken}`);
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("Permisos de lectura del cliente", () => {
+    let clienteToken: string;
+    let clienteId: string;
+
+    beforeAll(async () => {
+      const [c] = await db.db
+        .insert(clientes)
+        .values({ nombre: `[F6-${RUN_ID}] Cliente catálogo` })
+        .returning();
+      clienteId = c.id;
+      const u = await crearUsuario("cliente", { cliente_id: clienteId });
+      clienteToken = await loginToken(u.email!);
+    });
+
+    afterAll(async () => {
+      await db.db.update(clientes).set({ activo: false }).where(eq(clientes.id, clienteId)).catch(() => undefined);
+    });
+
+    const auth = () => ({ Authorization: `Bearer ${clienteToken}` });
+
+    it("lee la lista de gasolineras (arreglo, no objeto)", async () => {
+      const res = await http().get("/api/v1/gasolineras").set(auth());
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body.some((g: any) => g.id === gasAId)).toBe(true);
+    });
+
+    it("lee una gasolinera por id", async () => {
+      const res = await http().get(`/api/v1/gasolineras/${gasBId}`).set(auth());
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(gasBId);
+    });
+
+    it("lee precios por gasolinera", async () => {
+      const res = await http().get(`/api/v1/precios-combustible?gasolinera_id=${gasBId}`).set(auth());
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+
+    it("/hoy con gasolinera_id responde 200 y sin él 400", async () => {
+      const ok = await http().get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`).set(auth());
+      expect(ok.status).toBe(200);
+      const sin = await http().get("/api/v1/precios-combustible/hoy").set(auth());
+      expect(sin.status).toBe(400);
+    });
+
+    it("sigue sin poder crear ni editar precios ni gasolineras", async () => {
+      const body = { gasolinera_id: gasBId, fecha: fechaGuatemala(), tipo_combustible: "regular", precio_galon: "29.000" };
+      expect((await http().post("/api/v1/precios-combustible").set(auth()).send(body)).status).toBe(403);
+      expect((await http().patch(`/api/v1/precios-combustible/${gasBId}`).set(auth()).send({ precio_galon: "1.000" })).status).toBe(403);
+      expect((await http().post("/api/v1/gasolineras").set(auth()).send({ nombre: "x", direccion: "y", ciudad: "z" })).status).toBe(403);
+      expect((await http().get(`/api/v1/gasolineras/${gasBId}/turnos`).set(auth())).status).toBe(403);
     });
   });
 

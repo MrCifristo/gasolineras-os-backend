@@ -300,6 +300,19 @@ Ya **no** responde un arreglo. Ahora:
 
 `GET /precios-combustible/hoy?gasolinera_id=` devuelve los precios vigentes hoy (fecha GT) de esa gasolinera. `admin` y `jefe_pista` eligen la gasolinera (sin `gasolinera_id`: 400 `"Falta gasolinera_id"`); el supervisor recibe siempre la suya y el query se ignora.
 
+### Permisos de lectura del cliente
+
+El rol `cliente` lee los catálogos (no contienen datos de otros clientes) para que sus reportes recuperen el desglose por combustible y por estación. Sigue sin poder escribir nada de ellos.
+
+| Endpoint | admin | supervisor | jefe_pista | cliente |
+|---|---|---|---|---|
+| `GET /gasolineras` | lista | sólo la propia (objeto) | lista | **lista** (activas) |
+| `GET /gasolineras/:id` | sí | sí | sí | **sí** |
+| `GET /precios-combustible` | sí | sí | sí | **sí** |
+| `GET /precios-combustible/hoy` | `gasolinera_id` obligatorio | la propia | `gasolinera_id` obligatorio | **`gasolinera_id` obligatorio** (400 si falta) |
+| `POST`/`PATCH /precios-combustible` | sí | no | sí | no (403) |
+| `GET /gasolineras/:id/turnos` | sí | sí | sí | no (403) |
+
 ---
 
 ## 2. Crear despacho: se manda `monto`, no `galones`

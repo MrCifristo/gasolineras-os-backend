@@ -21,9 +21,10 @@ export class GasolinerasController {
   constructor(private readonly service: GasolinerasService) {}
 
   @Get()
-  @Auth("admin", "supervisor", "jefe_pista")
+  @Auth("admin", "supervisor", "jefe_pista", "cliente")
   @ApiOperation({
-    summary: "Listar gasolineras (admin: todas, operario: la propia)",
+    summary:
+      "Listar gasolineras (admin, jefe de pista y cliente: todas; supervisor: la propia)",
   })
   findAll(@Request() req: any) {
     if (req.user.rol === "supervisor" && req.user.gasolinera_id) {
@@ -33,7 +34,7 @@ export class GasolinerasController {
   }
 
   @Get(":id")
-  @Auth("admin", "supervisor", "jefe_pista")
+  @Auth("admin", "supervisor", "jefe_pista", "cliente")
   @ApiOperation({ summary: "Obtener gasolinera por ID" })
   findOne(@Param("id") id: string) {
     return this.service.findOne(id);

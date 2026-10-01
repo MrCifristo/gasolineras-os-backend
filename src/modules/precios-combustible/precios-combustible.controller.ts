@@ -28,7 +28,7 @@ export class PreciosCombustibleController {
   constructor(private readonly service: PreciosCombustibleService) {}
 
   @Get()
-  @Auth("admin", "supervisor", "jefe_pista")
+  @Auth("admin", "supervisor", "jefe_pista", "cliente")
   @ApiOperation({
     summary: "Listar precios, filtrable por gasolinera_id y fecha",
   })
@@ -42,13 +42,13 @@ export class PreciosCombustibleController {
   }
 
   @Get("hoy")
-  @Auth("admin", "supervisor", "jefe_pista")
+  @Auth("admin", "supervisor", "jefe_pista", "cliente")
   @ApiOperation({
     summary: "Precios de hoy (hora de Guatemala) de una gasolinera",
   })
   @ApiQuery({ name: "gasolinera_id", required: false })
   findHoy(@Request() req: any, @Query("gasolinera_id", new ParseUUIDPipe({ optional: true })) gasolineraId?: string) {
-    // El supervisor sólo ve su gasolinera; admin y jefe de pista eligen.
+    // El supervisor sólo ve su gasolinera; admin, jefe de pista y cliente eligen.
     const id = req.user.rol === "supervisor" ? req.user.gasolinera_id : gasolineraId;
     if (!id) throw new BadRequestException("Falta gasolinera_id");
     return this.service.findHoy(id);
