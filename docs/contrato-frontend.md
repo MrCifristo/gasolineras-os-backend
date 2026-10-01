@@ -311,8 +311,11 @@ Ya **no** responde un arreglo. Ahora:
 
 Responde 200 con el vehículo completo (numéricos como string, ver §5).
 
+**Desbloqueo:** el `cliente` puede mandar `bloqueado: true`, pero **no** `bloqueado: false`: siempre 403 `"Sólo la estación puede desbloquear un vehículo."` (aunque el vehículo ya estuviera desbloqueado), y en ese caso no se aplica ningún otro campo de la petición. Sólo el `admin` desbloquea. Si el vehículo es ajeno, gana el 404.
+
 | Caso | Respuesta |
 |---|---|
+| `cliente` con `bloqueado: false` | 403 `"Sólo la estación puede desbloquear un vehículo."` |
 | Campo que no es restricción (`placa`, `cliente_id`, `marca`...) o valor inválido (`hora_inicio: "25:99"`) | 400 |
 | `supervisor`, `jefe_pista` o sin sesión | 403 / 401 |
 | `cliente` sobre un vehículo ajeno, o vehículo inexistente | 404 `"Vehículo no encontrado"` (indistinguibles) |

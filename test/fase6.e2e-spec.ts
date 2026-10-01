@@ -714,6 +714,29 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(res.status).toBe(400);
     });
 
+    it("el cliente bloquea su vehículo (200) pero no lo desbloquea (403) y el admin sí (200)", async () => {
+      const bloquea = await patch(vehPropioId, clienteToken, { bloqueado: true });
+      expect(bloquea.status).toBe(200);
+      expect(bloquea.body.bloqueado).toBe(true);
+
+      const desbloquea = await patch(vehPropioId, clienteToken, {
+        bloqueado: false,
+        limite_monto_dia: 999,
+      });
+      expect(desbloquea.status).toBe(403);
+      expect(desbloquea.body.message).toBe("Sólo la estación puede desbloquear un vehículo.");
+      const tras = await http().get(`/api/v1/vehiculos/${vehPropioId}`).set("Authorization", `Bearer ${clienteToken}`);
+      expect(tras.body.bloqueado).toBe(true);
+      expect(Number(tras.body.limite_monto_dia ?? 0)).not.toBe(999);
+
+      const ajeno = await patch(vehAjenoId, clienteToken, { bloqueado: false });
+      expect(ajeno.status).toBe(404);
+
+      const admin = await patch(vehPropioId, adminToken, { bloqueado: false });
+      expect(admin.status).toBe(200);
+      expect(admin.body.bloqueado).toBe(false);
+    });
+
     it("bloqueado: null da 400, no 500", async () => {
       const res = await patch(vehPropioId, clienteToken, { bloqueado: null });
       expect(res.status).toBe(400);

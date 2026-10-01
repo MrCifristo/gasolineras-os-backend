@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
@@ -155,6 +160,21 @@ export class VehiculosService {
     if (user.rol !== "admin") {
       if (!user.cliente_id) throw new NotFoundException("Vehículo no encontrado");
       condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
+    }
+    // Un cliente puede bloquear sus vehículos pero no desbloquearlos: eso lo
+    // decide la estación. Siempre se rechaza (no sólo si está bloqueado) y,
+    // como va antes del UPDATE, el resto de campos de la petición no se aplica.
+    // Primero el alcance, para que un vehículo ajeno siga dando 404.
+    if (user.rol === "cliente" && dto.bloqueado === false) {
+      const [propio] = await this.db.db
+        .select({ id: vehiculos.id })
+        .from(vehiculos)
+        .where(and(...condiciones))
+        .limit(1);
+      if (!propio) throw new NotFoundException("Vehículo no encontrado");
+      throw new ForbiddenException(
+        "Sólo la estación puede desbloquear un vehículo.",
+      );
     }
     if (Object.keys(dto).length === 0) {
       const [actual] = await this.db.db
