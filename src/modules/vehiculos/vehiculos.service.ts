@@ -63,10 +63,14 @@ export class VehiculosService {
       .where(and(...conditions));
   }
 
-  async findOne(id: string, user?: { rol: string; cliente_id?: string | null }) {
+  async findOne(
+    id: string,
+    user?: { rol: string; cliente_id?: string | null },
+  ) {
     const condiciones = [eq(vehiculos.id, id)];
     if (user?.rol === "cliente") {
-      if (!user.cliente_id) throw new NotFoundException("Vehículo no encontrado");
+      if (!user.cliente_id)
+        throw new NotFoundException("Vehículo no encontrado");
       condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
     }
     const [row] = await this.db.db
@@ -158,7 +162,8 @@ export class VehiculosService {
     this.rechazarBloqueadoNulo(dto);
     const condiciones = [eq(vehiculos.id, id)];
     if (user.rol !== "admin") {
-      if (!user.cliente_id) throw new NotFoundException("Vehículo no encontrado");
+      if (!user.cliente_id)
+        throw new NotFoundException("Vehículo no encontrado");
       condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
     }
     // Un cliente puede bloquear sus vehículos pero no desbloquearlos: eso lo

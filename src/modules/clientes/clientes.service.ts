@@ -49,7 +49,10 @@ export class ClientesService {
       .where(and(...condiciones));
   }
 
-  async findOne(id: string, user?: { rol: string; cliente_id?: string | null }) {
+  async findOne(
+    id: string,
+    user?: { rol: string; cliente_id?: string | null },
+  ) {
     if (user?.rol === "cliente" && user.cliente_id !== id)
       throw new NotFoundException("Cliente no encontrado");
     const [cliente] = await this.db.db

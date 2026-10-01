@@ -162,7 +162,10 @@ export class DespachosService {
         .from(despachos)
         .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
         .where(where)
-        .orderBy(sql`${despachos.despachado_at} DESC`, sql`${despachos.id} DESC`)
+        .orderBy(
+          sql`${despachos.despachado_at} DESC`,
+          sql`${despachos.id} DESC`,
+        )
         .limit(limit)
         .offset(offset),
       this.db.db
@@ -815,7 +818,10 @@ export class DespachosService {
       .limit(1);
     if (!v) throw new NotFoundException("Vehículo no encontrado");
     // Alcance fail-closed: un cliente sólo consulta vehículos propios.
-    if (user?.rol === "cliente" && (!user.cliente_id || v.cliente_id !== user.cliente_id))
+    if (
+      user?.rol === "cliente" &&
+      (!user.cliente_id || v.cliente_id !== user.cliente_id)
+    )
       throw new NotFoundException("Vehículo no encontrado");
 
     // Sistema

@@ -84,11 +84,11 @@ export class ReportesController {
   ) {
     return this.service.resumen(
       this.acotar(req?.user, {
-      cliente_id: clienteId,
-      gasolinera_id: gasolineraId,
-      fecha_desde: fechaDesde,
-      fecha_hasta: fechaHasta,
-    }),
+        cliente_id: clienteId,
+        gasolinera_id: gasolineraId,
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+      }),
     );
   }
 
@@ -108,11 +108,11 @@ export class ReportesController {
   ) {
     return this.service.consumoPorVehiculo(
       this.acotar(req?.user, {
-      cliente_id: clienteId,
-      gasolinera_id: gasolineraId,
-      fecha_desde: fechaDesde,
-      fecha_hasta: fechaHasta,
-    }),
+        cliente_id: clienteId,
+        gasolinera_id: gasolineraId,
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+      }),
     );
   }
 
@@ -132,11 +132,11 @@ export class ReportesController {
   ) {
     return this.service.consumoPorPiloto(
       this.acotar(req?.user, {
-      cliente_id: clienteId,
-      gasolinera_id: gasolineraId,
-      fecha_desde: fechaDesde,
-      fecha_hasta: fechaHasta,
-    }),
+        cliente_id: clienteId,
+        gasolinera_id: gasolineraId,
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+      }),
     );
   }
 
@@ -152,9 +152,9 @@ export class ReportesController {
   ) {
     return this.service.tendenciaMensual(
       this.acotar(req?.user, {
-      cliente_id: clienteId,
-      gasolinera_id: gasolineraId,
-    }),
+        cliente_id: clienteId,
+        gasolinera_id: gasolineraId,
+      }),
     );
   }
 
