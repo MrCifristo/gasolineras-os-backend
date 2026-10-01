@@ -35,6 +35,8 @@ export class VentasInsumosService {
   async findAll(filtros: FiltrosVenta, user: any) {
     const condiciones: any[] = [];
 
+    if (user.rol === "cliente" && !user.cliente_id) return [];
+
     // Mismo scoping que despachos: el supervisor ve su estación, el cliente
     // sólo lo suyo. Sin esto, cualquiera lee las ventas de cualquier cuenta.
     if (user.rol === "supervisor")

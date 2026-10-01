@@ -714,6 +714,16 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(res.status).toBe(400);
     });
 
+    it("bloqueado: null da 400, no 500", async () => {
+      const res = await patch(vehPropioId, clienteToken, { bloqueado: null });
+      expect(res.status).toBe(400);
+      const g = await http()
+        .patch(`/api/v1/vehiculos/${vehPropioId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ bloqueado: null });
+      expect(g.status).toBe(400);
+    });
+
     it("hora_inicio mal formada da 400", async () => {
       const res = await patch(vehPropioId, clienteToken, { hora_inicio: "25:99" });
       expect(res.status).toBe(400);
@@ -796,6 +806,26 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         const ajeno = await http().get(`/api/v1/despachos/vehiculo/${vehAjenoId}/consumo-hoy`).set(auth());
         expect(ajeno.status).toBe(404);
         await http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`).set(auth()).expect(200);
+      });
+
+      it("consumo-hoy de un vehículo propio ignora el cliente_id del query", async () => {
+        const [base, forzado] = await Promise.all([
+          http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`).set(auth()),
+          http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy?cliente_id=${otroClienteId}`).set(auth()),
+        ]);
+        expect(forzado.status).toBe(200);
+        expect(forzado.body).toEqual(base.body);
+      });
+
+      it("un cliente sin empresa asignada recibe listas vacías de despachos", async () => {
+        const u = await crearUsuario("cliente");
+        const token = await loginToken(u.email!);
+        const res = await http().get("/api/v1/despachos").set("Authorization", `Bearer ${token}`);
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ data: [], total: 0, page: 1, limit: 20 });
+        const v = await http().get("/api/v1/ventas-insumos").set("Authorization", `Bearer ${token}`);
+        expect(v.status).toBe(200);
+        expect(v.body).toEqual([]);
       });
 
       it("reportes ignoran el cliente_id del query", async () => {

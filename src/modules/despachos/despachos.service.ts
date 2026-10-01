@@ -114,6 +114,8 @@ export class DespachosService {
     const offset = (page - 1) * limit;
     const conditions: any[] = [];
 
+    if (user.rol === "cliente" && !user.cliente_id)
+      return { data: [], total: 0, page, limit };
     if (user.rol === "supervisor")
       conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
     if (user.rol === "cliente")
@@ -842,7 +844,9 @@ export class DespachosService {
       mes: null as number | null,
     };
     let clienteConsumo = { dia: 0, semana: 0, mes: 0 };
-    const resolvedClienteId = clienteId ?? v.cliente_id;
+    // Un cliente sólo consulta su propia cuenta: se ignora el cliente_id del query.
+    const resolvedClienteId =
+      user?.rol === "cliente" ? v.cliente_id : (clienteId ?? v.cliente_id);
 
     const [cliRow] = await this.db.db
       .select()

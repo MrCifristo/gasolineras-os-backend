@@ -35,6 +35,7 @@ export class DespachosExcelService {
   private async fetchRows(filters: DespachoFilters, user: any) {
     const conditions: any[] = [];
 
+    if (user.rol === "cliente" && !user.cliente_id) return [];
     if (user.rol === "supervisor")
       conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
     if (user.rol === "cliente")

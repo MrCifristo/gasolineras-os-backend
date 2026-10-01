@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
@@ -35,6 +35,12 @@ export class VehiculosService {
   }
 
   /** Alcance fail-closed: un cliente sólo ve sus vehículos; sin cliente_id, nada. */
+  /** PartialType vuelve opcionales (y nulables) todos los campos; bloqueado es NOT NULL. */
+  private rechazarBloqueadoNulo(dto: { bloqueado?: boolean | null }) {
+    if (dto.bloqueado === null)
+      throw new BadRequestException("bloqueado debe ser verdadero o falso");
+  }
+
   async findAll(
     clienteId?: string,
     activo?: boolean,
@@ -124,6 +130,7 @@ export class VehiculosService {
   }
 
   async update(id: string, dto: UpdateVehiculoDto) {
+    this.rechazarBloqueadoNulo(dto);
     await this.findOne(id);
     const [row] = await this.db.db
       .update(vehiculos)
@@ -143,6 +150,7 @@ export class VehiculosService {
     dto: UpdateRestriccionesVehiculoDto,
     user: { rol: string; cliente_id?: string | null },
   ) {
+    this.rechazarBloqueadoNulo(dto);
     const condiciones = [eq(vehiculos.id, id)];
     if (user.rol !== "admin") {
       if (!user.cliente_id) throw new NotFoundException("Vehículo no encontrado");
