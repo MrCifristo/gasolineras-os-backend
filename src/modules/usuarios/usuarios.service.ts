@@ -27,6 +27,22 @@ const CAMPOS_PUBLICOS = {
   activo: usuarios.activo,
 };
 
+/**
+ * Un usuario cliente sin empresa no tiene alcance: los servicios fallan
+ * cerrado con él, pero cualquier ruta que olvide hacerlo le mostraría los
+ * datos de todos los clientes. Defensa en profundidad: no puede existir.
+ */
+function exigirEmpresaSiEsCliente(
+  rol: string | undefined,
+  clienteId: string | null | undefined,
+) {
+  if (rol === "cliente" && !clienteId) {
+    throw new BadRequestException(
+      "Un usuario cliente debe tener una empresa (cliente_id) asignada",
+    );
+  }
+}
+
 @Injectable()
 export class UsuariosService {
   private readonly logger = new Logger("Usuarios");
@@ -67,6 +83,7 @@ export class UsuariosService {
         "Debe indicar un correo o un número de teléfono",
       );
     }
+    exigirEmpresaSiEsCliente(datos.rol, datos.cliente_id);
 
     if (email) {
       const [existente] = await this.db.db
@@ -157,8 +174,15 @@ export class UsuariosService {
   }
 
   async update(id: string, dto: UpdateUsuarioDto) {
-    await this.findOne(id);
+    const actual = await this.findOne(id);
     const { password, ...resto } = dto;
+
+    // Se valida el estado que quedaría: cambiar el rol a cliente sin empresa, o
+    // quitarle la empresa a un cliente, también lo dejaría sin alcance.
+    exigirEmpresaSiEsCliente(
+      resto.rol ?? actual.rol,
+      "cliente_id" in resto ? resto.cliente_id : actual.cliente_id,
+    );
 
     const cambios: Partial<typeof usuarios.$inferInsert> = { ...resto };
     if (resto.email) cambios.email = resto.email.toLowerCase();

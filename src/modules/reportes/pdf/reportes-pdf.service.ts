@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ForbiddenException, Injectable } from "@nestjs/common";
 import puppeteer from "puppeteer";
 import { and, eq, sql } from "drizzle-orm";
 import { DbService } from "../../../db/db.service";
@@ -20,11 +20,19 @@ export class ReportesPdfService {
     private reportesService: ReportesService,
   ) {}
 
-  async generarPdf(dto: GenerarPdfDto, user: any): Promise<Buffer> {
+  async generarPdf(
+    dto: GenerarPdfDto,
+    user: { rol: string; cliente_id?: string | null },
+  ): Promise<Buffer> {
     const filtros: ReporteFilters = { ...(dto.filtros ?? {}) };
 
-    // Clientes solo pueden ver sus propios datos
+    // Clientes solo pueden ver sus propios datos. Falla cerrado: sin empresa
+    // asignada no hay filtro que aplicar, y omitirlo traería a todos los
+    // clientes en el PDF.
     if (user.rol === "cliente") {
+      if (!user.cliente_id) {
+        throw new ForbiddenException("Cliente sin empresa asignada");
+      }
       filtros.cliente_id = user.cliente_id;
     }
 

@@ -314,7 +314,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       supervisorToken = res.body.access_token;
     });
 
-    it("admin crea usuario CLIENTE → 201", async () => {
+    it("admin no puede crear un usuario CLIENTE sin empresa → 400", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/usuarios")
         .set("Authorization", `Bearer ${adminToken}`)
@@ -325,9 +325,27 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           rol: "cliente",
         });
 
-      expect(res.status).toBe(201);
-      expect(res.body.rol).toBe("cliente");
-      expect(res.body.password_hash).toBeUndefined();
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("cliente_id");
+    });
+
+    it("usuario CLIENTE sin empresa sembrado por BD (para probar el fail-closed)", async () => {
+      // La API ya no deja crearlo (ver el test anterior), pero los tests de
+      // alcance necesitan uno: así se prueba que cada ruta falla cerrado aunque
+      // un usuario así llegue a existir (datos viejos, edición directa en BD).
+      const passwords = app.get(PasswordService);
+      const [u] = await db.db
+        .insert(usuarios)
+        .values({
+          email: `cliente.${RUN_ID}@gasfuel-e2e.test`,
+          nombre: tag("Usuario Cliente SA"),
+          password_hash: await passwords.hashear(TEST_PASSWORD),
+          rol: "cliente",
+          activo: true,
+        })
+        .returning();
+      expect(u.rol).toBe("cliente");
+      expect(u.cliente_id).toBeNull();
     });
 
     it("usuario cliente puede hacer login → 200", async () => {
@@ -1056,6 +1074,17 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${clienteUserToken}`);
 
       expect(res.status).toBe(403);
+    });
+
+    it("cliente sin empresa asignada no genera el PDF → 403 (fail-closed)", async () => {
+      // Sin esto el PDF omitía el filtro y traía los datos de todos los clientes.
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/reportes/pdf")
+        .set("Authorization", `Bearer ${clienteUserToken}`)
+        .send({});
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Cliente sin empresa asignada");
     });
 
     it("filtros de fecha en reportes funcionan correctamente", async () => {
@@ -2236,6 +2265,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   describe("15. Contraseñas y recuperación", () => {
     const emailReset = `reset.${RUN_ID}@gasfuel-e2e.test`;
     let usuarioResetId: string;
+    let usuarioClienteAltaId: string;
     let passwordVigente: string;
     let tokenReset: string;
     let accessPrevio: string;
@@ -2294,10 +2324,31 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         });
 
       expect(res.status).toBe(201);
+      usuarioClienteAltaId = res.body.id;
       // El envío es fire-and-forget: se le da un tick al event loop.
       await new Promise((r) => setTimeout(r, 50));
       expect(correos.enviados).toHaveLength(1);
       expect(correos.enviados[0].para).toBe(email);
+    });
+
+    it("quitarle la empresa a un usuario cliente → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/usuarios/${usuarioClienteAltaId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ cliente_id: null });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("cliente_id");
+    });
+
+    it("pasar a rol cliente a un usuario sin empresa → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/usuarios/${usuarioResetId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ rol: "cliente" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain("cliente_id");
     });
 
     it("solicitar recuperación con un identificador inexistente → 204 sin correo", async () => {
