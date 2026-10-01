@@ -333,6 +333,12 @@ El rol `cliente` lee los catálogos (no contienen datos de otros clientes) para 
 | `POST`/`PATCH /precios-combustible` | sí | no | sí | no (403) |
 | `GET /gasolineras/:id/turnos` | sí | sí | sí | no (403) |
 
+`GET /gasolineras/:id` devuelve también las gasolineras **inactivas** (es un catálogo por id, no un listado operativo); la lista `GET /gasolineras` sólo trae las activas.
+
+### Alcance del cliente (fail-closed)
+
+Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query y usa el del token. Rutas con alcance: `GET /vehiculos` y `/vehiculos/:id`, `GET /pilotos` y `/pilotos/:id`, `GET /clientes` y `/clientes/:id`, `GET /despachos/vehiculo/:id/consumo-hoy` y los reportes (`resumen`, `consumo-por-vehiculo`, `consumo-por-piloto`, `tendencia-mensual`, `rendimiento-vehiculo/:id`). Un recurso ajeno responde 404 (nunca el recurso); un usuario `cliente` sin `cliente_id` recibe lista vacía, 404 o 403 según la ruta.
+
 ---
 
 ## 2. Crear despacho: se manda `monto`, no `galones`

@@ -162,10 +162,31 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   (list and detail) carries `operario: { id, nombre } | null`. `POST /despachos`
   rejects an `operario_id` from another station or inactive (400).
 
+## Client role: catalogues, restrictions and scoping
+
+- **El cliente lee los catálogos:** `GET /gasolineras` (lista de activas),
+  `GET /gasolineras/:id` (devuelve también inactivas), `GET /precios-combustible`
+  y `/hoy?gasolinera_id=` (obligatorio, 400 si falta). Sólo lectura; no escribe nada
+  de ellos. Así sus reportes recuperan el desglose por combustible y estación.
+- **`PATCH /vehiculos/:id/restricciones`** (`admin` o `cliente` dueño). El DTO
+  admite sólo campos de restricción (`bloqueado`, 11 `limite_*`,
+  `productos_permitidos`, `dias_permitidos`, `hora_inicio`, `hora_fin`); cualquier
+  otro campo es 400, `bloqueado: null` es 400. **El cliente puede bloquear
+  (`true`) pero no desbloquear:** `bloqueado: false` es siempre 403 "Sólo la
+  estación puede desbloquear un vehículo." y no aplica ningún otro campo. Vehículo
+  ajeno o inexistente: 404 indistinguible. El `PATCH /vehiculos/:id` general sigue
+  siendo sólo `admin`.
+- **Alcance del cliente, fail-closed:** `GET /vehiculos`, `/pilotos`, `/clientes`
+  (y sus `:id`), `/despachos/vehiculo/:id/consumo-hoy` y los reportes (`resumen`,
+  `consumo-por-vehiculo`, `consumo-por-piloto`, `tendencia-mensual`,
+  `rendimiento-vehiculo/:id`) devuelven sólo lo del propio cliente e **ignoran un
+  `cliente_id` del query**. Ajeno = 404; cliente sin `cliente_id` = vacío/404/403.
+  Antes `GET /vehiculos` filtraba por el query, y un cliente podía leer a otro.
+
 ## Testing
 
 - Unit (`pnpm test`): 36 tests in 6 suites.
-- E2E (`pnpm test:e2e`): 204 tests — `gasfuel` 156, `auth-rotacion` 8,
-  `fase6` 40. Needs live Postgres and a migrated DB; run with
+- E2E (`pnpm test:e2e`): 233 tests in 3 suites — `gasfuel` 157, `auth-rotacion` 8,
+  `fase6` 68. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).
