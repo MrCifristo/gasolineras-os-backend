@@ -182,11 +182,19 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `rendimiento-vehiculo/:id`) devuelven sólo lo del propio cliente e **ignoran un
   `cliente_id` del query**. Ajeno = 404; cliente sin `cliente_id` = vacío/404/403.
   Antes `GET /vehiculos` filtraba por el query, y un cliente podía leer a otro.
+  `POST /reportes/pdf` también: un cliente sin empresa recibe 403 (antes omitía
+  el filtro y el PDF traía a **todos** los clientes). La tabla completa de rutas
+  que admiten al cliente está en el contrato, §1f "Alcance del cliente".
+- **Un usuario `cliente` siempre tiene `cliente_id`.** `UsuariosService.create`
+  y `update` responden 400 si el resultado sería un cliente sin empresa. El
+  fail-closed de los servicios se mantiene para filas viejas o editadas en BD;
+  el e2e siembra ese usuario directo por BD por esa razón.
+- `GET /gasolineras` sale ordenado por `nombre`.
 
 ## Testing
 
 - Unit (`pnpm test`): 36 tests in 6 suites.
-- E2E (`pnpm test:e2e`): 233 tests in 3 suites — `gasfuel` 157, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 237 tests in 3 suites — `gasfuel` 161, `auth-rotacion` 8,
   `fase6` 68. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

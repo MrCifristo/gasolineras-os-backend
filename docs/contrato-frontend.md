@@ -337,7 +337,27 @@ El rol `cliente` lee los catálogos (no contienen datos de otros clientes) para 
 
 ### Alcance del cliente (fail-closed)
 
-Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query y usa el del token. Rutas con alcance: `GET /vehiculos` y `/vehiculos/:id`, `GET /pilotos` y `/pilotos/:id`, `GET /clientes` y `/clientes/:id`, `GET /despachos/vehiculo/:id/consumo-hoy` y los reportes (`resumen`, `consumo-por-vehiculo`, `consumo-por-piloto`, `tendencia-mensual`, `rendimiento-vehiculo/:id`). Un recurso ajeno responde 404 (nunca el recurso); un usuario `cliente` sin `cliente_id` recibe lista vacía, 404 o 403 según la ruta.
+Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query (o lo combina con el del token, que es lo mismo: lo ajeno no aparece) y usa el del token. Un recurso ajeno responde 404 (nunca el recurso). Éstas son **todas** las rutas que admiten al rol `cliente`, y lo que recibe un usuario `cliente` sin `cliente_id`:
+
+| Ruta | Alcance para el cliente | Cliente sin `cliente_id` |
+|---|---|---|
+| `GET /despachos` | sólo los suyos | `{ data: [], total: 0, … }` |
+| `GET /despachos/export/xlsx` | sólo los suyos | Excel vacío |
+| `GET /despachos/:id` | propio; ajeno → 404 | 403 |
+| `GET /despachos/:id/firma` | propio; ajeno → 404 | 403 |
+| `GET /despachos/vehiculo/:id/consumo-hoy` | vehículo propio; ajeno → 404 | 404 |
+| `GET /ventas-insumos` | sólo las suyas | `[]` |
+| `GET /ventas-insumos/:id` | propia; ajena → 404 | 403 |
+| `GET /reportes/resumen`, `consumo-por-vehiculo`, `consumo-por-piloto`, `tendencia-mensual` | sólo sus datos | 403 |
+| `GET /reportes/rendimiento-vehiculo/:id` | vehículo ajeno → `[]` | `[]` |
+| `POST /reportes/pdf` | sólo sus datos (los `filtros.cliente_id` se pisan) | 403 `"Cliente sin empresa asignada"` |
+| `GET /vehiculos`, `GET /vehiculos/:id` | sólo los suyos; ajeno → 404 | `[]` / 404 |
+| `PATCH /vehiculos/:id/restricciones` | propio; ajeno → 404 | 404 |
+| `GET /pilotos`, `GET /pilotos/:id` | sólo los suyos; ajeno → 404 | `[]` / 404 |
+| `GET /clientes`, `GET /clientes/:id` | sólo el propio; ajeno → 404 | `[]` / 404 |
+| `GET /gasolineras`, `/gasolineras/:id`, `GET /precios-combustible`, `/hoy` | catálogos sin datos de clientes | igual que con empresa |
+
+Además, un usuario así **ya no puede crearse por la API**: `POST /usuarios` con `rol: "cliente"` sin `cliente_id`, o un `PATCH /usuarios/:id` que deje a un cliente sin empresa (quitar `cliente_id` o pasar a `rol: "cliente"` sin él), responde 400. El fail-closed de la tabla sigue siendo necesario para filas viejas o editadas a mano en la BD.
 
 ---
 
