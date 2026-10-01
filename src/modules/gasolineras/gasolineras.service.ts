@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import { gasolineras, turnosGasolinera } from "../../db/schema";
 import { TURNOS_POR_DEFECTO } from "../turnos/turnos.constants";
@@ -11,10 +11,13 @@ export class GasolinerasService {
   constructor(private db: DbService) {}
 
   findAll() {
+    // Orden estable: sin él, los selectores y los desgloses del frontend
+    // cambian de orden según el plan de Postgres.
     return this.db.db
       .select()
       .from(gasolineras)
-      .where(eq(gasolineras.activo, true));
+      .where(eq(gasolineras.activo, true))
+      .orderBy(asc(gasolineras.nombre));
   }
 
   async findOne(id: string) {
