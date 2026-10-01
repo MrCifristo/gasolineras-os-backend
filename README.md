@@ -12,7 +12,7 @@ This is a private business system operated by ALBRAN INDUSTRIES S.A., but the co
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Node.js 22.12+ (developed on 24.x/26.x), TypeScript 5.7 |
+| Runtime | Node.js 24 LTS (mínimo 24; `.nvmrc`), TypeScript 5.7 |
 | Framework | NestJS 11 |
 | Database | PostgreSQL 16 |
 | ORM | Drizzle ORM over `node-postgres` (`pg`) + Drizzle Kit migrations |
@@ -82,7 +82,7 @@ A senior dev should be running this in under 10 minutes.
 
 ### Prerequisites
 
-- Node.js 22.12+ (required by `@nestjs/schedule`, which is ESM-only) and [pnpm](https://pnpm.io/)
+- Node.js 24 LTS (mínimo 24, ver `.nvmrc`; `@nestjs/schedule` is ESM-only) and [pnpm](https://pnpm.io/)
 - Docker (for the local PostgreSQL 16 instance)
 - A Supabase project (for auth)
 

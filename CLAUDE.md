@@ -154,10 +154,10 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   (generate with `pnpm vapid:generate`) and `RECORDATORIOS_ACTIVOS`. Unlike
   `R2_*` and `RESEND_API_KEY`, they do **not** fail the boot: without VAPID the
   push is disabled (`vapid-public-key` returns `{key: null}`) and email still goes.
-- **Node >= 22.12 required.** `@nestjs/schedule@12` is ESM-only; the compiled
+- **Node 24 LTS (mínimo 24; `.nvmrc`; `engines` en `package.json`).** `@nestjs/schedule@12` is ESM-only; the compiled
   app loads it through Node's `require(esm)`, and Jest transforms it with
   ts-jest (`transformIgnorePatterns` in `package.json` and `test/jest-e2e.json`).
-  Verified on Node 24. No `engines` field is set yet.
+  Verified on Node 24.
 - `GET /despachos` returns `{ data, total, page, limit }` and every despacho
   (list and detail) carries `operario: { id, nombre } | null`. `POST /despachos`
   rejects an `operario_id` from another station or inactive (400).
