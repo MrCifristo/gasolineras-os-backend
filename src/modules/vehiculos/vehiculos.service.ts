@@ -39,13 +39,13 @@ export class VehiculosService {
     return out;
   }
 
-  /** Alcance fail-closed: un cliente sólo ve sus vehículos; sin cliente_id, nada. */
   /** PartialType vuelve opcionales (y nulables) todos los campos; bloqueado es NOT NULL. */
   private rechazarBloqueadoNulo(dto: { bloqueado?: boolean | null }) {
     if (dto.bloqueado === null)
       throw new BadRequestException("bloqueado debe ser verdadero o falso");
   }
 
+  /** Alcance fail-closed: un cliente sólo ve sus vehículos; sin cliente_id, nada. */
   async findAll(
     clienteId?: string,
     activo?: boolean,

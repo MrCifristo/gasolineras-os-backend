@@ -832,12 +832,21 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       });
 
       it("consumo-hoy de un vehículo propio ignora el cliente_id del query", async () => {
+        // El cliente ajeno se distingue del propio; si el query se aplicara,
+        // la respuesta traería sus bloqueos y su límite. afterAll lo desactiva.
+        await db.db
+          .update(clientes)
+          .set({ bloqueado: true, credito_bloqueado: true, limite_monto_dia: "777.00" })
+          .where(eq(clientes.id, otroClienteId));
         const [base, forzado] = await Promise.all([
           http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`).set(auth()),
           http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy?cliente_id=${otroClienteId}`).set(auth()),
         ]);
         expect(forzado.status).toBe(200);
         expect(forzado.body).toEqual(base.body);
+        expect(forzado.body.cliente_bloqueado).toBe(false);
+        expect(forzado.body.cliente_credito_bloqueado).toBe(false);
+        expect(JSON.stringify(forzado.body.cliente_limites)).not.toContain("777");
       });
 
       it("un cliente sin empresa asignada recibe listas vacías de despachos", async () => {
