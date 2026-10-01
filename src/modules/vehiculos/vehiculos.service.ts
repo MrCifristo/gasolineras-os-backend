@@ -9,6 +9,7 @@ import {
 } from "../../db/schema";
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
+import { UpdateRestriccionesVehiculoDto } from "./dto/update-restricciones-vehiculo.dto";
 
 @Injectable()
 export class VehiculosService {
@@ -115,6 +116,39 @@ export class VehiculosService {
       .set(this.coerceDecimals(dto) as any)
       .where(eq(vehiculos.id, id))
       .returning();
+    return row;
+  }
+
+  /**
+   * Alcance fail-closed: un cliente sólo toca vehículos de su cliente_id; si
+   * el vehículo es ajeno o no existe, ambos casos dan el mismo 404. El filtro
+   * va en el propio UPDATE, sin leer primero.
+   */
+  async updateRestricciones(
+    id: string,
+    dto: UpdateRestriccionesVehiculoDto,
+    user: { rol: string; cliente_id?: string | null },
+  ) {
+    const condiciones = [eq(vehiculos.id, id)];
+    if (user.rol !== "admin") {
+      if (!user.cliente_id) throw new NotFoundException("Vehículo no encontrado");
+      condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
+    }
+    if (Object.keys(dto).length === 0) {
+      const [actual] = await this.db.db
+        .select()
+        .from(vehiculos)
+        .where(and(...condiciones))
+        .limit(1);
+      if (!actual) throw new NotFoundException("Vehículo no encontrado");
+      return actual;
+    }
+    const [row] = await this.db.db
+      .update(vehiculos)
+      .set(this.coerceDecimals(dto) as any)
+      .where(and(...condiciones))
+      .returning();
+    if (!row) throw new NotFoundException("Vehículo no encontrado");
     return row;
   }
 

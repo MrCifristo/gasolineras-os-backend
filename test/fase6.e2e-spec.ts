@@ -608,4 +608,123 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(filas).toHaveLength(0);
     });
   });
+
+  describe("Restricciones de vehículo", () => {
+    let clienteToken: string;
+    let clienteId: string;
+    let otroClienteId: string;
+    let vehPropioId: string;
+    let vehAjenoId: string;
+
+    beforeAll(async () => {
+      const [c1, c2] = await db.db
+        .insert(clientes)
+        .values([
+          { nombre: `[F6-${RUN_ID}] Cliente restricciones` },
+          { nombre: `[F6-${RUN_ID}] Otro cliente restricciones` },
+        ])
+        .returning();
+      clienteId = c1.id;
+      otroClienteId = c2.id;
+      const u = await crearUsuario("cliente", { cliente_id: clienteId });
+      clienteToken = await loginToken(u.email!);
+      for (const [cid, placa] of [
+        [clienteId, `RP${RUN_ID}`],
+        [otroClienteId, `RA${RUN_ID}`],
+      ]) {
+        const res = await http()
+          .post("/api/v1/vehiculos")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({ cliente_id: cid, placa });
+        expect(res.status).toBe(201);
+        if (cid === clienteId) vehPropioId = res.body.id;
+        else vehAjenoId = res.body.id;
+      }
+    });
+
+    afterAll(async () => {
+      for (const id of [clienteId, otroClienteId]) {
+        await db.db.update(clientes).set({ activo: false }).where(eq(clientes.id, id)).catch(() => undefined);
+      }
+    });
+
+    const patch = (id: string, token: string, body: object) =>
+      http().patch(`/api/v1/vehiculos/${id}/restricciones`).set("Authorization", `Bearer ${token}`).send(body);
+
+    it("el admin edita las restricciones de cualquier vehículo", async () => {
+      const res = await patch(vehAjenoId, adminToken, { bloqueado: true, limite_monto_dia: 500 });
+      expect(res.status).toBe(200);
+      expect(res.body.bloqueado).toBe(true);
+      expect(Number(res.body.limite_monto_dia)).toBe(500);
+    });
+
+    it("el cliente edita las de un vehículo suyo y persisten", async () => {
+      const res = await patch(vehPropioId, clienteToken, {
+        limite_trans_dia: 3,
+        productos_permitidos: ["diesel"],
+        dias_permitidos: ["lunes"],
+        hora_inicio: "06:00",
+        hora_fin: "18:30",
+        limite_volumen_mes: 120.5,
+      });
+      expect(res.status).toBe(200);
+      const get = await http().get(`/api/v1/vehiculos/${vehPropioId}`).set("Authorization", `Bearer ${clienteToken}`);
+      expect(get.status).toBe(200);
+      expect(get.body).toEqual(
+        expect.objectContaining({
+          limite_trans_dia: 3,
+          productos_permitidos: ["diesel"],
+          dias_permitidos: ["lunes"],
+          hora_inicio: "06:00",
+          hora_fin: "18:30",
+        }),
+      );
+      expect(Number(get.body.limite_volumen_mes)).toBe(120.5);
+    });
+
+    it("null limpia un límite", async () => {
+      await patch(vehPropioId, clienteToken, { limite_monto_dia: 200 }).expect(200);
+      const res = await patch(vehPropioId, clienteToken, { limite_monto_dia: null, hora_inicio: null });
+      expect(res.status).toBe(200);
+      expect(res.body.limite_monto_dia).toBeNull();
+      expect(res.body.hora_inicio).toBeNull();
+    });
+
+    it("el cliente no toca un vehículo ajeno: 404 y no cambia", async () => {
+      const antes = await db.db.query.vehiculos.findFirst({ where: (v, { eq }) => eq(v.id, vehAjenoId) });
+      const res = await patch(vehAjenoId, clienteToken, { bloqueado: false });
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe("Vehículo no encontrado");
+      const despues = await db.db.query.vehiculos.findFirst({ where: (v, { eq }) => eq(v.id, vehAjenoId) });
+      expect(despues?.bloqueado).toBe(antes?.bloqueado);
+    });
+
+    it("un vehículo inexistente da 404", async () => {
+      const res = await patch("00000000-0000-4000-8000-000000000000", clienteToken, { bloqueado: true });
+      expect(res.status).toBe(404);
+    });
+
+    it("el supervisor recibe 403", async () => {
+      const res = await patch(vehPropioId, supervisorToken, { bloqueado: true });
+      expect(res.status).toBe(403);
+    });
+
+    it("un campo que no es restricción da 400", async () => {
+      const res = await patch(vehPropioId, clienteToken, { placa: "HACK1" });
+      expect(res.status).toBe(400);
+    });
+
+    it("hora_inicio mal formada da 400", async () => {
+      const res = await patch(vehPropioId, clienteToken, { hora_inicio: "25:99" });
+      expect(res.status).toBe(400);
+    });
+
+    it("el cliente sigue sin poder editar el vehículo en general", async () => {
+      const res = await http()
+        .patch(`/api/v1/vehiculos/${vehPropioId}`)
+        .set("Authorization", `Bearer ${clienteToken}`)
+        .send({ marca: "X" });
+      expect(res.status).toBe(403);
+    });
+  });
 });

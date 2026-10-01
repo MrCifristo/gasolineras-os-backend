@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -18,6 +19,7 @@ import { Auth } from "../../auth/roles.decorator";
 import { VehiculosService } from "./vehiculos.service";
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
+import { UpdateRestriccionesVehiculoDto } from "./dto/update-restricciones-vehiculo.dto";
 
 @ApiTags("vehiculos")
 @ApiBearerAuth("JWT")
@@ -61,6 +63,20 @@ export class VehiculosController {
   @ApiOperation({ summary: "Editar vehículo" })
   update(@Param("id") id: string, @Body() dto: UpdateVehiculoDto) {
     return this.service.update(id, dto);
+  }
+
+  @Patch(":id/restricciones")
+  @Auth("admin", "cliente")
+  @ApiOperation({
+    summary:
+      "Editar sólo las restricciones del vehículo (el cliente, únicamente en los suyos)",
+  })
+  updateRestricciones(
+    @Param("id") id: string,
+    @Body() dto: UpdateRestriccionesVehiculoDto,
+    @Request() req: any,
+  ) {
+    return this.service.updateRestricciones(id, dto, req.user);
   }
 
   @Delete(":id")

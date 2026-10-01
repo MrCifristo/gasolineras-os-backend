@@ -300,6 +300,23 @@ Ya **no** responde un arreglo. Ahora:
 
 `GET /precios-combustible/hoy?gasolinera_id=` devuelve los precios vigentes hoy (fecha GT) de esa gasolinera. `admin` y `jefe_pista` eligen la gasolinera (sin `gasolinera_id`: 400 `"Falta gasolinera_id"`); el supervisor recibe siempre la suya y el query se ignora.
 
+### Restricciones de vehículo: `PATCH /vehiculos/:id/restricciones`
+
+`admin` (cualquier vehículo) y `cliente` (sólo los suyos). El `PATCH /vehiculos/:id` general sigue siendo sólo `admin`. El body acepta únicamente campos de restricción, todos opcionales y con las mismas validaciones que al crear el vehículo: `bloqueado`, `limite_monto_{transaccion,dia,semana,mes}`, `limite_volumen_{transaccion,dia,semana,mes}`, `limite_trans_{dia,semana,mes}`, `productos_permitidos`, `dias_permitidos`, `hora_inicio`, `hora_fin` (`HH:mm`). `null` limpia el campo.
+
+```json
+// PATCH /api/v1/vehiculos/6f1c.../restricciones
+{ "limite_monto_dia": 500, "limite_trans_dia": null, "hora_inicio": "06:00", "hora_fin": "18:30", "productos_permitidos": ["diesel"] }
+```
+
+Responde 200 con el vehículo completo (numéricos como string, ver §5).
+
+| Caso | Respuesta |
+|---|---|
+| Campo que no es restricción (`placa`, `cliente_id`, `marca`...) o valor inválido (`hora_inicio: "25:99"`) | 400 |
+| `supervisor`, `jefe_pista` o sin sesión | 403 / 401 |
+| `cliente` sobre un vehículo ajeno, o vehículo inexistente | 404 `"Vehículo no encontrado"` (indistinguibles) |
+
 ### Permisos de lectura del cliente
 
 El rol `cliente` lee los catálogos (no contienen datos de otros clientes) para que sus reportes recuperen el desglose por combustible y por estación. Sigue sin poder escribir nada de ellos.
