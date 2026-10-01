@@ -154,7 +154,16 @@ export class ReportesService {
       );
   }
 
-  async rendimientoVehiculo(vehiculoId: string) {
+  async rendimientoVehiculo(
+    vehiculoId: string,
+    user?: { rol: string; cliente_id?: string | null },
+  ) {
+    const condiciones = [eq(despachos.vehiculo_id, vehiculoId)];
+    if (user?.rol === "cliente") {
+      // Vehículo ajeno: lista vacía, igual que uno sin despachos.
+      if (!user.cliente_id) return [];
+      condiciones.push(eq(despachos.cliente_id, user.cliente_id));
+    }
     return this.db.db
       .select({
         despacho_id: despachos.id,
@@ -170,7 +179,7 @@ export class ReportesService {
         `,
       })
       .from(despachos)
-      .where(eq(despachos.vehiculo_id, vehiculoId))
+      .where(and(...condiciones))
       .orderBy(despachos.despachado_at);
   }
 }

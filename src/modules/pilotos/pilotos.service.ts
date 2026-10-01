@@ -9,7 +9,11 @@ import { UpdatePilotoDto } from "./dto/update-piloto.dto";
 export class PilotosService {
   constructor(private db: DbService) {}
 
-  findAll(clienteId?: string) {
+  findAll(clienteId?: string, user?: { rol: string; cliente_id?: string | null }) {
+    if (user?.rol === "cliente") {
+      if (!user.cliente_id) return Promise.resolve([]);
+      clienteId = user.cliente_id;
+    }
     if (clienteId) {
       return this.db.db
         .select()
@@ -21,11 +25,16 @@ export class PilotosService {
     return this.db.db.select().from(pilotos).where(eq(pilotos.activo, true));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: { rol: string; cliente_id?: string | null }) {
+    const condiciones = [eq(pilotos.id, id)];
+    if (user?.rol === "cliente") {
+      if (!user.cliente_id) throw new NotFoundException("Piloto no encontrado");
+      condiciones.push(eq(pilotos.cliente_id, user.cliente_id));
+    }
     const [piloto] = await this.db.db
       .select()
       .from(pilotos)
-      .where(eq(pilotos.id, id))
+      .where(and(...condiciones))
       .limit(1);
     if (!piloto) throw new NotFoundException("Piloto no encontrado");
 

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Request,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
@@ -22,15 +23,15 @@ export class ClientesController {
   @Get()
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar clientes activos" })
-  findAll() {
-    return this.service.findAll();
+  findAll(@Request() req: any) {
+    return this.service.findAll(req.user);
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener cliente con sus vehículos y pilotos" })
-  findOne(@Param("id") id: string) {
-    return this.service.findOne(id);
+  findOne(@Param("id") id: string, @Request() req: any) {
+    return this.service.findOne(id, req.user);
   }
 
   @Post()

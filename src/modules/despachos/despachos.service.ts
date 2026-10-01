@@ -802,6 +802,7 @@ export class DespachosService {
     vehiculoId: string,
     clienteId?: string,
     gasolineraId?: string,
+    user?: { rol: string; cliente_id?: string | null },
   ) {
     const n = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
 
@@ -811,6 +812,9 @@ export class DespachosService {
       .where(eq(vehiculos.id, vehiculoId))
       .limit(1);
     if (!v) throw new NotFoundException("Vehículo no encontrado");
+    // Alcance fail-closed: un cliente sólo consulta vehículos propios.
+    if (user?.rol === "cliente" && (!user.cliente_id || v.cliente_id !== user.cliente_id))
+      throw new NotFoundException("Vehículo no encontrado");
 
     // Sistema
     const [sysConfig] = await this.db.db

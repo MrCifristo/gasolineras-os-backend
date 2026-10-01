@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -29,6 +30,20 @@ export class ReportesController {
     private readonly service: ReportesService,
     private readonly pdfService: ReportesPdfService,
   ) {}
+
+  /**
+   * Alcance fail-closed: un cliente sólo ve sus propios despachos; el
+   * cliente_id del query se ignora. Sin cliente_id propio, 403.
+   */
+  private acotar<T extends { cliente_id?: string }>(
+    user: { rol: string; cliente_id?: string | null } | undefined,
+    filtros: T,
+  ): T {
+    if (user?.rol !== "cliente") return filtros;
+    if (!user.cliente_id)
+      throw new ForbiddenException("Cliente sin empresa asignada");
+    return { ...filtros, cliente_id: user.cliente_id };
+  }
 
   @Post("pdf")
   @Auth("admin", "cliente")
@@ -65,13 +80,16 @@ export class ReportesController {
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
+    @Request() req?: any,
   ) {
-    return this.service.resumen({
+    return this.service.resumen(
+      this.acotar(req?.user, {
       cliente_id: clienteId,
       gasolinera_id: gasolineraId,
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
-    });
+    }),
+    );
   }
 
   @Get("consumo-por-vehiculo")
@@ -86,13 +104,16 @@ export class ReportesController {
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
+    @Request() req?: any,
   ) {
-    return this.service.consumoPorVehiculo({
+    return this.service.consumoPorVehiculo(
+      this.acotar(req?.user, {
       cliente_id: clienteId,
       gasolinera_id: gasolineraId,
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
-    });
+    }),
+    );
   }
 
   @Get("consumo-por-piloto")
@@ -107,13 +128,16 @@ export class ReportesController {
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
+    @Request() req?: any,
   ) {
-    return this.service.consumoPorPiloto({
+    return this.service.consumoPorPiloto(
+      this.acotar(req?.user, {
       cliente_id: clienteId,
       gasolinera_id: gasolineraId,
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
-    });
+    }),
+    );
   }
 
   @Get("tendencia-mensual")
@@ -124,11 +148,14 @@ export class ReportesController {
   tendenciaMensual(
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
+    @Request() req?: any,
   ) {
-    return this.service.tendenciaMensual({
+    return this.service.tendenciaMensual(
+      this.acotar(req?.user, {
       cliente_id: clienteId,
       gasolinera_id: gasolineraId,
-    });
+    }),
+    );
   }
 
   @Get("rendimiento-vehiculo/:vehiculoId")
@@ -136,7 +163,10 @@ export class ReportesController {
   @ApiOperation({
     summary: "Historial de km/galón por despacho para un vehículo",
   })
-  rendimientoVehiculo(@Param("vehiculoId") vehiculoId: string) {
-    return this.service.rendimientoVehiculo(vehiculoId);
+  rendimientoVehiculo(
+    @Param("vehiculoId") vehiculoId: string,
+    @Request() req?: any,
+  ) {
+    return this.service.rendimientoVehiculo(vehiculoId, req?.user);
   }
 }

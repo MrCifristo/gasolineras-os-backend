@@ -37,11 +37,21 @@ export class ClientesService {
     return out;
   }
 
-  findAll() {
-    return this.db.db.select().from(clientes).where(eq(clientes.activo, true));
+  findAll(user?: { rol: string; cliente_id?: string | null }) {
+    const condiciones = [eq(clientes.activo, true)];
+    if (user?.rol === "cliente") {
+      if (!user.cliente_id) return Promise.resolve([]);
+      condiciones.push(eq(clientes.id, user.cliente_id));
+    }
+    return this.db.db
+      .select()
+      .from(clientes)
+      .where(and(...condiciones));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: { rol: string; cliente_id?: string | null }) {
+    if (user?.rol === "cliente" && user.cliente_id !== id)
+      throw new NotFoundException("Cliente no encontrado");
     const [cliente] = await this.db.db
       .select()
       .from(clientes)

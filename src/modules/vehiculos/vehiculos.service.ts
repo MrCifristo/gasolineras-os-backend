@@ -34,7 +34,16 @@ export class VehiculosService {
     return out;
   }
 
-  findAll(clienteId?: string, activo?: boolean) {
+  /** Alcance fail-closed: un cliente sólo ve sus vehículos; sin cliente_id, nada. */
+  async findAll(
+    clienteId?: string,
+    activo?: boolean,
+    user?: { rol: string; cliente_id?: string | null },
+  ) {
+    if (user?.rol === "cliente") {
+      if (!user.cliente_id) return [];
+      clienteId = user.cliente_id;
+    }
     const conditions = [eq(vehiculos.activo, activo ?? true)];
     if (clienteId) conditions.push(eq(vehiculos.cliente_id, clienteId));
     return this.db.db
@@ -43,11 +52,16 @@ export class VehiculosService {
       .where(and(...conditions));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: { rol: string; cliente_id?: string | null }) {
+    const condiciones = [eq(vehiculos.id, id)];
+    if (user?.rol === "cliente") {
+      if (!user.cliente_id) throw new NotFoundException("Vehículo no encontrado");
+      condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
+    }
     const [row] = await this.db.db
       .select()
       .from(vehiculos)
-      .where(eq(vehiculos.id, id))
+      .where(and(...condiciones))
       .limit(1);
     if (!row) throw new NotFoundException("Vehículo no encontrado");
     return row;

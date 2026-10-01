@@ -37,18 +37,20 @@ export class VehiculosController {
   findAll(
     @Query("cliente_id") clienteId?: string,
     @Query("activo") activo?: string,
+    @Request() req?: any,
   ) {
     return this.service.findAll(
       clienteId,
       activo !== undefined ? activo === "true" : undefined,
+      req?.user,
     );
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener vehículo por ID" })
-  findOne(@Param("id") id: string) {
-    return this.service.findOne(id);
+  findOne(@Param("id") id: string, @Request() req: any) {
+    return this.service.findOne(id, req.user);
   }
 
   @Post()

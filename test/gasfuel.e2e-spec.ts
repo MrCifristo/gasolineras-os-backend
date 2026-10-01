@@ -1041,12 +1041,21 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     });
 
     it("cliente autenticado puede ver su propio resumen → 200", async () => {
+      const token = await tokenDeClienteLigado(cliente1Id, "resumen");
       const res = await request(app.getHttpServer())
         .get(`/api/v1/reportes/resumen?cliente_id=${cliente1Id}`)
-        .set("Authorization", `Bearer ${clienteUserToken}`);
+        .set("Authorization", `Bearer ${token}`);
 
       expect(res.status).toBe(200);
       expect(res.body.totales).toBeDefined();
+    });
+
+    it("cliente sin empresa asignada no ve reportes → 403 (fail-closed)", async () => {
+      const res = await request(app.getHttpServer())
+        .get("/api/v1/reportes/resumen")
+        .set("Authorization", `Bearer ${clienteUserToken}`);
+
+      expect(res.status).toBe(403);
     });
 
     it("filtros de fecha en reportes funcionan correctamente", async () => {

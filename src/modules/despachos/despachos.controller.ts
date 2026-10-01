@@ -153,10 +153,16 @@ export class DespachosController {
   @ApiQuery({ name: "gasolinera_id", required: false })
   getConsumoHoy(
     @Param("vehiculoId") vehiculoId: string,
+    @Request() req: any,
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
   ) {
-    return this.service.getConsumoHoy(vehiculoId, clienteId, gasolineraId);
+    return this.service.getConsumoHoy(
+      vehiculoId,
+      clienteId,
+      gasolineraId,
+      req.user,
+    );
   }
 
   @Get(":id/firma")

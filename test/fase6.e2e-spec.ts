@@ -726,5 +726,98 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .send({ marca: "X" });
       expect(res.status).toBe(403);
     });
+
+    describe("alcance del cliente (IDOR)", () => {
+      let pilPropioId: string;
+      let pilAjenoId: string;
+      const auth = () => ({ Authorization: `Bearer ${clienteToken}` });
+
+      beforeAll(async () => {
+        for (const cid of [clienteId, otroClienteId]) {
+          const res = await http()
+            .post("/api/v1/pilotos")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({ cliente_id: cid, nombre_completo: `Piloto ${RUN_ID}` });
+          expect(res.status).toBe(201);
+          if (cid === clienteId) pilPropioId = res.body.id;
+          else pilAjenoId = res.body.id;
+        }
+      });
+
+      it("GET /vehiculos sólo devuelve los propios, aunque pida otro cliente_id", async () => {
+        for (const q of ["", `?cliente_id=${otroClienteId}`]) {
+          const res = await http().get(`/api/v1/vehiculos${q}`).set(auth());
+          expect(res.status).toBe(200);
+          expect(res.body.map((v: any) => v.id)).toEqual([vehPropioId]);
+        }
+      });
+
+      it("GET /vehiculos/:id de otro cliente da 404; el propio da 200", async () => {
+        const ajeno = await http().get(`/api/v1/vehiculos/${vehAjenoId}`).set(auth());
+        expect(ajeno.status).toBe(404);
+        expect(ajeno.body.message).toBe("Vehículo no encontrado");
+        await http().get(`/api/v1/vehiculos/${vehPropioId}`).set(auth()).expect(200);
+      });
+
+      it("el admin sigue viendo vehículos de cualquier cliente", async () => {
+        const res = await http()
+          .get(`/api/v1/vehiculos?cliente_id=${otroClienteId}`)
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.body.map((v: any) => v.id)).toEqual([vehAjenoId]);
+      });
+
+      it("GET /pilotos sólo devuelve los propios", async () => {
+        for (const q of ["", `?cliente_id=${otroClienteId}`]) {
+          const res = await http().get(`/api/v1/pilotos${q}`).set(auth());
+          expect(res.status).toBe(200);
+          expect(res.body.map((p: any) => p.id)).toEqual([pilPropioId]);
+        }
+      });
+
+      it("GET /pilotos/:id de otro cliente da 404", async () => {
+        const ajeno = await http().get(`/api/v1/pilotos/${pilAjenoId}`).set(auth());
+        expect(ajeno.status).toBe(404);
+        await http().get(`/api/v1/pilotos/${pilPropioId}`).set(auth()).expect(200);
+      });
+
+      it("GET /clientes sólo devuelve el propio", async () => {
+        const res = await http().get("/api/v1/clientes").set(auth());
+        expect(res.status).toBe(200);
+        expect(res.body.map((c: any) => c.id)).toEqual([clienteId]);
+      });
+
+      it("GET /clientes/:id de otro cliente da 404", async () => {
+        const ajeno = await http().get(`/api/v1/clientes/${otroClienteId}`).set(auth());
+        expect(ajeno.status).toBe(404);
+        await http().get(`/api/v1/clientes/${clienteId}`).set(auth()).expect(200);
+      });
+
+      it("consumo-hoy de un vehículo ajeno da 404", async () => {
+        const ajeno = await http().get(`/api/v1/despachos/vehiculo/${vehAjenoId}/consumo-hoy`).set(auth());
+        expect(ajeno.status).toBe(404);
+        await http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`).set(auth()).expect(200);
+      });
+
+      it("reportes ignoran el cliente_id del query", async () => {
+        const [propio, forzado] = await Promise.all([
+          http().get("/api/v1/reportes/resumen").set(auth()),
+          http().get(`/api/v1/reportes/resumen?cliente_id=${otroClienteId}`).set(auth()),
+        ]);
+        expect(propio.status).toBe(200);
+        expect(forzado.body).toEqual(propio.body);
+        for (const ruta of ["consumo-por-vehiculo", "consumo-por-piloto", "tendencia-mensual"]) {
+          const a = await http().get(`/api/v1/reportes/${ruta}`).set(auth());
+          const b = await http().get(`/api/v1/reportes/${ruta}?cliente_id=${otroClienteId}`).set(auth());
+          expect(b.status).toBe(200);
+          expect(b.body).toEqual(a.body);
+        }
+      });
+
+      it("rendimiento-vehiculo de un vehículo ajeno no devuelve filas", async () => {
+        const res = await http().get(`/api/v1/reportes/rendimiento-vehiculo/${vehAjenoId}`).set(auth());
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual([]);
+      });
+    });
   });
 });

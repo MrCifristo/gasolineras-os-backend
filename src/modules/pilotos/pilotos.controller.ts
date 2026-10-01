@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -29,15 +30,15 @@ export class PilotosController {
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar pilotos, filtrable por cliente_id" })
   @ApiQuery({ name: "cliente_id", required: false })
-  findAll(@Query("cliente_id") clienteId?: string) {
-    return this.service.findAll(clienteId);
+  findAll(@Query("cliente_id") clienteId?: string, @Request() req?: any) {
+    return this.service.findAll(clienteId, req?.user);
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener piloto con sus vehículos asignados" })
-  findOne(@Param("id") id: string) {
-    return this.service.findOne(id);
+  findOne(@Param("id") id: string, @Request() req: any) {
+    return this.service.findOne(id, req.user);
   }
 
   @Post()
