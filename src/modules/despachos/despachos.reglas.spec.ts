@@ -518,6 +518,31 @@ describe("estadoHorario", () => {
       });
     });
 
+    it("si el día siguiente no está permitido, el tiempo restante termina a las 23:59", () => {
+      // gt() es miércoles; permitido solo el miércoles: jueves 00:00 no vale.
+      const soloMiercoles = { ...noche, dias_permitidos: ["miercoles"] };
+      expect(estadoHorario(soloMiercoles, gt("23:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 59,
+      });
+    });
+
+    it("si el día siguiente sí está permitido, cuenta hasta el cierre", () => {
+      const miJue = { ...noche, dias_permitidos: ["miercoles", "jueves"] };
+      expect(estadoHorario(miJue, gt("23:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 420,
+      });
+    });
+
+    it("después de medianoche (el día ya es el permitido) cuenta hasta el cierre", () => {
+      const soloMiercoles = { ...noche, dias_permitidos: ["miercoles"] };
+      expect(estadoHorario(soloMiercoles, gt("05:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 60,
+      });
+    });
+
     it("de día está fuera y no queda tiempo", () => {
       expect(estadoHorario(noche, gt("12:00"))).toEqual({
         dentro_de_horario: false,

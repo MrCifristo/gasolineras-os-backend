@@ -245,7 +245,16 @@ export function estadoHorario(
     // En una ventana nocturna, antes de medianoche el cierre es mañana.
     const cruzaMedianoche =
       !!v.hora_inicio && aMinutos(v.hora_inicio) > fin && minutos > fin;
-    restantes = Math.max(0, (cruzaMedianoche ? fin + 1440 : fin) - minutos);
+    // Si el día siguiente no está permitido, el tiempo útil acaba a las 23:59.
+    const diaSiguiente = DIAS_GT[(DIAS_GT.indexOf(dia) + 1) % 7];
+    const siguienteBloqueado =
+      !!v.dias_permitidos?.length && !v.dias_permitidos.includes(diaSiguiente);
+    const cierre = !cruzaMedianoche
+      ? fin
+      : siguienteBloqueado
+        ? 1439
+        : fin + 1440;
+    restantes = Math.max(0, cierre - minutos);
   }
   return { dentro_de_horario: dentro, minutos_restantes: restantes };
 }

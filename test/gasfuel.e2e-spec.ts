@@ -645,8 +645,20 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     });
 
     it("un precio por galón en cero se rechaza al corregir → 400", async () => {
+      // Precio desechable (otra fecha): no toca los precios que usan los demás bloques.
+      const creado = await request(app.getHttpServer())
+        .post("/api/v1/precios-combustible")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          gasolinera_id: gasolineraId,
+          fecha: "2020-01-01",
+          tipo_combustible: "diesel",
+          precio_galon: "10.000",
+        });
+      expect(creado.status).toBe(201);
+
       const res = await request(app.getHttpServer())
-        .patch(`/api/v1/precios-combustible/${precioRegularId}`)
+        .patch(`/api/v1/precios-combustible/${creado.body.id}`)
         .set("Authorization", `Bearer ${adminToken}`)
         .send({ precio_galon: "0.000" });
 
@@ -1785,6 +1797,30 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       pilotoMultiId = pil.body.id;
     });
 
+    it("vaciar con espacios el único identificador de un usuario → 400, no 500", async () => {
+      const alta = await request(app.getHttpServer())
+        .post("/api/v1/usuarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          nombre: tag("Solo teléfono"),
+          telefono: `502${String(Date.now()).slice(-8)}`,
+          password: TEST_PASSWORD,
+          rol: "cliente",
+          cliente_id: clienteMultiId,
+        });
+      expect(alta.status).toBe(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/usuarios/${alta.body.id}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ telefono: "      " });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        "Debe indicar un correo o un número de teléfono",
+      );
+    });
+
     it("editar a un usuario cliente sin reenviar cliente_id conserva su empresa → 200", async () => {
       const email = `cliente.h7.${RUN_ID}@gasfuel-e2e.test`;
       const alta = await request(app.getHttpServer())
@@ -1859,7 +1895,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.consumo.monto.dia).toBeCloseTo(300, 2);
       expect(res.body.consumo.monto.semana).toBeCloseTo(300, 2);
       expect(res.body.consumo.monto.mes).toBeCloseTo(300, 2);
-      expect(res.body.consumo.volumen.dia).toBeGreaterThan(0);
+      // Galones del renglón del vehículo: 300 al precio del diesel de hoy.
+      expect(res.body.consumo.volumen.dia).toBeCloseTo(300 / 28.5, 2);
       expect(res.body.consumo.transacciones.dia).toBe(1);
     });
 

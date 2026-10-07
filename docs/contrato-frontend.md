@@ -100,7 +100,7 @@ Ambos son `boolean` en `clientes` y se editan por `POST`/`PATCH /clientes`. `GET
 
 **`consumo-hoy`: `horario` y `consumo` del vehículo (corregido 2026-10-07).**
 - `horario.dentro_de_horario` ya **no mira sólo la ventana horaria**: también considera `dias_permitidos`, igual que `POST /despachos`. En un día no permitido (día actual de Guatemala) es `false` y `minutos_restantes` es `0`, aunque la hora esté dentro de la ventana. Sin `dias_permitidos` (o lista vacía) no cambia nada.
-- Una ventana que cruza la medianoche (`hora_inicio` > `hora_fin`, p. ej. 22:00–06:00) es válida: está dentro desde `hora_inicio` hasta las `hora_fin` del día siguiente, bordes inclusivos, y `minutos_restantes` cuenta hasta ese cierre. El día permitido se evalúa con el día actual de Guatemala.
+- Una ventana que cruza la medianoche (`hora_inicio` > `hora_fin`, p. ej. 22:00–06:00) es válida: está dentro desde `hora_inicio` hasta las `hora_fin` del día siguiente, bordes inclusivos, y `minutos_restantes` cuenta hasta ese cierre. El día permitido se evalúa con el día actual de Guatemala; si el día siguiente no está en `dias_permitidos`, `minutos_restantes` se limita a las 23:59 (`1439 − minuto actual`).
 - `consumo.*` del vehículo cuenta sólo el renglón `vehiculo` de cada vale (no canecas ni toneles) y las transacciones por vale, exactamente lo que `POST /despachos` aplica a los límites.
 
 **Saldo inicial.** `POST /clientes` acepta `saldo_inicial` (número, `>= 0`, opcional). **No es una columna**: abre la cuenta con ese saldo y deja un movimiento `credito` con descripción `"Saldo inicial"` y **`gasolinera_id: null`**, porque una apertura no ocurre en ninguna estación.

@@ -7,7 +7,8 @@ import { BadRequestException } from "@nestjs/common";
  * dividiera entre cero al derivar los galones de un despacho.
  */
 export function validarPrecioGalon(precio: string): void {
-  if (!(Number(precio) > 0)) {
+  // La columna es numeric(10,3): 0.0004 se guardaría como 0.000.
+  if (!(Number(Number(precio).toFixed(3)) > 0)) {
     throw new BadRequestException("El precio por galón debe ser mayor a cero");
   }
 }

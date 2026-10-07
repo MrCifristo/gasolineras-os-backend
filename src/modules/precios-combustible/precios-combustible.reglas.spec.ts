@@ -8,11 +8,14 @@ describe("validarPrecioGalon", () => {
     expect(() => validarPrecioGalon(precio)).not.toThrow();
   });
 
-  it.each(["0", "0.000", "-5", "abc", ""])("el precio %p: 400", (precio) => {
-    esperarError(
-      () => validarPrecioGalon(precio),
-      BadRequestException,
-      "El precio por galón debe ser mayor a cero",
-    );
-  });
+  it.each(["0", "0.000", "-5", "abc", "", "0.0004", "0.0001"])(
+    "el precio %p: 400",
+    (precio) => {
+      esperarError(
+        () => validarPrecioGalon(precio),
+        BadRequestException,
+        "El precio por galón debe ser mayor a cero",
+      );
+    },
+  );
 });
