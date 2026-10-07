@@ -1823,6 +1823,21 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(parseFloat(res.body.saldo_actual)).toBeCloseTo(-700, 2);
     });
 
+    it("consumo-hoy reporta del vehículo sólo su renglón, igual que el límite → 200", async () => {
+      // El vale mixto fue vehículo 300 + caneca 400. El panel del supervisor
+      // debe mostrar 300 (y una transacción), no los 700 del encabezado.
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/vehiculo/${vehiculoMultiId}/consumo-hoy`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.consumo.monto.dia).toBeCloseTo(300, 2);
+      expect(res.body.consumo.monto.semana).toBeCloseTo(300, 2);
+      expect(res.body.consumo.monto.mes).toBeCloseTo(300, 2);
+      expect(res.body.consumo.volumen.dia).toBeGreaterThan(0);
+      expect(res.body.consumo.transacciones.dia).toBe(1);
+    });
+
     it("pero el renglón del vehículo sí acumula contra su límite → 403", async () => {
       // Ya lleva 300 de los 500 del día; otros 300 lo pasan.
       const res = await request(app.getHttpServer())

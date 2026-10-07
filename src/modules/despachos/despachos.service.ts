@@ -353,14 +353,7 @@ export class DespachosService {
 
     // ── 4. Límites de gasto a nivel cuenta ──────────────────────────
     if (necesitaAgregadoCliente(clienteRow)) {
-      const [cAgg] = await this.db.db
-        .select({
-          monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-          monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-          monto_mes: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-        })
-        .from(despachos)
-        .where(eq(despachos.cliente_id, dto.cliente_id));
+      const cAgg = await this.consumoCliente(dto.cliente_id);
 
       validarLimitesCliente(clienteRow, cAgg, montoEstimado);
     }
@@ -370,33 +363,7 @@ export class DespachosService {
 
     // ── Límites acumulados (una query con FILTER) ────────────────────
     if (necesitaAgregadoVehiculo(v) && v) {
-      // Monto y volumen salen de `despacho_detalles` filtrando el renglón del
-      // vehículo: sumar `despachos.monto_total` incluiría las canecas del mismo
-      // vale y le comería el cupo al vehículo. Las transacciones sí se cuentan
-      // sobre el header, porque un vale mixto es UNA transacción.
-      //
-      // La migración rellenó un renglón 'vehiculo' por cada despacho anterior,
-      // así que el histórico entra completo en este agregado.
-      const [agg] = await this.db.db
-        .select({
-          monto_dia: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-          monto_semana: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-          monto_mes: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-          vol_dia: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-          vol_semana: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-          vol_mes: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-          trans_dia: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
-          trans_semana: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours'))`,
-          trans_mes: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
-        })
-        .from(despachoDetalles)
-        .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
-        .where(
-          and(
-            eq(despachos.vehiculo_id, dto.vehiculo_id!),
-            eq(despachoDetalles.renglon, "vehiculo"),
-          ),
-        );
+      const agg = await this.consumoVehiculo(dto.vehiculo_id!);
 
       validarLimitesAcumuladosVehiculo(v, agg, montoVehiculo, galonesVehiculo);
     }
@@ -536,6 +503,54 @@ export class DespachosService {
     return row;
   }
 
+  /** Montos del cliente (header del vale, canecas incluidas) por día, semana y mes de Guatemala. */
+  private async consumoCliente(clienteId: string) {
+    const [agg] = await this.db.db
+      .select({
+        monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+        monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+        monto_mes: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+      })
+      .from(despachos)
+      .where(eq(despachos.cliente_id, clienteId));
+    return agg;
+  }
+
+  /**
+   * Consumo del vehículo por día, semana y mes de Guatemala. Lo usan `create`
+   * (para validar límites) y `getConsumoHoy` (para mostrarlo): deben coincidir.
+   */
+  private async consumoVehiculo(vehiculoId: string) {
+    // Monto y volumen salen de `despacho_detalles` filtrando el renglón del
+    // vehículo: sumar `despachos.monto_total` incluiría las canecas del mismo
+    // vale y le comería el cupo al vehículo. Las transacciones sí se cuentan
+    // sobre el header, porque un vale mixto es UNA transacción.
+    //
+    // La migración rellenó un renglón 'vehiculo' por cada despacho anterior,
+    // así que el histórico entra completo en este agregado.
+    const [agg] = await this.db.db
+      .select({
+        monto_dia: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+        monto_semana: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+        monto_mes: sql<number>`COALESCE(SUM(${despachoDetalles.monto}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+        vol_dia: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
+        vol_semana: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
+        vol_mes: sql<number>`COALESCE(SUM(${despachoDetalles.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
+        trans_dia: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
+        trans_semana: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours'))`,
+        trans_mes: sql<number>`COUNT(DISTINCT ${despachos.id}) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
+      })
+      .from(despachoDetalles)
+      .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
+      .where(
+        and(
+          eq(despachos.vehiculo_id, vehiculoId),
+          eq(despachoDetalles.renglon, "vehiculo"),
+        ),
+      );
+    return agg;
+  }
+
   async getConsumoHoy(
     vehiculoId: string,
     clienteId?: string,
@@ -604,14 +619,7 @@ export class DespachosService {
         clienteLimites.semana != null ||
         clienteLimites.mes != null
       ) {
-        const [cAgg] = await this.db.db
-          .select({
-            monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-            monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-            monto_mes: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-          })
-          .from(despachos)
-          .where(eq(despachos.cliente_id, resolvedClienteId));
+        const cAgg = await this.consumoCliente(resolvedClienteId);
         clienteConsumo = {
           dia: parseFloat(String(cAgg.monto_dia)),
           semana: parseFloat(String(cAgg.monto_semana)),
@@ -621,20 +629,7 @@ export class DespachosService {
     }
 
     // Vehículo aggregate
-    const [agg] = await this.db.db
-      .select({
-        monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-        monto_semana: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-        monto_mes: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-        vol_dia: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
-        vol_semana: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours')), 0)`,
-        vol_mes: sql<number>`COALESCE(SUM(${despachos.galones}::numeric) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours')), 0)`,
-        trans_dia: sql<number>`COUNT(*) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date)`,
-        trans_semana: sql<number>`COUNT(*) FILTER (WHERE date_trunc('week', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('week', NOW() - INTERVAL '6 hours'))`,
-        trans_mes: sql<number>`COUNT(*) FILTER (WHERE date_trunc('month', ${despachos.despachado_at} - INTERVAL '6 hours') = date_trunc('month', NOW() - INTERVAL '6 hours'))`,
-      })
-      .from(despachos)
-      .where(eq(despachos.vehiculo_id, vehiculoId));
+    const agg = await this.consumoVehiculo(vehiculoId);
 
     // Horario
     const horario = estadoHorario(v, new Date());
