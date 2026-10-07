@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { eq, or } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { usuarios } from "../db/schema";
+import { normalizarIdentificador } from "./auth.reglas";
 import { LoginDto } from "./dto/login.dto";
 import { PasswordService } from "./password.service";
 import { SessionService, type MetaSesion } from "./session.service";
@@ -33,6 +34,22 @@ export class AuthService {
     private readonly sesiones: SessionService,
   ) {}
 
+  private async buscarPorIdentificador(
+    identificador: string,
+  ): Promise<Usuario | undefined> {
+    const [usuario] = await this.db.db
+      .select()
+      .from(usuarios)
+      .where(
+        or(
+          eq(usuarios.email, identificador),
+          eq(usuarios.telefono, identificador),
+        ),
+      )
+      .limit(1);
+    return usuario;
+  }
+
   private perfil(u: Usuario): RespuestaAuth["usuario"] {
     return {
       id: u.id,
@@ -51,24 +68,9 @@ export class AuthService {
    * credenciales ambientales y queda estructuralmente inmune a CSRF.
    */
   async login(dto: LoginDto, meta: MetaSesion = {}): Promise<RespuestaAuth> {
-    // El identificador puede ser correo o teléfono. Sólo bajamos a minúsculas
-    // cuando parece un correo; los teléfonos se comparan tal cual.
-    const identificador = dto.identificador.trim();
-    const esCorreo = identificador.includes("@");
-    const idNormalizado = esCorreo
-      ? identificador.toLowerCase()
-      : identificador;
-
-    const [usuario] = await this.db.db
-      .select()
-      .from(usuarios)
-      .where(
-        or(
-          eq(usuarios.email, idNormalizado),
-          eq(usuarios.telefono, idNormalizado),
-        ),
-      )
-      .limit(1);
+    const usuario = await this.buscarPorIdentificador(
+      normalizarIdentificador(dto.identificador),
+    );
 
     // Se hashea aunque el usuario no exista, para que el tiempo de respuesta
     // no delate qué correos/teléfonos están registrados.

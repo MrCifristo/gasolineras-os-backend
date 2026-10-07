@@ -6,8 +6,15 @@ import { DbService } from "../db/db.service";
 import { tokensReset, usuarios } from "../db/schema";
 import { escaparHtml } from "../common/escapar-html";
 import { MailService } from "../mail/mail.service";
+import {
+  exigirTokenResetVigente,
+  exigirUsuarioActivoParaReset,
+  normalizarIdentificador,
+} from "./auth.reglas";
 import { PasswordService } from "./password.service";
 import { SessionService } from "./session.service";
+
+type Usuario = typeof usuarios.$inferSelect;
 
 /** Lo mínimo para armar el correo: no hace falta la fila entera del usuario. */
 export interface DestinatarioReset {
@@ -30,6 +37,22 @@ export class PasswordResetService {
     private readonly mail: MailService,
     private readonly config: ConfigService,
   ) {}
+
+  private async buscarPorIdentificador(
+    identificador: string,
+  ): Promise<Usuario | undefined> {
+    const [usuario] = await this.db.db
+      .select()
+      .from(usuarios)
+      .where(
+        or(
+          eq(usuarios.email, identificador),
+          eq(usuarios.telefono, identificador),
+        ),
+      )
+      .limit(1);
+    return usuario;
+  }
 
   private hashear(tokenPlano: string): string {
     return createHash("sha256").update(tokenPlano).digest("hex");
@@ -98,16 +121,9 @@ export class PasswordResetService {
    * endpoint en un oráculo para enumerar cuentas.
    */
   async solicitar(identificador: string): Promise<void> {
-    const limpio = identificador.trim();
-    const normalizado = limpio.includes("@") ? limpio.toLowerCase() : limpio;
-
-    const [usuario] = await this.db.db
-      .select()
-      .from(usuarios)
-      .where(
-        or(eq(usuarios.email, normalizado), eq(usuarios.telefono, normalizado)),
-      )
-      .limit(1);
+    const usuario = await this.buscarPorIdentificador(
+      normalizarIdentificador(identificador),
+    );
 
     if (!usuario?.activo || !usuario.email) return;
 
@@ -138,11 +154,7 @@ export class PasswordResetService {
       .where(eq(tokensReset.token_hash, hash))
       .limit(1);
 
-    if (!fila || fila.usado_at || fila.expira_at <= ahora) {
-      throw new BadRequestException(
-        "El enlace de recuperación no es válido o ya venció",
-      );
-    }
+    exigirTokenResetVigente(fila, ahora);
 
     const [usuario] = await this.db.db
       .select()
@@ -150,11 +162,7 @@ export class PasswordResetService {
       .where(eq(usuarios.id, fila.usuario_id))
       .limit(1);
 
-    if (!usuario?.activo) {
-      throw new BadRequestException(
-        "El enlace de recuperación no es válido o ya venció",
-      );
-    }
+    exigirUsuarioActivoParaReset(usuario);
 
     await this.db.db
       .update(usuarios)
