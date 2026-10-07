@@ -119,6 +119,14 @@
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "/node_modules/(?!.*@nestjs[+/]schedule)"
-    ]
+    ],
+    "coverageThreshold": {
+      "./src/**/*.reglas.ts": {
+        "lines": 100,
+        "branches": 100,
+        "functions": 100,
+        "statements": 100
+      }
+    }
   }
 }
