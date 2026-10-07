@@ -269,6 +269,7 @@ export function exigirPrecio<T>(
 export function valorizarRenglon(
   monto: string,
   precioGalon: string,
+  tipoCombustible: string,
 ): { monto: number; galones: number } {
   const montoNum = parseFloat(monto);
   if (!(montoNum > 0)) {
@@ -276,7 +277,15 @@ export function valorizarRenglon(
       "El monto de cada renglón debe ser mayor a cero",
     );
   }
-  return { monto: montoNum, galones: montoNum / parseFloat(precioGalon) };
+  // Primero el monto (error del operario), después el precio (error de datos):
+  // un precio en cero daría galones infinitos.
+  const precio = Number(precioGalon);
+  if (!(precio > 0)) {
+    throw new BadRequestException(
+      `El precio registrado para ${tipoCombustible} no es válido`,
+    );
+  }
+  return { monto: montoNum, galones: montoNum / precio };
 }
 
 export function totalesDespacho(

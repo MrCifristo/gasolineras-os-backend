@@ -337,7 +337,11 @@ export class DespachosService {
         return {
           ...l,
           precioRow,
-          ...valorizarRenglon(l.monto, precioRow.precio_galon),
+          ...valorizarRenglon(
+            l.monto,
+            precioRow.precio_galon,
+            l.tipo_combustible,
+          ),
         };
       }),
     );

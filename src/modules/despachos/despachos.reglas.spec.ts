@@ -552,19 +552,37 @@ describe("exigirPrecio", () => {
 
 describe("valorizarRenglon", () => {
   it("deriva los galones del monto y el precio del servidor", () => {
-    expect(valorizarRenglon("100", "25")).toEqual({ monto: 100, galones: 4 });
+    expect(valorizarRenglon("100", "25", "diesel")).toEqual({
+      monto: 100,
+      galones: 4,
+    });
   });
 
   it.each(["0", "-5", "abc"])("rechaza el monto %p", (monto) => {
     esperarError(
-      () => valorizarRenglon(monto, "25"),
+      () => valorizarRenglon(monto, "25", "diesel"),
       BadRequestException,
       "El monto de cada renglón debe ser mayor a cero",
     );
   });
 
-  it("HALLAZGO H2: con precio 0 los galones son Infinity", () => {
-    expect(valorizarRenglon("100", "0").galones).toBe(Infinity);
+  it.each(["0", "0.000", "-1", "abc"])(
+    "rechaza el precio registrado %p con el combustible en el mensaje",
+    (precio) => {
+      esperarError(
+        () => valorizarRenglon("100", precio, "super"),
+        BadRequestException,
+        "El precio registrado para super no es válido",
+      );
+    },
+  );
+
+  it("con monto y precio inválidos gana el error del monto (el del operario)", () => {
+    esperarError(
+      () => valorizarRenglon("0", "0", "diesel"),
+      BadRequestException,
+      "El monto de cada renglón debe ser mayor a cero",
+    );
   });
 });
 

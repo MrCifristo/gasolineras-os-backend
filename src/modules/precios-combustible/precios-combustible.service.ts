@@ -9,6 +9,7 @@ import { preciosCombustible } from "../../db/schema";
 import { CreatePrecioDto } from "./dto/create-precio.dto";
 import { UpdatePrecioDto } from "./dto/update-precio.dto";
 import { fechaGuatemala } from "../../common/hora-guatemala";
+import { validarPrecioGalon } from "./precios-combustible.reglas";
 
 @Injectable()
 export class PreciosCombustibleService {
@@ -70,6 +71,7 @@ export class PreciosCombustibleService {
   }
 
   async create(dto: CreatePrecioDto) {
+    validarPrecioGalon(dto.precio_galon);
     try {
       const [row] = await this.db.db
         .insert(preciosCombustible)
@@ -87,6 +89,7 @@ export class PreciosCombustibleService {
   }
 
   async update(id: string, dto: UpdatePrecioDto) {
+    if (dto.precio_galon !== undefined) validarPrecioGalon(dto.precio_galon);
     await this.findOne(id);
     const [row] = await this.db.db
       .update(preciosCombustible)

@@ -629,6 +629,31 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(tipos).toContain("super");
     });
 
+    it("un precio por galón en cero se rechaza al crear → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/precios-combustible")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          gasolinera_id: gasolineraId,
+          fecha: today,
+          tipo_combustible: "regular",
+          precio_galon: "0",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe("El precio por galón debe ser mayor a cero");
+    });
+
+    it("un precio por galón en cero se rechaza al corregir → 400", async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/precios-combustible/${precioRegularId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ precio_galon: "0.000" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe("El precio por galón debe ser mayor a cero");
+    });
+
     it("no se puede registrar dos precios del mismo tipo en el mismo día → 409", async () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/precios-combustible")
