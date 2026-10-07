@@ -177,15 +177,18 @@ export function validarProductosPermitidos(
 }
 
 /**
- * Ventana horaria inclusive en ambos bordes. Único lugar de la comparación:
- * ver H1 (no contempla ventanas que cruzan la medianoche).
+ * Ventana horaria inclusive en ambos bordes. Único lugar de la comparación.
+ * Si `inicio > fin` la ventana cruza la medianoche (22:00–06:00): vale desde
+ * el inicio hasta el fin del día siguiente.
  */
 function dentroDeVentana(
   minutos: number,
   inicio: number,
   fin: number,
 ): boolean {
-  return minutos >= inicio && minutos <= fin;
+  return inicio <= fin
+    ? minutos >= inicio && minutos <= fin
+    : minutos >= inicio || minutos <= fin;
 }
 
 export function validarHorarioVehiculo(
@@ -236,8 +239,14 @@ export function estadoHorario(
     !v.hora_inicio ||
     !v.hora_fin ||
     dentroDeVentana(minutos, aMinutos(v.hora_inicio), aMinutos(v.hora_fin));
-  const restantes =
-    !v.hora_fin || !dentro ? 0 : Math.max(0, aMinutos(v.hora_fin) - minutos);
+  let restantes = 0;
+  if (v.hora_fin && dentro) {
+    const fin = aMinutos(v.hora_fin);
+    // En una ventana nocturna, antes de medianoche el cierre es mañana.
+    const cruzaMedianoche =
+      !!v.hora_inicio && aMinutos(v.hora_inicio) > fin && minutos > fin;
+    restantes = Math.max(0, (cruzaMedianoche ? fin + 1440 : fin) - minutos);
+  }
   return { dentro_de_horario: dentro, minutos_restantes: restantes };
 }
 

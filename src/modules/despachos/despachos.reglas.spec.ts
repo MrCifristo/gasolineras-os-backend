@@ -392,17 +392,26 @@ describe("validarHorarioVehiculo", () => {
     );
   });
 
-  it("HALLAZGO H1: una ventana que cruza la medianoche (22:00–06:00) rechaza siempre, incluso a las 23:00 GT", () => {
-    // 23:00 GT = 05:00Z del día siguiente.
-    esperarError(
-      () =>
-        validarHorarioVehiculo(
-          ventana("22:00", "06:00"),
-          new Date("2026-10-08T05:00:00Z"),
-        ),
-      ForbiddenException,
-      "Despacho fuera del horario autorizado (22:00–06:00)",
+  describe("ventana que cruza la medianoche (22:00–06:00)", () => {
+    // 2026-10-07 es miércoles; las horas son de reloj en Guatemala (UTC−6).
+    const gtNoche = (hhmm: string) => new Date(`2026-10-07T${hhmm}:00-06:00`);
+
+    it.each(["23:00", "05:00", "22:00", "06:00", "00:00"])(
+      "a las %s GT deja pasar",
+      (hhmm) => {
+        expect(() =>
+          validarHorarioVehiculo(ventana("22:00", "06:00"), gtNoche(hhmm)),
+        ).not.toThrow();
+      },
     );
+
+    it.each(["12:00", "21:59", "06:01"])("a las %s GT rechaza", (hhmm) => {
+      esperarError(
+        () => validarHorarioVehiculo(ventana("22:00", "06:00"), gtNoche(hhmm)),
+        ForbiddenException,
+        "Despacho fuera del horario autorizado (22:00–06:00)",
+      );
+    });
   });
 });
 
@@ -476,6 +485,45 @@ describe("estadoHorario", () => {
         gt("08:00"),
       ),
     ).toEqual({ dentro_de_horario: true, minutos_restantes: 600 });
+  });
+
+  describe("ventana que cruza la medianoche (22:00–06:00)", () => {
+    const noche = ventana("22:00", "06:00");
+
+    it("antes de medianoche está dentro y cuenta hasta las 06:00 del día siguiente", () => {
+      expect(estadoHorario(noche, gt("23:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 420,
+      });
+    });
+
+    it("después de medianoche está dentro y cuenta hasta las 06:00", () => {
+      expect(estadoHorario(noche, gt("05:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 60,
+      });
+    });
+
+    it("a las 22:00 exactas ya está dentro", () => {
+      expect(estadoHorario(noche, gt("22:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 480,
+      });
+    });
+
+    it("a las 06:00 exactas sigue dentro, con cero minutos", () => {
+      expect(estadoHorario(noche, gt("06:00"))).toEqual({
+        dentro_de_horario: true,
+        minutos_restantes: 0,
+      });
+    });
+
+    it("de día está fuera y no queda tiempo", () => {
+      expect(estadoHorario(noche, gt("12:00"))).toEqual({
+        dentro_de_horario: false,
+        minutos_restantes: 0,
+      });
+    });
   });
 
   it("una lista vacía de días no restringe", () => {
