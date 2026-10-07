@@ -176,6 +176,18 @@ export function validarProductosPermitidos(
   }
 }
 
+/**
+ * Ventana horaria inclusive en ambos bordes. Único lugar de la comparación:
+ * ver H1 (no contempla ventanas que cruzan la medianoche).
+ */
+function dentroDeVentana(
+  minutos: number,
+  inicio: number,
+  fin: number,
+): boolean {
+  return minutos >= inicio && minutos <= fin;
+}
+
 export function validarHorarioVehiculo(
   v: {
     dias_permitidos: string[] | null;
@@ -197,7 +209,7 @@ export function validarHorarioVehiculo(
   if (v?.hora_inicio && v.hora_fin) {
     const inicio = aMinutos(v.hora_inicio);
     const fin = aMinutos(v.hora_fin);
-    if (minutos < inicio || minutos > fin) {
+    if (!dentroDeVentana(minutos, inicio, fin)) {
       throw new ForbiddenException(
         `Despacho fuera del horario autorizado (${v.hora_inicio}–${v.hora_fin})`,
       );
@@ -214,7 +226,7 @@ export function estadoHorario(
   const dentro =
     !v.hora_inicio ||
     !v.hora_fin ||
-    (minutos >= aMinutos(v.hora_inicio) && minutos <= aMinutos(v.hora_fin));
+    dentroDeVentana(minutos, aMinutos(v.hora_inicio), aMinutos(v.hora_fin));
   const restantes =
     !v.hora_fin || !dentro ? 0 : Math.max(0, aMinutos(v.hora_fin) - minutos);
   return { dentro_de_horario: dentro, minutos_restantes: restantes };

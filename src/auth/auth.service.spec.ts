@@ -93,6 +93,8 @@ describe("AuthService", () => {
       UnauthorizedException,
       "Credenciales inválidas",
     );
+    // Anti-enumeración por tiempo: se verifica igual contra el hash guardado.
+    expect(verificar).toHaveBeenCalledWith("hash-guardado", "p");
     expect(crear).not.toHaveBeenCalled();
   });
 

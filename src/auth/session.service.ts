@@ -44,7 +44,7 @@ export class SessionService {
   /** Abre una familia nueva. Es el camino del login. */
   async crear(usuario: Usuario, meta: MetaSesion = {}): Promise<SesionCreada> {
     const { plano, hash } = this.generarToken();
-    const ahora = Date.now();
+    const ahora = new Date();
     const { expira, familiaExpira } = vencimientosIniciales(usuario.rol, ahora);
 
     const [fila] = await this.db.db

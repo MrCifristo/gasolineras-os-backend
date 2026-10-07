@@ -16,10 +16,7 @@ const en = (dias: number) => new Date(T.getTime() + dias * DIA);
 
 describe("vencimientosIniciales", () => {
   it("supervisor: 30 días de refresh y 90 de familia", () => {
-    const { expira, familiaExpira } = vencimientosIniciales(
-      "supervisor",
-      T.getTime(),
-    );
+    const { expira, familiaExpira } = vencimientosIniciales("supervisor", T);
     expect(expira).toEqual(en(30));
     expect(familiaExpira).toEqual(en(90));
   });
@@ -27,7 +24,7 @@ describe("vencimientosIniciales", () => {
   it.each(["admin", "cliente", "jefe_pista"] as const)(
     "%s: 7 días de refresh y 30 de familia",
     (rol) => {
-      const { expira, familiaExpira } = vencimientosIniciales(rol, T.getTime());
+      const { expira, familiaExpira } = vencimientosIniciales(rol, T);
       expect(expira).toEqual(en(7));
       expect(familiaExpira).toEqual(en(30));
     },

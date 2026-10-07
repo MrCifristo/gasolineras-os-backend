@@ -43,11 +43,11 @@ export class ReplayError extends Error {
 
 export function vencimientosIniciales(
   rol: Role,
-  ahoraMs: number,
+  ahora: Date,
 ): { expira: Date; familiaExpira: Date } {
   return {
-    expira: new Date(ahoraMs + dias(REFRESH_TTL_DIAS[rol])),
-    familiaExpira: new Date(ahoraMs + dias(FAMILIA_TTL_DIAS[rol])),
+    expira: new Date(ahora.getTime() + dias(REFRESH_TTL_DIAS[rol])),
+    familiaExpira: new Date(ahora.getTime() + dias(FAMILIA_TTL_DIAS[rol])),
   };
 }
 
