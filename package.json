@@ -30,6 +30,7 @@
     "dev": "nest start --watch",
     "setup": "bash scripts/first-start.sh",
     "bootstrap:admin": "ts-node -r tsconfig-paths/register scripts/bootstrap-admin.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register scripts/seed-demo.ts",
     "vapid:generate": "ts-node scripts/vapid-generate.ts"
   },
   "dependencies": {
