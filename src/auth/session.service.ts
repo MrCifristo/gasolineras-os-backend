@@ -3,41 +3,16 @@ import { randomBytes, createHash } from "node:crypto";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { sesiones, usuarios } from "../db/schema";
-import type { Role } from "./roles.decorator";
+import {
+  ReplayError,
+  sesionPosteriorAlPassword,
+  validarSesionParaRotar,
+  validarUsuarioDeSesion,
+  vencimientoRotado,
+  vencimientosIniciales,
+} from "./session.reglas";
 
 type Usuario = typeof usuarios.$inferSelect;
-
-/** El supervisor vive en una tablet en la bomba: no debe reloguear a media jornada. */
-const REFRESH_TTL_DIAS: Record<Role, number> = {
-  supervisor: 30,
-  admin: 7,
-  cliente: 7,
-  jefe_pista: 7,
-};
-
-/**
- * Tope duro de la familia. La rotación desliza `expira_at`, así que sin este
- * techo una familia activa se renovaría para siempre y una robada también.
- */
-const FAMILIA_TTL_DIAS: Record<Role, number> = {
-  supervisor: 90,
-  admin: 30,
-  cliente: 30,
-  jefe_pista: 30,
-};
-
-const dias = (n: number) => n * 24 * 60 * 60 * 1000;
-
-/**
- * Señal interna de replay. Lleva la familia a revocar para poder hacerlo fuera
- * de la transacción de rotación: si se revocara adentro, lanzar la excepción
- * haría rollback y la familia quedaría viva.
- */
-class ReplayError extends Error {
-  constructor(readonly familiaId: string) {
-    super("replay");
-  }
-}
 
 export interface SesionCreada {
   sid: string;
@@ -70,9 +45,7 @@ export class SessionService {
   async crear(usuario: Usuario, meta: MetaSesion = {}): Promise<SesionCreada> {
     const { plano, hash } = this.generarToken();
     const ahora = Date.now();
-    const rol = usuario.rol;
-    const expira = new Date(ahora + dias(REFRESH_TTL_DIAS[rol]));
-    const familiaExpira = new Date(ahora + dias(FAMILIA_TTL_DIAS[rol]));
+    const { expira, familiaExpira } = vencimientosIniciales(usuario.rol, ahora);
 
     const [fila] = await this.db.db
       .insert(sesiones)
@@ -137,28 +110,11 @@ export class SessionService {
         .for("update")
         .limit(1);
 
-      if (!sesion) throw new UnauthorizedException("Sesión inválida");
-      if (sesion.revocado_at)
-        throw new UnauthorizedException("Sesión revocada");
-
-      // Replay: este refresh ya se canjeó. O lo robaron y lo están reusando, o
-      // el legítimo se reenvió. No hay forma de distinguirlos, así que se cae
-      // toda la familia: es preferible un relogin a dejar viva una cadena robada.
-      //
-      // La revocación NO puede ir dentro de esta transacción: lanzar la
-      // excepción haría rollback y la familia quedaría viva. Se marca la familia
-      // y se revoca fuera, tras cerrar la tx.
-      if (sesion.usado_at) {
-        throw new ReplayError(sesion.familia_id);
-      }
-
       const ahora = new Date();
-      if (sesion.expira_at <= ahora) {
-        throw new UnauthorizedException("Sesión expirada");
-      }
-      if (sesion.familia_expira_at <= ahora) {
-        throw new UnauthorizedException("Sesión expirada");
-      }
+      // Un replay lanza ReplayError y la familia NO se revoca aquí: lanzar la
+      // excepción haría rollback y la familia quedaría viva. Se marca la familia
+      // y se revoca fuera, tras cerrar la tx (ver `rotar`).
+      validarSesionParaRotar(sesion, ahora);
 
       const [usuario] = await tx
         .select()
@@ -166,16 +122,7 @@ export class SessionService {
         .where(eq(usuarios.id, sesion.usuario_id))
         .limit(1);
 
-      if (!usuario || !usuario.activo) {
-        throw new UnauthorizedException("Usuario inactivo");
-      }
-
-      // Respaldo por si algún camino cambia la contraseña sin revocar sesiones.
-      if (sesion.creado_at < usuario.password_actualizado_at) {
-        throw new UnauthorizedException(
-          "Sesión anterior al cambio de contraseña",
-        );
-      }
+      validarUsuarioDeSesion(usuario, sesion.creado_at);
 
       await tx
         .update(sesiones)
@@ -183,12 +130,11 @@ export class SessionService {
         .where(eq(sesiones.id, sesion.id));
 
       const { plano, hash: nuevoHash } = this.generarToken();
-      // Desliza el vencimiento, pero nunca más allá del techo de la familia.
-      const deseado = new Date(
-        ahora.getTime() + dias(REFRESH_TTL_DIAS[usuario.rol]),
+      const expira = vencimientoRotado(
+        usuario.rol,
+        ahora,
+        sesion.familia_expira_at,
       );
-      const expira =
-        deseado > sesion.familia_expira_at ? sesion.familia_expira_at : deseado;
 
       const [nueva] = await tx
         .insert(sesiones)
@@ -231,7 +177,14 @@ export class SessionService {
 
     if (!fila) return null;
     // La familia puede haber caído por replay aunque el access siga vigente.
-    if (fila.creado_at < fila.usuario.password_actualizado_at) return null;
+    if (
+      !sesionPosteriorAlPassword(
+        fila.creado_at,
+        fila.usuario.password_actualizado_at,
+      )
+    ) {
+      return null;
+    }
     return fila.usuario;
   }
 
