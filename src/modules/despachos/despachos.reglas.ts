@@ -201,3 +201,62 @@ export function validarHorarioVehiculo(
     }
   }
 }
+
+// ── Precio y totales ───────────────────────────────────────────────────
+
+export function exigirPrecio<T>(
+  precio: T | undefined,
+  tipoCombustible: string,
+): asserts precio is T {
+  if (!precio) {
+    throw new BadRequestException(
+      `No hay precio registrado para ${tipoCombustible} hoy en esta gasolinera`,
+    );
+  }
+}
+
+// El operario teclea el monto en quetzales; los galones se derivan del
+// precio autoritativo del servidor. Así el total del vale es exactamente
+// lo que paga el cliente, sin desajustes de redondeo.
+export function valorizarRenglon(
+  monto: string,
+  precioGalon: string,
+): { monto: number; galones: number } {
+  const montoNum = parseFloat(monto);
+  if (!(montoNum > 0)) {
+    throw new BadRequestException(
+      "El monto de cada renglón debe ser mayor a cero",
+    );
+  }
+  return { monto: montoNum, galones: montoNum / parseFloat(precioGalon) };
+}
+
+export function totalesDespacho(
+  renglones: { renglon: Renglon; monto: number; galones: number }[],
+): {
+  montoEstimado: number;
+  galonesEstimado: number;
+  montoTotal: string;
+  montoVehiculo: number;
+  galonesVehiculo: number;
+} {
+  const sumaMonto = (rs: typeof renglones) =>
+    rs.reduce((acc, r) => acc + r.monto, 0);
+  const sumaGalones = (rs: typeof renglones) =>
+    rs.reduce((acc, r) => acc + r.galones, 0);
+
+  const montoEstimado = sumaMonto(renglones);
+  const galonesEstimado = sumaGalones(renglones);
+
+  // Los límites del vehículo miran SÓLO sus renglones: cobrarle al vehículo
+  // el combustible que se fue en canecas sobrecontaría su cupo.
+  const renglonesVehiculo = renglones.filter((r) => r.renglon === "vehiculo");
+
+  return {
+    montoEstimado,
+    galonesEstimado,
+    montoTotal: montoEstimado.toFixed(3),
+    montoVehiculo: sumaMonto(renglonesVehiculo),
+    galonesVehiculo: sumaGalones(renglonesVehiculo),
+  };
+}

@@ -37,13 +37,16 @@ import {
 import {
   DIAS_GT,
   exigirOperarioDeLaGasolinera,
+  exigirPrecio,
   exigirSistemaActivo,
   exigirVehiculoHabilitado,
   normalizarRenglones,
   resumenRenglones,
+  totalesDespacho,
   validarHorarioVehiculo,
   validarParVehiculoPiloto,
   validarProductosPermitidos,
+  valorizarRenglon,
 } from "./despachos.reglas";
 import { StorageService, StorageObject } from "../../storage/storage.service";
 
@@ -349,40 +352,25 @@ export class DespachosService {
           )
           .limit(1);
 
-        if (!precioRow) {
-          throw new BadRequestException(
-            `No hay precio registrado para ${l.tipo_combustible} hoy en esta gasolinera`,
-          );
-        }
+        exigirPrecio(precioRow, l.tipo_combustible);
 
-        // El operario teclea el monto en quetzales; los galones se derivan del
-        // precio autoritativo del servidor. Así el total del vale es exactamente
-        // lo que paga el cliente, sin desajustes de redondeo.
-        const monto = parseFloat(l.monto);
-        if (!(monto > 0)) {
-          throw new BadRequestException(
-            "El monto de cada renglón debe ser mayor a cero",
-          );
-        }
-        const galones = monto / parseFloat(precioRow.precio_galon);
-        return { ...l, precioRow, monto, galones };
+        // El monto se valoriza en quetzales; ver `valorizarRenglon`.
+        return {
+          ...l,
+          precioRow,
+          ...valorizarRenglon(l.monto, precioRow.precio_galon),
+        };
       }),
     );
 
-    const sumaMonto = (rs: typeof renglones) =>
-      rs.reduce((acc, r) => acc + r.monto, 0);
-    const sumaGalones = (rs: typeof renglones) =>
-      rs.reduce((acc, r) => acc + r.galones, 0);
-
-    const montoEstimado = sumaMonto(renglones);
-    const galonesEstimado = sumaGalones(renglones);
-    const montoTotal = montoEstimado.toFixed(3);
-
-    // Los límites del vehículo miran SÓLO sus renglones: cobrarle al vehículo
-    // el combustible que se fue en canecas sobrecontaría su cupo.
+    const {
+      montoEstimado,
+      galonesEstimado,
+      montoTotal,
+      montoVehiculo,
+      galonesVehiculo,
+    } = totalesDespacho(renglones);
     const renglonesVehiculo = renglones.filter((r) => r.renglon === "vehiculo");
-    const montoVehiculo = sumaMonto(renglonesVehiculo);
-    const galonesVehiculo = sumaGalones(renglonesVehiculo);
 
     const num = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
 

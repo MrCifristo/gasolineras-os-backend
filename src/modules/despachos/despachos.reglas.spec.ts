@@ -9,13 +9,16 @@ import {
   DIAS_GT,
   diaYMinutoGuatemala,
   exigirOperarioDeLaGasolinera,
+  exigirPrecio,
   exigirSistemaActivo,
   exigirVehiculoHabilitado,
   normalizarRenglones,
   resumenRenglones,
+  totalesDespacho,
   validarHorarioVehiculo,
   validarParVehiculoPiloto,
   validarProductosPermitidos,
+  valorizarRenglon,
   type LineaDespacho,
 } from "./despachos.reglas";
 
@@ -390,5 +393,68 @@ describe("validarHorarioVehiculo", () => {
       ForbiddenException,
       "Despacho fuera del horario autorizado (22:00–06:00)",
     );
+  });
+});
+
+describe("exigirPrecio", () => {
+  it("rechaza si no hay precio del día, con el combustible en el mensaje", () => {
+    esperarError(
+      () => exigirPrecio(undefined, "diesel"),
+      BadRequestException,
+      "No hay precio registrado para diesel hoy en esta gasolinera",
+    );
+  });
+
+  it("deja pasar si hay fila de precio", () => {
+    expect(() => exigirPrecio({ precio_galon: "25" }, "diesel")).not.toThrow();
+  });
+});
+
+describe("valorizarRenglon", () => {
+  it("deriva los galones del monto y el precio del servidor", () => {
+    expect(valorizarRenglon("100", "25")).toEqual({ monto: 100, galones: 4 });
+  });
+
+  it.each(["0", "-5", "abc"])("rechaza el monto %p", (monto) => {
+    esperarError(
+      () => valorizarRenglon(monto, "25"),
+      BadRequestException,
+      "El monto de cada renglón debe ser mayor a cero",
+    );
+  });
+
+  it("HALLAZGO H2: con precio 0 los galones son Infinity", () => {
+    expect(valorizarRenglon("100", "0").galones).toBe(Infinity);
+  });
+});
+
+describe("totalesDespacho", () => {
+  it("suma el vale entero y aparte lo del vehículo", () => {
+    expect(
+      totalesDespacho([
+        { renglon: "vehiculo", monto: 100, galones: 4 },
+        { renglon: "caneca", monto: 50, galones: 2 },
+      ]),
+    ).toEqual({
+      montoEstimado: 150,
+      galonesEstimado: 6,
+      montoTotal: "150.000",
+      montoVehiculo: 100,
+      galonesVehiculo: 4,
+    });
+  });
+
+  it("sin renglón de vehículo, lo del vehículo es cero", () => {
+    const t = totalesDespacho([{ renglon: "caneca", monto: 50, galones: 2 }]);
+    expect(t.montoVehiculo).toBe(0);
+    expect(t.galonesVehiculo).toBe(0);
+    expect(t.montoEstimado).toBe(50);
+  });
+
+  it("montoTotal siempre lleva 3 decimales", () => {
+    expect(
+      totalesDespacho([{ renglon: "vehiculo", monto: 10.5, galones: 1 }])
+        .montoTotal,
+    ).toBe("10.500");
   });
 });
