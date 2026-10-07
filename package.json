@@ -117,6 +117,9 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^puppeteer$": "<rootDir>/../test/__mocks__/puppeteer.js"
+    },
     "transformIgnorePatterns": [
       "/node_modules/(?!.*@nestjs[+/]schedule)"
     ],
