@@ -70,3 +70,22 @@ describe("rechazarOtraEmpresaPiloto", () => {
     ).not.toThrow();
   });
 });
+
+describe("rechazarOtraEmpresaPiloto con null", () => {
+  it("el cliente recibe 403", () => {
+    esperarError(
+      () =>
+        rechazarOtraEmpresaPiloto({ rol: "cliente", cliente_id: "c1" }, null),
+      ForbiddenException,
+      "No puede asignar el piloto a otra empresa",
+    );
+  });
+
+  it("el admin recibe 400", () => {
+    esperarError(
+      () => rechazarOtraEmpresaPiloto({ rol: "admin" }, null),
+      BadRequestException,
+      "cliente_id no puede ser nulo",
+    );
+  });
+});

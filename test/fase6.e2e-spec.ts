@@ -968,6 +968,76 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           expect(fila.activo).toBe(true);
         });
 
+        it("no puede cambiar la placa (403) y la misma placa no cuenta; se normaliza al crear", async () => {
+          const c = await post("vehiculos", { placa: `p-${RUN_ID}ab` });
+          expect(c.status).toBe(201);
+          expect(c.body.placa).toBe(`P-${RUN_ID}AB`.toUpperCase());
+          const cambio = await patchGeneral("vehiculos", c.body.id, {
+            placa: `Z-${RUN_ID}`,
+          });
+          expect(cambio.status).toBe(403);
+          expect(cambio.body.message).toBe(
+            "Sólo la estación puede cambiar la placa de un vehículo.",
+          );
+          const igual = await patchGeneral("vehiculos", c.body.id, {
+            placa: `p-${RUN_ID}ab`,
+          });
+          expect(igual.status).toBe(200);
+          const admin = await patchGeneral(
+            "vehiculos",
+            c.body.id,
+            { placa: `q-${RUN_ID}x` },
+            adminToken,
+          );
+          expect(admin.status).toBe(200);
+          expect(admin.body.placa).toBe(`Q-${RUN_ID}X`.toUpperCase());
+        });
+
+        it("placa repetida (incluso en minúsculas) da 409, al crear y al editar", async () => {
+          const placa = `DU${RUN_ID}`;
+          expect((await post("vehiculos", { placa })).status).toBe(201);
+          const dup = await post("vehiculos", { placa: placa.toLowerCase() });
+          expect(dup.status).toBe(409);
+          expect(dup.body.message).toBe("Ya existe un vehículo con esa placa");
+          const otro = await post("vehiculos", { placa: `DV${RUN_ID}` });
+          const ed = await patchGeneral(
+            "vehiculos",
+            otro.body.id,
+            { placa },
+            adminToken,
+          );
+          expect(ed.status).toBe(409);
+        });
+
+        it("cliente_id null en el PATCH: 403 al cliente, 400 al admin", async () => {
+          expect(
+            (await patchGeneral("vehiculos", vehPropioId, { cliente_id: null }))
+              .status,
+          ).toBe(403);
+          expect(
+            (await patchGeneral("pilotos", pilPropioId, { cliente_id: null }))
+              .status,
+          ).toBe(403);
+          const a = await patchGeneral(
+            "vehiculos",
+            vehPropioId,
+            { cliente_id: null },
+            adminToken,
+          );
+          expect(a.status).toBe(400);
+          expect(a.body.message).toBe("cliente_id no puede ser nulo");
+          expect(
+            (
+              await patchGeneral(
+                "pilotos",
+                pilPropioId,
+                { cliente_id: null },
+                adminToken,
+              )
+            ).status,
+          ).toBe(400);
+        });
+
         it("no puede asignar pilotos a vehículos (sólo admin)", async () => {
           const res = await http()
             .post(`/api/v1/vehiculos/${vehPropioId}/pilotos/${pilPropioId}`)

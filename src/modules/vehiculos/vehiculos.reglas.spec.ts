@@ -1,6 +1,7 @@
 // src/modules/vehiculos/vehiculos.reglas.spec.ts
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
@@ -8,6 +9,9 @@ import { esperarError } from "../../../test/unit/esperar-error";
 import {
   clienteIdDeAlcance,
   clienteIdParaCrear,
+  errorPorPlacaDuplicada,
+  normalizarPlaca,
+  rechazarCambioDePlaca,
   rechazarOtraEmpresa,
   coercerDecimales,
   intentaDesbloquear,
@@ -234,5 +238,75 @@ describe("rechazarOtraEmpresa", () => {
     expect(() => rechazarOtraEmpresa(cliente, "c1")).not.toThrow();
     expect(() => rechazarOtraEmpresa(cliente, undefined)).not.toThrow();
     expect(() => rechazarOtraEmpresa({ rol: "admin" }, "c2")).not.toThrow();
+  });
+});
+
+describe("rechazarOtraEmpresa con null", () => {
+  it("el cliente recibe 403", () => {
+    esperarError(
+      () => rechazarOtraEmpresa({ rol: "cliente", cliente_id: "c1" }, null),
+      ForbiddenException,
+      "No puede asignar el vehículo a otra empresa",
+    );
+  });
+
+  it("el admin recibe 400", () => {
+    esperarError(
+      () => rechazarOtraEmpresa({ rol: "admin" }, null),
+      BadRequestException,
+      "cliente_id no puede ser nulo",
+    );
+  });
+});
+
+describe("normalizarPlaca", () => {
+  it("recorta y pasa a mayúsculas sin quitar guiones", () => {
+    expect(normalizarPlaca("  p-123abc ")).toBe("P-123ABC");
+  });
+
+  it("deja pasar lo que no es string", () => {
+    expect(normalizarPlaca(undefined)).toBeUndefined();
+  });
+});
+
+describe("rechazarCambioDePlaca", () => {
+  it("el cliente que cambia la placa recibe 403", () => {
+    esperarError(
+      () => rechazarCambioDePlaca({ rol: "cliente" }, "P-999ZZZ", "P-123ABC"),
+      ForbiddenException,
+      "Sólo la estación puede cambiar la placa de un vehículo.",
+    );
+  });
+
+  it("la misma placa, normalizada, no cuenta como cambio", () => {
+    expect(() =>
+      rechazarCambioDePlaca({ rol: "cliente" }, " p-123abc", "P-123ABC"),
+    ).not.toThrow();
+  });
+
+  it("el admin puede cambiarla", () => {
+    expect(() =>
+      rechazarCambioDePlaca({ rol: "admin" }, "P-999ZZZ", "P-123ABC"),
+    ).not.toThrow();
+  });
+});
+
+describe("errorPorPlacaDuplicada", () => {
+  it("23505 (directo o en cause) pasa a 409", () => {
+    for (const e of [{ code: "23505" }, { cause: { code: "23505" } }]) {
+      esperarError(
+        () => {
+          throw errorPorPlacaDuplicada(e);
+        },
+        ConflictException,
+        "Ya existe un vehículo con esa placa",
+      );
+    }
+  });
+
+  it("otro error se devuelve tal cual", () => {
+    const e = new Error("x");
+    expect(errorPorPlacaDuplicada(e)).toBe(e);
+    expect(errorPorPlacaDuplicada(undefined)).toBeUndefined();
   });
 });

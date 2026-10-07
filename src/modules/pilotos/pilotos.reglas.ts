@@ -30,15 +30,17 @@ export function clienteIdParaCrearPiloto(
   return clienteIdDelBody;
 }
 
-/** Un cliente no puede mover un piloto a otra empresa. */
+/**
+ * Un cliente no puede mover un piloto a otra empresa (ni con null); el admin
+ * tampoco puede dejarlo sin empresa.
+ */
 export function rechazarOtraEmpresaPiloto(
   user: Usuario,
   clienteIdDelBody?: string | null,
 ): void {
-  if (
-    user.rol === "cliente" &&
-    clienteIdDelBody != null &&
-    clienteIdDelBody !== user.cliente_id
-  )
+  if (clienteIdDelBody === undefined) return;
+  if (user.rol === "cliente" && clienteIdDelBody !== user.cliente_id)
     throw new ForbiddenException("No puede asignar el piloto a otra empresa");
+  if (clienteIdDelBody === null)
+    throw new BadRequestException("cliente_id no puede ser nulo");
 }

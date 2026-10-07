@@ -3,6 +3,7 @@
 // plantilla de límites. Las consultas siguen en el servicio.
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
@@ -76,17 +77,47 @@ export function clienteIdParaCrear(
   return clienteIdDelBody;
 }
 
-/** Un cliente no puede mover un vehículo a otra empresa. */
+/**
+ * Un cliente no puede mover un vehículo a otra empresa (ni con null); el admin
+ * tampoco puede dejarlo sin empresa.
+ */
 export function rechazarOtraEmpresa(
   user: { rol: string; cliente_id?: string | null },
   clienteIdDelBody?: string | null,
 ): void {
+  if (clienteIdDelBody === undefined) return;
+  if (user.rol === "cliente" && clienteIdDelBody !== user.cliente_id)
+    throw new ForbiddenException("No puede asignar el vehículo a otra empresa");
+  if (clienteIdDelBody === null)
+    throw new BadRequestException("cliente_id no puede ser nulo");
+}
+
+/** La placa se guarda recortada y en mayúsculas (no se quitan los guiones). */
+export function normalizarPlaca<T>(placa: T): T | string {
+  return typeof placa === "string" ? placa.trim().toUpperCase() : placa;
+}
+
+/** Cambiar la placa evade el bloqueo: sólo la estación puede hacerlo. */
+export function rechazarCambioDePlaca(
+  user: { rol: string },
+  placaDelBody: string,
+  placaActual: string,
+): void {
   if (
     user.rol === "cliente" &&
-    clienteIdDelBody != null &&
-    clienteIdDelBody !== user.cliente_id
+    normalizarPlaca(placaDelBody) !== normalizarPlaca(placaActual)
   )
-    throw new ForbiddenException("No puede asignar el vehículo a otra empresa");
+    throw new ForbiddenException(
+      "Sólo la estación puede cambiar la placa de un vehículo.",
+    );
+}
+
+/** 23505 (unique) de la placa -> 409. Devuelve el error original si es otro. */
+export function errorPorPlacaDuplicada(error: unknown): unknown {
+  const e = error as { code?: string; cause?: { code?: string } } | undefined;
+  if (e?.code === "23505" || e?.cause?.code === "23505")
+    return new ConflictException("Ya existe un vehículo con esa placa");
+  return error;
 }
 
 export function plantillaDesdeCliente(

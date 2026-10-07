@@ -3,13 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, getTableName, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   vehiculos,
   pilotosVehiculos,
   pilotos,
   clientes,
+  despachos,
 } from "../../db/schema";
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
@@ -18,9 +19,12 @@ import {
   clienteIdDeAlcance,
   clienteIdParaCrear,
   coercerDecimales,
+  errorPorPlacaDuplicada,
   intentaDesbloquear,
+  normalizarPlaca,
   plantillaDesdeCliente,
   rechazarBloqueadoNulo,
+  rechazarCambioDePlaca,
   rechazarOtraEmpresa,
 } from "./vehiculos.reglas";
 
@@ -32,11 +36,15 @@ export class VehiculosService {
 
   /** Último kilometraje registrado: una subconsulta correlacionada, sin N+1. */
   private columnas() {
+    // Las columnas de Drizzle salen sin calificar en un select de una tabla y
+    // chocarían dentro de la subconsulta: se califican con el nombre de tabla.
+    const d = sql.identifier(getTableName(despachos));
+    const v = sql.identifier(getTableName(vehiculos));
     return {
       ...getTableColumns(vehiculos),
       ultimo_kilometraje: sql<
         string | null
-      >`(select max(d.kilometraje) from despachos d where d.vehiculo_id = "vehiculos"."id")`,
+      >`(select max(${d}.${sql.identifier(despachos.kilometraje.name)}) from ${despachos} where ${d}.${sql.identifier(despachos.vehiculo_id.name)} = ${v}.${sql.identifier(vehiculos.id.name)})`,
     };
   }
 
@@ -80,12 +88,21 @@ export class VehiculosService {
 
     const plantilla = plantillaDesdeCliente(cli);
 
-    const merged = { ...plantilla, ...dto, cliente_id };
-    const [row] = await this.db.db
-      .insert(vehiculos)
-      .values(coercerDecimales(merged) as any)
-      .returning();
-    return row;
+    const merged = {
+      ...plantilla,
+      ...dto,
+      cliente_id,
+      placa: normalizarPlaca(dto.placa),
+    };
+    try {
+      const [row] = await this.db.db
+        .insert(vehiculos)
+        .values(coercerDecimales(merged) as any)
+        .returning();
+      return row;
+    } catch (e) {
+      throw errorPorPlacaDuplicada(e);
+    }
   }
 
   /**
@@ -99,25 +116,34 @@ export class VehiculosService {
     rechazarOtraEmpresa(user, dto.cliente_id);
     const condiciones = [eq(vehiculos.id, id)];
     if (clienteId) condiciones.push(eq(vehiculos.cliente_id, clienteId));
-    if (intentaDesbloquear(user, dto)) {
+    if (dto.placa !== undefined)
+      dto = { ...dto, placa: normalizarPlaca(dto.placa) };
+    const cambiaPlaca = user.rol === "cliente" && dto.placa !== undefined;
+    if (intentaDesbloquear(user, dto) || cambiaPlaca) {
       const [propio] = await this.db.db
-        .select({ id: vehiculos.id })
+        .select({ id: vehiculos.id, placa: vehiculos.placa })
         .from(vehiculos)
         .where(and(...condiciones))
         .limit(1);
       if (!propio) throw new NotFoundException("Vehículo no encontrado");
-      throw new ForbiddenException(
-        "Sólo la estación puede desbloquear un vehículo.",
-      );
+      if (intentaDesbloquear(user, dto))
+        throw new ForbiddenException(
+          "Sólo la estación puede desbloquear un vehículo.",
+        );
+      rechazarCambioDePlaca(user, dto.placa as string, propio.placa);
     }
     if (Object.keys(dto).length === 0) return this.findOne(id, user);
-    const [row] = await this.db.db
-      .update(vehiculos)
-      .set(coercerDecimales(dto) as any)
-      .where(and(...condiciones))
-      .returning();
-    if (!row) throw new NotFoundException("Vehículo no encontrado");
-    return row;
+    try {
+      const [row] = await this.db.db
+        .update(vehiculos)
+        .set(coercerDecimales(dto) as any)
+        .where(and(...condiciones))
+        .returning();
+      if (!row) throw new NotFoundException("Vehículo no encontrado");
+      return row;
+    } catch (e) {
+      throw errorPorPlacaDuplicada(e);
+    }
   }
 
   /**

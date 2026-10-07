@@ -347,7 +347,9 @@ El `cliente` crea, edita y da de baja **sus** vehículos y pilotos (`POST`, `PAT
 - `PATCH` con un `cliente_id` distinto al suyo: `"No puede asignar el vehículo a otra empresa"` / `"No puede asignar el piloto a otra empresa"`.
 - `PATCH /vehiculos/:id` con `bloqueado: false`: `"Sólo la estación puede desbloquear un vehículo."` (puede bloquear, no desbloquear; el vehículo ajeno sigue dando 404 primero).
 
-**`ultimo_kilometraje`** en `GET /vehiculos` y `GET /vehiculos/:id` (cualquier rol que los lea): `MAX(despachos.kilometraje)` del vehículo, como string numérico con 3 decimales (`"250.500"`) o `null` si no tiene despachos con kilometraje. Pasa por `mappers.ts` como el resto de numéricos. Las respuestas de `POST`/`PATCH`/`DELETE` devuelven la fila del vehículo sin ese campo.
+**`ultimo_kilometraje`** en `GET /vehiculos` y `GET /vehiculos/:id` (cualquier rol que los lea): `MAX(despachos.kilometraje)` del vehículo, como string numérico con 3 decimales (`"250.500"`) o `null` si no tiene despachos con kilometraje. Pasa por `mappers.ts` como el resto de numéricos. Las respuestas de `POST`/`DELETE` y de un `PATCH` con cambios devuelven la fila del vehículo sin ese campo (el `PATCH` con body vacío sí lo trae).
+
+**Placa:** se guarda recortada y en mayúsculas (`p-123abc` -> `P-123ABC`, sin quitar guiones). El `cliente` no puede cambiarla por `PATCH /vehiculos/:id` (403 `"Sólo la estación puede cambiar la placa de un vehículo."`; mandar la misma placa, normalizada, no cuenta como cambio), porque renombrarla evadiría un bloqueo. Placa repetida al crear o editar: 409 `"Ya existe un vehículo con esa placa"`. `cliente_id: null` en un `PATCH`: 403 para el cliente, 400 `"cliente_id no puede ser nulo"` para el admin.
 
 ### Alcance del cliente (fail-closed)
 
