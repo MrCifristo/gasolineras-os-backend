@@ -26,10 +26,21 @@ import {
   configuracionSistema,
   usuarios,
   operarios,
-  type Renglon,
 } from "../../db/schema";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
+import {
+  exigirClienteConCredito,
+  exigirGasolineraOperable,
+  exigirRol,
+} from "../../common/bloqueos.reglas";
+import {
+  exigirOperarioDeLaGasolinera,
+  exigirSistemaActivo,
+  normalizarRenglones,
+  resumenRenglones,
+  validarParVehiculoPiloto,
+} from "./despachos.reglas";
 import { StorageService, StorageObject } from "../../storage/storage.service";
 
 type Usuario = typeof usuarios.$inferSelect;
@@ -253,20 +264,18 @@ export class DespachosService {
   }
 
   async create(dto: CreateDespachoDto, user: any) {
-    if (user.rol !== "supervisor" && user.rol !== "admin") {
-      throw new ForbiddenException("Solo supervisores pueden crear despachos");
-    }
+    exigirRol(
+      user.rol,
+      ["supervisor", "admin"],
+      "Solo supervisores pueden crear despachos",
+    );
 
     // ── 1. Bloqueo global del sistema ───────────────────────────────────
     const [sysConfig] = await this.db.db
       .select({ sistema_bloqueado: configuracionSistema.sistema_bloqueado })
       .from(configuracionSistema)
       .limit(1);
-    if (sysConfig?.sistema_bloqueado) {
-      throw new ForbiddenException(
-        "Sistema suspendido — contacte al administrador",
-      );
-    }
+    exigirSistemaActivo(sysConfig);
 
     // ── 2. Bloqueo de gasolinera + serie de vale activa ──────────────────
     const [gas] = await this.db.db
@@ -277,18 +286,11 @@ export class DespachosService {
       .from(gasolineras)
       .where(eq(gasolineras.id, user.gasolinera_id))
       .limit(1);
-    if (!gas) throw new NotFoundException("Gasolinera no encontrada");
-    if (gas.bloqueado) {
-      throw new ForbiddenException(
-        "Gasolinera bloqueada — contacte al administrador",
-      );
-    }
+    exigirGasolineraOperable(gas);
     // La serie sale de la gasolinera, no del cliente: el operario no la elige.
     const serieVale = gas.serie_vale_actual;
 
     // ── 2b. Operario de esta gasolinera y activo ─────────────────────────
-    // La FK sólo garantiza que existe. Sin esto un supervisor podía cargar el
-    // vale a un operario de la otra estación o a uno dado de baja.
     const [operario] = await this.db.db
       .select({ id: operarios.id })
       .from(operarios)
@@ -300,11 +302,7 @@ export class DespachosService {
         ),
       )
       .limit(1);
-    if (!operario) {
-      throw new BadRequestException(
-        "El operario no pertenece a esta gasolinera o está inactivo.",
-      );
-    }
+    exigirOperarioDeLaGasolinera(operario);
 
     // ── 3. Bloqueo de cliente ────────────────────────────────────────────
     const [clienteRow] = await this.db.db
@@ -312,40 +310,11 @@ export class DespachosService {
       .from(clientes)
       .where(eq(clientes.id, dto.cliente_id))
       .limit(1);
-    if (!clienteRow) throw new NotFoundException("Cliente no encontrado");
-    if (clienteRow.bloqueado) {
-      throw new ForbiddenException("Cuenta bloqueada por el cliente");
-    }
-    // Va después del bloqueo de cuenta y con mensaje propio: al supervisor en la
-    // bomba le sirve saber si el cliente suspendió su cuenta o si es la
-    // estación la que le cortó el crédito, porque el siguiente paso es distinto.
-    if (clienteRow.credito_bloqueado) {
-      throw new ForbiddenException(
-        "Crédito suspendido — consulte con administración",
-      );
-    }
+    exigirClienteConCredito(clienteRow);
 
     // ── Renglones del vale ───────────────────────────────────────────────
-    const lineas = this.normalizarRenglones(dto);
-    const hayRenglonVehiculo = lineas.some((l) => l.renglon === "vehiculo");
-
-    // Vehículo y piloto van juntos: un renglón a vehículo sin piloto deja el
-    // vale sin a quién atribuirle el combustible.
-    if (Boolean(dto.vehiculo_id) !== Boolean(dto.piloto_id)) {
-      throw new BadRequestException(
-        "Vehículo y piloto deben venir juntos o ninguno de los dos",
-      );
-    }
-    if (hayRenglonVehiculo && !dto.vehiculo_id) {
-      throw new BadRequestException(
-        "El renglón de vehículo requiere vehiculo_id y piloto_id",
-      );
-    }
-    if (!hayRenglonVehiculo && dto.vehiculo_id) {
-      throw new BadRequestException(
-        "Se indicó vehículo pero ningún renglón le despacha combustible",
-      );
-    }
+    const lineas = normalizarRenglones(dto);
+    validarParVehiculoPiloto(dto, lineas);
 
     // ── Restricciones del vehículo ──────────────────────────────────
     // Sólo aplican si el vale toca un vehículo; un despacho a canecas no tiene
@@ -708,7 +677,7 @@ export class DespachosService {
         despacho_id: despacho.id,
         tipo: "debito",
         monto: montoTotal,
-        descripcion: `Despacho ${this.resumenRenglones(renglones)} - Vale ${serieVale}-${numeroVale}`,
+        descripcion: `Despacho ${resumenRenglones(renglones)} - Vale ${serieVale}-${numeroVale}`,
       });
 
       await tx
@@ -732,57 +701,6 @@ export class DespachosService {
         })),
       };
     });
-  }
-
-  /**
-   * Lleva las dos formas del DTO a una sola lista de renglones.
-   *
-   * La forma vieja (`tipo_combustible` + `monto` en la raíz) se mantiene por
-   * compatibilidad: el frontend se despliega aparte y no puede cambiar en el
-   * mismo instante que el backend. Equivale a un único renglón `vehiculo`.
-   */
-  private normalizarRenglones(
-    dto: CreateDespachoDto,
-  ): { renglon: Renglon; tipo_combustible: string; monto: string }[] {
-    const tieneForma1 = dto.tipo_combustible != null || dto.monto != null;
-    const tieneForma2 = dto.detalles != null && dto.detalles.length > 0;
-
-    if (tieneForma1 && tieneForma2) {
-      throw new BadRequestException(
-        "Mandá `detalles` o `tipo_combustible`+`monto`, no las dos formas",
-      );
-    }
-    if (tieneForma2) {
-      return dto.detalles!.map((d) => ({
-        renglon: d.renglon,
-        tipo_combustible: d.tipo_combustible,
-        monto: d.monto,
-      }));
-    }
-    if (dto.tipo_combustible == null || dto.monto == null) {
-      throw new BadRequestException(
-        "Falta el detalle del despacho: mandá `detalles`, o `tipo_combustible` y `monto`",
-      );
-    }
-    return [
-      {
-        renglon: "vehiculo",
-        tipo_combustible: dto.tipo_combustible,
-        monto: dto.monto,
-      },
-    ];
-  }
-
-  /** Texto del movimiento de saldo: "diesel 80.000 gal + caneca super 5.000 gal". */
-  private resumenRenglones(
-    renglones: { renglon: string; tipo_combustible: string; galones: number }[],
-  ): string {
-    return renglones
-      .map((r) => {
-        const etiqueta = r.renglon === "vehiculo" ? "" : `${r.renglon} `;
-        return `${etiqueta}${r.tipo_combustible} ${r.galones.toFixed(3)} gal`;
-      })
-      .join(" + ");
   }
 
   async update(id: string, dto: UpdateDespachoDto) {
