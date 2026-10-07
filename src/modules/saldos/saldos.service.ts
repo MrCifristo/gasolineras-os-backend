@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
@@ -17,6 +13,11 @@ import { QueryCuadresDto } from "./dto/query-cuadres.dto";
 import { QueryEstadoCuentaDto } from "./dto/query-estado-cuenta.dto";
 import { QueryMovimientosDto } from "./dto/query-movimientos.dto";
 import { fechaGtSql } from "../../common/hora-guatemala";
+import {
+  resumenEstadoCuenta,
+  validarCuadre,
+  validarMontoAbono,
+} from "./saldos.reglas";
 
 @Injectable()
 export class SaldosService {
@@ -79,7 +80,7 @@ export class SaldosService {
    * `fecha_desde`, no leyendo `saldos_cliente`: esa columna guarda el saldo de
    * hoy, y para un período pasado daría un arrastre equivocado. La identidad
    * que debe cumplirse siempre es
-   * `saldo_inicial + abonos − débitos = saldo_final`.
+   * `saldo_inicial + abonos − débitos = saldo_final` (ver `resumenEstadoCuenta`).
    */
   async getEstadoCuenta(clienteId: string, query: QueryEstadoCuentaDto) {
     const [cliente] = await this.db.db
@@ -126,15 +127,6 @@ export class SaldosService {
       .where(and(...condicionesRango))
       .orderBy(movimientosSaldo.created_at);
 
-    const suma = (tipo: string) =>
-      movimientos
-        .filter((m) => m.tipo === tipo)
-        .reduce((acc, m) => acc + parseFloat(m.monto), 0);
-
-    const saldoInicial = parseFloat(previo?.saldo ?? "0");
-    const abonos = suma("credito");
-    const debitos = suma("debito");
-
     return {
       cliente: {
         id: cliente.id,
@@ -146,18 +138,13 @@ export class SaldosService {
         fecha_desde: fecha_desde ?? null,
         fecha_hasta: fecha_hasta ?? null,
       },
-      saldo_inicial: saldoInicial.toFixed(3),
-      total_abonos: abonos.toFixed(3),
-      total_debitos: debitos.toFixed(3),
-      saldo_final: (saldoInicial + abonos - debitos).toFixed(3),
+      ...resumenEstadoCuenta(previo?.saldo, movimientos),
       movimientos,
     };
   }
 
   async createAbono(dto: CreateAbonoDto) {
-    if (parseFloat(dto.monto) <= 0) {
-      throw new BadRequestException("El monto debe ser mayor a cero");
-    }
+    validarMontoAbono(dto.monto);
 
     return this.db.db.transaction(async (tx) => {
       const [saldo] = await tx
@@ -192,11 +179,7 @@ export class SaldosService {
   }
 
   async createCuadre(dto: CreateCuadreDto, userId: string) {
-    if (dto.tipo === "cliente" && !dto.cliente_id) {
-      throw new BadRequestException(
-        'cliente_id es requerido cuando tipo es "cliente"',
-      );
-    }
+    validarCuadre(dto);
 
     const [cuadre] = await this.db.db
       .insert(cuadres)
