@@ -14,10 +14,13 @@ import {
   exigirSistemaActivo,
   exigirVehiculoHabilitado,
   necesitaAgregadoCliente,
+  necesitaAgregadoVehiculo,
   normalizarRenglones,
   resumenRenglones,
   totalesDespacho,
   validarHorarioVehiculo,
+  validarKilometraje,
+  validarLimitesAcumuladosVehiculo,
   validarLimitesCliente,
   validarLimitesTransaccion,
   validarParVehiculoPiloto,
@@ -637,6 +640,292 @@ describe("validarLimitesTransaccion", () => {
         ),
       ForbiddenException,
       "Monto por transacción supera el límite (Q200.00)",
+    );
+  });
+});
+
+describe("necesitaAgregadoVehiculo", () => {
+  const campos = [
+    "limite_monto_dia",
+    "limite_monto_semana",
+    "limite_monto_mes",
+    "limite_volumen_dia",
+    "limite_volumen_semana",
+    "limite_volumen_mes",
+    "limite_trans_dia",
+    "limite_trans_semana",
+    "limite_trans_mes",
+  ] as const;
+  const sinLimites = {
+    limite_monto_dia: null,
+    limite_monto_semana: null,
+    limite_monto_mes: null,
+    limite_volumen_dia: null,
+    limite_volumen_semana: null,
+    limite_volumen_mes: null,
+    limite_trans_dia: null,
+    limite_trans_semana: null,
+    limite_trans_mes: null,
+  };
+
+  it("sin vehículo no hace falta consultar", () => {
+    expect(necesitaAgregadoVehiculo(null)).toBe(false);
+  });
+
+  it("con los nueve límites en null no hace falta consultar", () => {
+    expect(necesitaAgregadoVehiculo(sinLimites)).toBe(false);
+  });
+
+  it.each(campos)("basta con %s para necesitar el agregado", (campo) => {
+    const valor = campo.startsWith("limite_trans") ? 5 : "100.00";
+    expect(necesitaAgregadoVehiculo({ ...sinLimites, [campo]: valor })).toBe(
+      true,
+    );
+  });
+});
+
+describe("validarLimitesAcumuladosVehiculo", () => {
+  const sinLimites = {
+    limite_monto_dia: null,
+    limite_monto_semana: null,
+    limite_monto_mes: null,
+    limite_volumen_dia: null,
+    limite_volumen_semana: null,
+    limite_volumen_mes: null,
+    limite_trans_dia: null,
+    limite_trans_semana: null,
+    limite_trans_mes: null,
+  };
+  const cero = {
+    monto_dia: "0",
+    monto_semana: "0",
+    monto_mes: "0",
+    vol_dia: "0",
+    vol_semana: "0",
+    vol_mes: "0",
+    trans_dia: "0",
+    trans_semana: "0",
+    trans_mes: "0",
+  };
+
+  it("monto diario: lo consumido más el monto cabe en el límite", () => {
+    expect(() =>
+      validarLimitesAcumuladosVehiculo(
+        { ...sinLimites, limite_monto_dia: "1000.00" },
+        { ...cero, monto_dia: "950" },
+        50,
+        0,
+      ),
+    ).not.toThrow();
+  });
+
+  it("monto diario: pasarse es 403 con consumido y límite", () => {
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_monto_dia: "1000.00" },
+          { ...cero, monto_dia: "950" },
+          60,
+          0,
+        ),
+      ForbiddenException,
+      "Límite diario de monto superado. Consumido: 950.00 — Límite: 1000.00",
+    );
+  });
+
+  it("monto semanal y mensual llevan su palabra", () => {
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_monto_semana: "100" },
+          { ...cero, monto_semana: "90" },
+          20,
+          0,
+        ),
+      ForbiddenException,
+      "Límite semanal de monto superado. Consumido: 90.00 — Límite: 100.00",
+    );
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_monto_mes: "100" },
+          { ...cero, monto_mes: "90" },
+          20,
+          0,
+        ),
+      ForbiddenException,
+      "Límite mensual de monto superado. Consumido: 90.00 — Límite: 100.00",
+    );
+  });
+
+  it("volumen mensual: pasarse es 403", () => {
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_volumen_mes: "100" },
+          { ...cero, vol_mes: "99.5" },
+          0,
+          0.6,
+        ),
+      ForbiddenException,
+      "Límite mensual de volumen superado. Consumido: 99.50 — Límite: 100.00",
+    );
+  });
+
+  it("volumen diario y semanal llevan su palabra", () => {
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_volumen_dia: "10" },
+          { ...cero, vol_dia: "9" },
+          0,
+          2,
+        ),
+      ForbiddenException,
+      "Límite diario de volumen superado. Consumido: 9.00 — Límite: 10.00",
+    );
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_volumen_semana: "10" },
+          { ...cero, vol_semana: "9" },
+          0,
+          2,
+        ),
+      ForbiddenException,
+      "Límite semanal de volumen superado. Consumido: 9.00 — Límite: 10.00",
+    );
+  });
+
+  it("transacciones diarias: con 2 de 3 pasa, con 3 de 3 es 403", () => {
+    const v = { ...sinLimites, limite_trans_dia: 3 };
+    expect(() =>
+      validarLimitesAcumuladosVehiculo(v, { ...cero, trans_dia: "2" }, 0, 0),
+    ).not.toThrow();
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(v, { ...cero, trans_dia: "3" }, 0, 0),
+      ForbiddenException,
+      "Límite diario de transacciones alcanzado (3)",
+    );
+  });
+
+  it("transacciones semanales y mensuales llevan su palabra", () => {
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_trans_semana: 5 },
+          { ...cero, trans_semana: "5" },
+          0,
+          0,
+        ),
+      ForbiddenException,
+      "Límite semanal de transacciones alcanzado (5)",
+    );
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_trans_mes: 20 },
+          { ...cero, trans_mes: "20" },
+          0,
+          0,
+        ),
+      ForbiddenException,
+      "Límite mensual de transacciones alcanzado (20)",
+    );
+  });
+
+  it("un límite de transacciones en 0 es un límite válido: siempre 403", () => {
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...sinLimites, limite_trans_dia: 0 },
+          cero,
+          0,
+          0,
+        ),
+      ForbiddenException,
+      "Límite diario de transacciones alcanzado (0)",
+    );
+  });
+
+  it("sin límites no objeta nada", () => {
+    expect(() =>
+      validarLimitesAcumuladosVehiculo(sinLimites, cero, 1e9, 1e9),
+    ).not.toThrow();
+  });
+
+  it("evalúa montos, luego volúmenes, luego transacciones", () => {
+    const todos = {
+      limite_monto_dia: "1",
+      limite_monto_semana: null,
+      limite_monto_mes: null,
+      limite_volumen_dia: "1",
+      limite_volumen_semana: null,
+      limite_volumen_mes: null,
+      limite_trans_dia: 0,
+      limite_trans_semana: null,
+      limite_trans_mes: null,
+    };
+    esperarError(
+      () => validarLimitesAcumuladosVehiculo(todos, cero, 5, 5),
+      ForbiddenException,
+      "Límite diario de monto superado. Consumido: 0.00 — Límite: 1.00",
+    );
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...todos, limite_monto_dia: null },
+          cero,
+          5,
+          5,
+        ),
+      ForbiddenException,
+      "Límite diario de volumen superado. Consumido: 0.00 — Límite: 1.00",
+    );
+    esperarError(
+      () =>
+        validarLimitesAcumuladosVehiculo(
+          { ...todos, limite_monto_dia: null, limite_volumen_dia: null },
+          cero,
+          5,
+          5,
+        ),
+      ForbiddenException,
+      "Límite diario de transacciones alcanzado (0)",
+    );
+  });
+});
+
+describe("validarKilometraje", () => {
+  it("sin máximo previo pasa", () => {
+    expect(() => validarKilometraje("100", null)).not.toThrow();
+    expect(() => validarKilometraje("100", undefined)).not.toThrow();
+  });
+
+  it("un kilometraje mayor al máximo pasa", () => {
+    expect(() => validarKilometraje("15000", "14999.5")).not.toThrow();
+  });
+
+  it("igual o menor al máximo es 403", () => {
+    esperarError(
+      () => validarKilometraje("15000", "15000"),
+      ForbiddenException,
+      "Inconsistencia de kilometraje detectada",
+    );
+    esperarError(
+      () => validarKilometraje("14000", "15000"),
+      ForbiddenException,
+      "Inconsistencia de kilometraje detectada",
+    );
+  });
+
+  it("acepta el máximo previo como número", () => {
+    expect(() => validarKilometraje("15000", 14999.5)).not.toThrow();
+    esperarError(
+      () => validarKilometraje("15000", 15000),
+      ForbiddenException,
+      "Inconsistencia de kilometraje detectada",
     );
   });
 });

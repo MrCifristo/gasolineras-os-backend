@@ -41,10 +41,13 @@ import {
   exigirSistemaActivo,
   exigirVehiculoHabilitado,
   necesitaAgregadoCliente,
+  necesitaAgregadoVehiculo,
   normalizarRenglones,
   resumenRenglones,
   totalesDespacho,
   validarHorarioVehiculo,
+  validarKilometraje,
+  validarLimitesAcumuladosVehiculo,
   validarLimitesCliente,
   validarLimitesTransaccion,
   validarParVehiculoPiloto,
@@ -375,8 +378,6 @@ export class DespachosService {
     } = totalesDespacho(renglones);
     const renglonesVehiculo = renglones.filter((r) => r.renglon === "vehiculo");
 
-    const num = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
-
     // ── 4. Límites de gasto a nivel cuenta ──────────────────────────
     if (necesitaAgregadoCliente(clienteRow)) {
       const [cAgg] = await this.db.db
@@ -395,18 +396,7 @@ export class DespachosService {
     validarLimitesTransaccion(v ?? null, montoVehiculo, galonesVehiculo);
 
     // ── Límites acumulados (una query con FILTER) ────────────────────
-    const needsAggregate =
-      v != null &&
-      (v.limite_monto_dia != null ||
-        v.limite_monto_semana != null ||
-        v.limite_monto_mes != null ||
-        v.limite_volumen_dia != null ||
-        v.limite_volumen_semana != null ||
-        v.limite_volumen_mes != null ||
-        v.limite_trans_dia != null ||
-        v.limite_trans_semana != null ||
-        v.limite_trans_mes != null);
-    if (needsAggregate && v) {
+    if (necesitaAgregadoVehiculo(v) && v) {
       // Monto y volumen salen de `despacho_detalles` filtrando el renglón del
       // vehículo: sumar `despachos.monto_total` incluiría las canecas del mismo
       // vale y le comería el cupo al vehículo. Las transacciones sí se cuentan
@@ -435,63 +425,7 @@ export class DespachosService {
           ),
         );
 
-      const checks: Array<[number | null, number, number, string]> = [
-        [
-          num(v.limite_monto_dia),
-          parseFloat(String(agg.monto_dia)),
-          montoVehiculo,
-          `Límite diario de monto superado`,
-        ],
-        [
-          num(v.limite_monto_semana),
-          parseFloat(String(agg.monto_semana)),
-          montoVehiculo,
-          `Límite semanal de monto superado`,
-        ],
-        [
-          num(v.limite_monto_mes),
-          parseFloat(String(agg.monto_mes)),
-          montoVehiculo,
-          `Límite mensual de monto superado`,
-        ],
-        [
-          num(v.limite_volumen_dia),
-          parseFloat(String(agg.vol_dia)),
-          galonesVehiculo,
-          `Límite diario de volumen superado`,
-        ],
-        [
-          num(v.limite_volumen_semana),
-          parseFloat(String(agg.vol_semana)),
-          galonesVehiculo,
-          `Límite semanal de volumen superado`,
-        ],
-        [
-          num(v.limite_volumen_mes),
-          parseFloat(String(agg.vol_mes)),
-          galonesVehiculo,
-          `Límite mensual de volumen superado`,
-        ],
-      ];
-      for (const [limite, consumido, delta, msg] of checks) {
-        if (limite != null && consumido + delta > limite) {
-          throw new ForbiddenException(
-            `${msg}. Consumido: ${consumido.toFixed(2)} — Límite: ${limite.toFixed(2)}`,
-          );
-        }
-      }
-      const transChecks: Array<[number | null, number, string]> = [
-        [v.limite_trans_dia, parseInt(String(agg.trans_dia)), "diario"],
-        [v.limite_trans_semana, parseInt(String(agg.trans_semana)), "semanal"],
-        [v.limite_trans_mes, parseInt(String(agg.trans_mes)), "mensual"],
-      ];
-      for (const [limite, consumido, periodo] of transChecks) {
-        if (limite != null && consumido + 1 > limite) {
-          throw new ForbiddenException(
-            `Límite ${periodo} de transacciones alcanzado (${limite})`,
-          );
-        }
-      }
+      validarLimitesAcumuladosVehiculo(v, agg, montoVehiculo, galonesVehiculo);
     }
     // ────────────────────────────────────────────────────────────────
 
@@ -503,11 +437,7 @@ export class DespachosService {
         .from(despachos)
         .where(eq(despachos.vehiculo_id, dto.vehiculo_id));
 
-      const maxKm =
-        lastKmRow?.max_km != null ? parseFloat(String(lastKmRow.max_km)) : null;
-      if (maxKm !== null && parseFloat(dto.kilometraje) <= maxKm) {
-        throw new ForbiddenException("Inconsistencia de kilometraje detectada");
-      }
+      validarKilometraje(dto.kilometraje, lastKmRow?.max_km);
     }
 
     // Firma a R2 antes de abrir la transacción (ver subirFirma). Si toda la

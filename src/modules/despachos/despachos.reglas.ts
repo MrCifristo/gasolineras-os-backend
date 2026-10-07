@@ -337,3 +337,118 @@ export function validarLimitesTransaccion(
       `Volumen por transacción supera el límite (${lvt.toFixed(2)} gal)`,
     );
 }
+
+// ── Límites acumulados del vehículo y kilometraje ──────────────────────
+
+type LimitesAcumulados = Pick<
+  VehiculoRow,
+  | "limite_monto_dia"
+  | "limite_monto_semana"
+  | "limite_monto_mes"
+  | "limite_volumen_dia"
+  | "limite_volumen_semana"
+  | "limite_volumen_mes"
+  | "limite_trans_dia"
+  | "limite_trans_semana"
+  | "limite_trans_mes"
+>;
+
+export function necesitaAgregadoVehiculo(v: LimitesAcumulados | null): boolean {
+  return (
+    v != null &&
+    (v.limite_monto_dia != null ||
+      v.limite_monto_semana != null ||
+      v.limite_monto_mes != null ||
+      v.limite_volumen_dia != null ||
+      v.limite_volumen_semana != null ||
+      v.limite_volumen_mes != null ||
+      v.limite_trans_dia != null ||
+      v.limite_trans_semana != null ||
+      v.limite_trans_mes != null)
+  );
+}
+
+export function validarLimitesAcumuladosVehiculo(
+  v: LimitesAcumulados,
+  agg: {
+    monto_dia: Agregado;
+    monto_semana: Agregado;
+    monto_mes: Agregado;
+    vol_dia: Agregado;
+    vol_semana: Agregado;
+    vol_mes: Agregado;
+    trans_dia: Agregado;
+    trans_semana: Agregado;
+    trans_mes: Agregado;
+  },
+  montoVehiculo: number,
+  galonesVehiculo: number,
+): void {
+  const checks: Array<[number | null, number, number, string]> = [
+    [
+      aNumero(v.limite_monto_dia),
+      parseFloat(String(agg.monto_dia)),
+      montoVehiculo,
+      `Límite diario de monto superado`,
+    ],
+    [
+      aNumero(v.limite_monto_semana),
+      parseFloat(String(agg.monto_semana)),
+      montoVehiculo,
+      `Límite semanal de monto superado`,
+    ],
+    [
+      aNumero(v.limite_monto_mes),
+      parseFloat(String(agg.monto_mes)),
+      montoVehiculo,
+      `Límite mensual de monto superado`,
+    ],
+    [
+      aNumero(v.limite_volumen_dia),
+      parseFloat(String(agg.vol_dia)),
+      galonesVehiculo,
+      `Límite diario de volumen superado`,
+    ],
+    [
+      aNumero(v.limite_volumen_semana),
+      parseFloat(String(agg.vol_semana)),
+      galonesVehiculo,
+      `Límite semanal de volumen superado`,
+    ],
+    [
+      aNumero(v.limite_volumen_mes),
+      parseFloat(String(agg.vol_mes)),
+      galonesVehiculo,
+      `Límite mensual de volumen superado`,
+    ],
+  ];
+  for (const [limite, consumido, delta, msg] of checks) {
+    if (limite != null && consumido + delta > limite) {
+      throw new ForbiddenException(
+        `${msg}. Consumido: ${consumido.toFixed(2)} — Límite: ${limite.toFixed(2)}`,
+      );
+    }
+  }
+  const transChecks: Array<[number | null, number, string]> = [
+    [v.limite_trans_dia, parseInt(String(agg.trans_dia)), "diario"],
+    [v.limite_trans_semana, parseInt(String(agg.trans_semana)), "semanal"],
+    [v.limite_trans_mes, parseInt(String(agg.trans_mes)), "mensual"],
+  ];
+  for (const [limite, consumido, periodo] of transChecks) {
+    if (limite != null && consumido + 1 > limite) {
+      throw new ForbiddenException(
+        `Límite ${periodo} de transacciones alcanzado (${limite})`,
+      );
+    }
+  }
+}
+
+export function validarKilometraje(
+  kilometraje: string,
+  maxKm: Agregado | null | undefined,
+): void {
+  const max = aNumero(maxKm);
+  if (max !== null && parseFloat(kilometraje) <= max) {
+    throw new ForbiddenException("Inconsistencia de kilometraje detectada");
+  }
+}
