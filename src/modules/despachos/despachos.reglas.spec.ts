@@ -6,16 +6,20 @@ import {
 } from "@nestjs/common";
 import { esperarError } from "../../../test/unit/esperar-error";
 import {
+  aNumero,
   DIAS_GT,
   diaYMinutoGuatemala,
   exigirOperarioDeLaGasolinera,
   exigirPrecio,
   exigirSistemaActivo,
   exigirVehiculoHabilitado,
+  necesitaAgregadoCliente,
   normalizarRenglones,
   resumenRenglones,
   totalesDespacho,
   validarHorarioVehiculo,
+  validarLimitesCliente,
+  validarLimitesTransaccion,
   validarParVehiculoPiloto,
   validarProductosPermitidos,
   valorizarRenglon,
@@ -456,5 +460,183 @@ describe("totalesDespacho", () => {
       totalesDespacho([{ renglon: "vehiculo", monto: 10.5, galones: 1 }])
         .montoTotal,
     ).toBe("10.500");
+  });
+});
+
+describe("aNumero", () => {
+  it("null y undefined dan null", () => {
+    expect(aNumero(null)).toBeNull();
+    expect(aNumero(undefined)).toBeNull();
+  });
+
+  it("convierte el numérico que llega como string", () => {
+    expect(aNumero("12.50")).toBe(12.5);
+  });
+
+  it("deja pasar un número", () => {
+    expect(aNumero(3)).toBe(3);
+  });
+});
+
+describe("necesitaAgregadoCliente", () => {
+  const sin = {
+    limite_monto_dia: null,
+    limite_monto_semana: null,
+    limite_monto_mes: null,
+  };
+
+  it("sin ningún límite de cuenta no hace falta la consulta", () => {
+    expect(necesitaAgregadoCliente(sin)).toBe(false);
+  });
+
+  it.each(["limite_monto_dia", "limite_monto_semana", "limite_monto_mes"])(
+    "con %s basta para necesitarla",
+    (campo) => {
+      expect(necesitaAgregadoCliente({ ...sin, [campo]: "100.00" })).toBe(true);
+    },
+  );
+});
+
+describe("validarLimitesCliente", () => {
+  const sin = {
+    limite_monto_dia: null,
+    limite_monto_semana: null,
+    limite_monto_mes: null,
+  };
+  const consumo = { monto_dia: "400", monto_semana: "400", monto_mes: "400" };
+
+  it("justo en el límite diario pasa", () => {
+    expect(() =>
+      validarLimitesCliente(
+        { ...sin, limite_monto_dia: "500.00" },
+        consumo,
+        100,
+      ),
+    ).not.toThrow();
+  });
+
+  it("pasarse del límite diario es 403", () => {
+    esperarError(
+      () =>
+        validarLimitesCliente(
+          { ...sin, limite_monto_dia: "500.00" },
+          consumo,
+          100.01,
+        ),
+      ForbiddenException,
+      "Límite diario de la cuenta superado",
+    );
+  });
+
+  it("pasarse del límite semanal es 403", () => {
+    esperarError(
+      () =>
+        validarLimitesCliente(
+          { ...sin, limite_monto_semana: "500.00" },
+          consumo,
+          100.01,
+        ),
+      ForbiddenException,
+      "Límite semanal de la cuenta superado",
+    );
+  });
+
+  it("pasarse del límite mensual es 403", () => {
+    esperarError(
+      () =>
+        validarLimitesCliente(
+          { ...sin, limite_monto_mes: "500.00" },
+          consumo,
+          100.01,
+        ),
+      ForbiddenException,
+      "Límite mensual de la cuenta superado",
+    );
+  });
+
+  it("si se pasan el día y el mes a la vez, gana el día", () => {
+    esperarError(
+      () =>
+        validarLimitesCliente(
+          { ...sin, limite_monto_dia: "500.00", limite_monto_mes: "500.00" },
+          consumo,
+          200,
+        ),
+      ForbiddenException,
+      "Límite diario de la cuenta superado",
+    );
+  });
+
+  it("el consumo puede llegar como número", () => {
+    expect(() =>
+      validarLimitesCliente(
+        { ...sin, limite_monto_dia: "500.00" },
+        { monto_dia: 0, monto_semana: 0, monto_mes: 0 },
+        500,
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe("validarLimitesTransaccion", () => {
+  const sin = {
+    limite_monto_transaccion: null,
+    limite_volumen_transaccion: null,
+  };
+
+  it("sin vehículo no hay límite que medir", () => {
+    expect(() => validarLimitesTransaccion(null, 9999, 9999)).not.toThrow();
+  });
+
+  it("el monto justo en el límite pasa", () => {
+    expect(() =>
+      validarLimitesTransaccion(
+        { ...sin, limite_monto_transaccion: "200.00" },
+        200,
+        1,
+      ),
+    ).not.toThrow();
+  });
+
+  it("pasarse del monto por transacción es 403", () => {
+    esperarError(
+      () =>
+        validarLimitesTransaccion(
+          { ...sin, limite_monto_transaccion: "200.00" },
+          200.5,
+          1,
+        ),
+      ForbiddenException,
+      "Monto por transacción supera el límite (Q200.00)",
+    );
+  });
+
+  it("pasarse del volumen por transacción es 403", () => {
+    esperarError(
+      () =>
+        validarLimitesTransaccion(
+          { ...sin, limite_volumen_transaccion: "10.5" },
+          1,
+          11,
+        ),
+      ForbiddenException,
+      "Volumen por transacción supera el límite (10.50 gal)",
+    );
+  });
+
+  it("si se exceden los dos, gana el monto", () => {
+    esperarError(
+      () =>
+        validarLimitesTransaccion(
+          {
+            limite_monto_transaccion: "200.00",
+            limite_volumen_transaccion: "10.5",
+          },
+          300,
+          20,
+        ),
+      ForbiddenException,
+      "Monto por transacción supera el límite (Q200.00)",
+    );
   });
 });

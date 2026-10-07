@@ -7,7 +7,10 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ahoraGuatemala, aMinutos } from "../../common/hora-guatemala";
-import type { Renglon } from "../../db/schema";
+import type { clientes, Renglon, vehiculos } from "../../db/schema";
+
+type ClienteRow = typeof clientes.$inferSelect;
+type VehiculoRow = typeof vehiculos.$inferSelect;
 
 export interface LineaDespacho {
   renglon: Renglon;
@@ -259,4 +262,78 @@ export function totalesDespacho(
     montoVehiculo: sumaMonto(renglonesVehiculo),
     galonesVehiculo: sumaGalones(renglonesVehiculo),
   };
+}
+
+// ── Límites ────────────────────────────────────────────────────────────
+
+// Lo que devuelven de verdad los `sql<number>`: node-postgres entrega los
+// numéricos como string, aunque el genérico diga number.
+export type Agregado = number | string;
+
+// `unknown` a propósito: llega un numérico de Drizzle (string) o un número.
+export const aNumero = (x: unknown): number | null =>
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  x != null ? parseFloat(String(x)) : null;
+
+type LimitesCuenta = Pick<
+  ClienteRow,
+  "limite_monto_dia" | "limite_monto_semana" | "limite_monto_mes"
+>;
+
+export function necesitaAgregadoCliente(c: LimitesCuenta): boolean {
+  return (
+    c.limite_monto_dia != null ||
+    c.limite_monto_semana != null ||
+    c.limite_monto_mes != null
+  );
+}
+
+export function validarLimitesCliente(
+  c: LimitesCuenta,
+  consumo: { monto_dia: Agregado; monto_semana: Agregado; monto_mes: Agregado },
+  montoEstimado: number,
+): void {
+  const clienteChecks: Array<[number | null, number, string]> = [
+    [
+      aNumero(c.limite_monto_dia),
+      parseFloat(String(consumo.monto_dia)),
+      "Límite diario de la cuenta superado",
+    ],
+    [
+      aNumero(c.limite_monto_semana),
+      parseFloat(String(consumo.monto_semana)),
+      "Límite semanal de la cuenta superado",
+    ],
+    [
+      aNumero(c.limite_monto_mes),
+      parseFloat(String(consumo.monto_mes)),
+      "Límite mensual de la cuenta superado",
+    ],
+  ];
+  for (const [limite, consumido, msg] of clienteChecks) {
+    if (limite != null && consumido + montoEstimado > limite) {
+      throw new ForbiddenException(msg);
+    }
+  }
+}
+
+// Miden el renglón del vehículo, no el total del vale.
+export function validarLimitesTransaccion(
+  v: Pick<
+    VehiculoRow,
+    "limite_monto_transaccion" | "limite_volumen_transaccion"
+  > | null,
+  montoVehiculo: number,
+  galonesVehiculo: number,
+): void {
+  const lmt = aNumero(v?.limite_monto_transaccion);
+  if (lmt != null && montoVehiculo > lmt)
+    throw new ForbiddenException(
+      `Monto por transacción supera el límite (Q${lmt.toFixed(2)})`,
+    );
+  const lvt = aNumero(v?.limite_volumen_transaccion);
+  if (lvt != null && galonesVehiculo > lvt)
+    throw new ForbiddenException(
+      `Volumen por transacción supera el límite (${lvt.toFixed(2)} gal)`,
+    );
 }

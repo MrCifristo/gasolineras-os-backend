@@ -40,10 +40,13 @@ import {
   exigirPrecio,
   exigirSistemaActivo,
   exigirVehiculoHabilitado,
+  necesitaAgregadoCliente,
   normalizarRenglones,
   resumenRenglones,
   totalesDespacho,
   validarHorarioVehiculo,
+  validarLimitesCliente,
+  validarLimitesTransaccion,
   validarParVehiculoPiloto,
   validarProductosPermitidos,
   valorizarRenglon,
@@ -375,12 +378,7 @@ export class DespachosService {
     const num = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
 
     // ── 4. Límites de gasto a nivel cuenta ──────────────────────────
-    const needsClienteAggregate =
-      clienteRow.limite_monto_dia != null ||
-      clienteRow.limite_monto_semana != null ||
-      clienteRow.limite_monto_mes != null;
-
-    if (needsClienteAggregate) {
+    if (necesitaAgregadoCliente(clienteRow)) {
       const [cAgg] = await this.db.db
         .select({
           monto_dia: sql<number>`COALESCE(SUM(${despachos.monto_total}::numeric) FILTER (WHERE (${despachos.despachado_at} - INTERVAL '6 hours')::date = (NOW() - INTERVAL '6 hours')::date), 0)`,
@@ -390,42 +388,11 @@ export class DespachosService {
         .from(despachos)
         .where(eq(despachos.cliente_id, dto.cliente_id));
 
-      const clienteChecks: Array<[number | null, number, string]> = [
-        [
-          num(clienteRow.limite_monto_dia),
-          parseFloat(String(cAgg.monto_dia)),
-          "Límite diario de la cuenta superado",
-        ],
-        [
-          num(clienteRow.limite_monto_semana),
-          parseFloat(String(cAgg.monto_semana)),
-          "Límite semanal de la cuenta superado",
-        ],
-        [
-          num(clienteRow.limite_monto_mes),
-          parseFloat(String(cAgg.monto_mes)),
-          "Límite mensual de la cuenta superado",
-        ],
-      ];
-      for (const [limite, consumido, msg] of clienteChecks) {
-        if (limite != null && consumido + montoEstimado > limite) {
-          throw new ForbiddenException(msg);
-        }
-      }
+      validarLimitesCliente(clienteRow, cAgg, montoEstimado);
     }
 
     // ── Límites por transacción (sin query) ──────────────────────────
-    // Miden el renglón del vehículo, no el total del vale.
-    const lmt = num(v?.limite_monto_transaccion);
-    if (lmt != null && montoVehiculo > lmt)
-      throw new ForbiddenException(
-        `Monto por transacción supera el límite (Q${lmt.toFixed(2)})`,
-      );
-    const lvt = num(v?.limite_volumen_transaccion);
-    if (lvt != null && galonesVehiculo > lvt)
-      throw new ForbiddenException(
-        `Volumen por transacción supera el límite (${lvt.toFixed(2)} gal)`,
-      );
+    validarLimitesTransaccion(v ?? null, montoVehiculo, galonesVehiculo);
 
     // ── Límites acumulados (una query con FILTER) ────────────────────
     const needsAggregate =
