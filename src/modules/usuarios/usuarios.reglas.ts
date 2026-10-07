@@ -58,14 +58,16 @@ export function normalizarCambios<
 }
 
 /**
- * La empresa que quedaría tras la edición. Que la clave venga con `null`
- * cuenta: es quitarle la empresa; sin la clave, se conserva la actual.
+ * La empresa que quedaría tras la edición. Un `null` explícito cuenta: es
+ * quitarle la empresa; sin valor (ausente o undefined), se conserva la actual.
  */
 export function clienteIdResultante(
   resto: { cliente_id?: string | null },
   actual: { cliente_id: string | null },
 ): string | null | undefined {
-  return "cliente_id" in resto ? resto.cliente_id : actual.cliente_id;
+  // `!== undefined` y no `in`: el ValidationPipe deja `cliente_id` como clave
+  // propia con valor undefined cuando el body no lo trae.
+  return resto.cliente_id !== undefined ? resto.cliente_id : actual.cliente_id;
 }
 
 /** El cliente corporativo recibe el enlace para elegir su propia contraseña. */

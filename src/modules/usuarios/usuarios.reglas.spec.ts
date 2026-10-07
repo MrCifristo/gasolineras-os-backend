@@ -123,16 +123,14 @@ describe("normalizarCambios", () => {
 describe("clienteIdResultante", () => {
   const actual = { cliente_id: "c-actual" };
 
-  // Por HTTP este camino no ocurre: el ValidationPipe de producción deja
-  // `cliente_id` como clave propia (en undefined). Ver H7.
-  it("sin la clave devuelve la empresa actual (sólo alcanzable fuera del pipe)", () => {
+  it("sin la clave devuelve la empresa actual", () => {
     expect(clienteIdResultante({}, actual)).toBe("c-actual");
   });
 
-  it("HALLAZGO H7: cliente_id presente pero undefined (lo que deja el pipe) devuelve undefined, no la empresa actual", () => {
-    expect(
-      clienteIdResultante({ cliente_id: undefined }, actual),
-    ).toBeUndefined();
+  it("cliente_id presente pero undefined (lo que deja el pipe) conserva la empresa actual", () => {
+    expect(clienteIdResultante({ cliente_id: undefined }, actual)).toBe(
+      "c-actual",
+    );
   });
 
   it("cliente_id null cuenta: quitar la empresa", () => {

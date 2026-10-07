@@ -1760,6 +1760,29 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       pilotoMultiId = pil.body.id;
     });
 
+    it("editar a un usuario cliente sin reenviar cliente_id conserva su empresa → 200", async () => {
+      const email = `cliente.h7.${RUN_ID}@gasfuel-e2e.test`;
+      const alta = await request(app.getHttpServer())
+        .post("/api/v1/usuarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          nombre: tag("Cliente H7"),
+          email,
+          password: TEST_PASSWORD,
+          rol: "cliente",
+          cliente_id: clienteMultiId,
+        });
+      expect(alta.status).toBe(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/usuarios/${alta.body.id}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente H7 editado") });
+
+      expect(res.status).toBe(200);
+      expect(res.body.cliente_id).toBe(clienteMultiId);
+    });
+
     it("vale mixto: el límite del vehículo cuenta SOLO su renglón → 201", async () => {
       // Vehículo 300 + caneca 400 = 700 en total, por encima del límite diario
       // de 500 del vehículo. Debe pasar: al vehículo sólo le tocan 300.
