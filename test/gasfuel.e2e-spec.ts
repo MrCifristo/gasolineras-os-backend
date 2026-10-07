@@ -1181,11 +1181,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(403);
     });
 
-    it("cliente no puede eliminar vehículos → 403", async () => {
+    it("cliente sin empresa no puede eliminar vehículos → 404 (fail-closed)", async () => {
       const res = await request(app.getHttpServer())
         .delete(`/api/v1/vehiculos/${vehiculo1Id}`)
         .set("Authorization", `Bearer ${clienteUserToken}`);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(404);
     });
 
     it("token inválido (string basura) → 401", async () => {

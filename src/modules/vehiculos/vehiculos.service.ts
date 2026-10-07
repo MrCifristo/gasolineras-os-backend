@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
+import { and, eq, getTableColumns, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   vehiculos,
@@ -16,22 +16,32 @@ import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 import { UpdateRestriccionesVehiculoDto } from "./dto/update-restricciones-vehiculo.dto";
 import {
   clienteIdDeAlcance,
+  clienteIdParaCrear,
   coercerDecimales,
   intentaDesbloquear,
   plantillaDesdeCliente,
   rechazarBloqueadoNulo,
+  rechazarOtraEmpresa,
 } from "./vehiculos.reglas";
+
+type Usuario = { rol: string; cliente_id?: string | null };
 
 @Injectable()
 export class VehiculosService {
   constructor(private db: DbService) {}
 
+  /** Último kilometraje registrado: una subconsulta correlacionada, sin N+1. */
+  private columnas() {
+    return {
+      ...getTableColumns(vehiculos),
+      ultimo_kilometraje: sql<
+        string | null
+      >`(select max(d.kilometraje) from despachos d where d.vehiculo_id = "vehiculos"."id")`,
+    };
+  }
+
   /** Alcance fail-closed: un cliente sólo ve sus vehículos; sin cliente_id, nada. */
-  async findAll(
-    clienteId?: string,
-    activo?: boolean,
-    user?: { rol: string; cliente_id?: string | null },
-  ) {
+  async findAll(clienteId?: string, activo?: boolean, user?: Usuario) {
     if (user?.rol === "cliente") {
       if (!user.cliente_id) return [];
       clienteId = user.cliente_id;
@@ -39,15 +49,12 @@ export class VehiculosService {
     const conditions = [eq(vehiculos.activo, activo ?? true)];
     if (clienteId) conditions.push(eq(vehiculos.cliente_id, clienteId));
     return this.db.db
-      .select()
+      .select(this.columnas())
       .from(vehiculos)
       .where(and(...conditions));
   }
 
-  async findOne(
-    id: string,
-    user?: { rol: string; cliente_id?: string | null },
-  ) {
+  async findOne(id: string, user?: Usuario) {
     const condiciones = [eq(vehiculos.id, id)];
     if (user?.rol === "cliente") {
       if (!user.cliente_id)
@@ -55,7 +62,7 @@ export class VehiculosService {
       condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
     }
     const [row] = await this.db.db
-      .select()
+      .select(this.columnas())
       .from(vehiculos)
       .where(and(...condiciones))
       .limit(1);
@@ -63,16 +70,17 @@ export class VehiculosService {
     return row;
   }
 
-  async create(dto: CreateVehiculoDto) {
+  async create(dto: CreateVehiculoDto, user: Usuario) {
+    const cliente_id = clienteIdParaCrear(user, dto.cliente_id);
     const [cli] = await this.db.db
       .select()
       .from(clientes)
-      .where(eq(clientes.id, dto.cliente_id))
+      .where(eq(clientes.id, cliente_id))
       .limit(1);
 
     const plantilla = plantillaDesdeCliente(cli);
 
-    const merged = { ...plantilla, ...dto };
+    const merged = { ...plantilla, ...dto, cliente_id };
     const [row] = await this.db.db
       .insert(vehiculos)
       .values(coercerDecimales(merged) as any)
@@ -80,14 +88,35 @@ export class VehiculosService {
     return row;
   }
 
-  async update(id: string, dto: UpdateVehiculoDto) {
+  /**
+   * Alcance fail-closed (igual que updateRestricciones): el filtro por
+   * cliente_id va en el propio UPDATE. El cliente bloquea pero no desbloquea
+   * y no puede mover el vehículo a otra empresa.
+   */
+  async update(id: string, dto: UpdateVehiculoDto, user: Usuario) {
     rechazarBloqueadoNulo(dto);
-    await this.findOne(id);
+    const clienteId = clienteIdDeAlcance(user);
+    rechazarOtraEmpresa(user, dto.cliente_id);
+    const condiciones = [eq(vehiculos.id, id)];
+    if (clienteId) condiciones.push(eq(vehiculos.cliente_id, clienteId));
+    if (intentaDesbloquear(user, dto)) {
+      const [propio] = await this.db.db
+        .select({ id: vehiculos.id })
+        .from(vehiculos)
+        .where(and(...condiciones))
+        .limit(1);
+      if (!propio) throw new NotFoundException("Vehículo no encontrado");
+      throw new ForbiddenException(
+        "Sólo la estación puede desbloquear un vehículo.",
+      );
+    }
+    if (Object.keys(dto).length === 0) return this.findOne(id, user);
     const [row] = await this.db.db
       .update(vehiculos)
       .set(coercerDecimales(dto) as any)
-      .where(eq(vehiculos.id, id))
+      .where(and(...condiciones))
       .returning();
+    if (!row) throw new NotFoundException("Vehículo no encontrado");
     return row;
   }
 
@@ -138,13 +167,16 @@ export class VehiculosService {
     return row;
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, user: Usuario) {
+    const clienteId = clienteIdDeAlcance(user);
+    const condiciones = [eq(vehiculos.id, id)];
+    if (clienteId) condiciones.push(eq(vehiculos.cliente_id, clienteId));
     const [row] = await this.db.db
       .update(vehiculos)
       .set({ activo: false })
-      .where(eq(vehiculos.id, id))
+      .where(and(...condiciones))
       .returning();
+    if (!row) throw new NotFoundException("Vehículo no encontrado");
     return row;
   }
 

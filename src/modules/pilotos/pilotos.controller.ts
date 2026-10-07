@@ -20,6 +20,10 @@ import { PilotosService } from "./pilotos.service";
 import { CreatePilotoDto } from "./dto/create-piloto.dto";
 import { UpdatePilotoDto } from "./dto/update-piloto.dto";
 
+type ReqConUsuario = {
+  user: { rol: string; cliente_id?: string | null };
+};
+
 @ApiTags("pilotos")
 @ApiBearerAuth("JWT")
 @Controller("pilotos")
@@ -42,23 +46,31 @@ export class PilotosController {
   }
 
   @Post()
-  @Auth("admin")
-  @ApiOperation({ summary: "Crear piloto" })
-  create(@Body() dto: CreatePilotoDto) {
-    return this.service.create(dto);
+  @Auth("admin", "cliente")
+  @ApiOperation({
+    summary: "Crear piloto (el cliente, a nombre de su empresa)",
+  })
+  create(@Body() dto: CreatePilotoDto, @Request() req: ReqConUsuario) {
+    return this.service.create(dto, req.user);
   }
 
   @Patch(":id")
-  @Auth("admin")
-  @ApiOperation({ summary: "Editar piloto" })
-  update(@Param("id") id: string, @Body() dto: UpdatePilotoDto) {
-    return this.service.update(id, dto);
+  @Auth("admin", "cliente")
+  @ApiOperation({ summary: "Editar piloto (el cliente, sólo los suyos)" })
+  update(
+    @Param("id") id: string,
+    @Body() dto: UpdatePilotoDto,
+    @Request() req: ReqConUsuario,
+  ) {
+    return this.service.update(id, dto, req.user);
   }
 
   @Delete(":id")
-  @Auth("admin")
-  @ApiOperation({ summary: "Desactivar piloto (soft delete)" })
-  remove(@Param("id") id: string) {
-    return this.service.remove(id);
+  @Auth("admin", "cliente")
+  @ApiOperation({
+    summary: "Desactivar piloto (soft delete; el cliente, sólo los suyos)",
+  })
+  remove(@Param("id") id: string, @Request() req: ReqConUsuario) {
+    return this.service.remove(id, req.user);
   }
 }

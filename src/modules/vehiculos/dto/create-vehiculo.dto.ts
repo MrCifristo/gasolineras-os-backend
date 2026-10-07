@@ -15,9 +15,14 @@ import {
 } from "class-validator";
 
 export class CreateVehiculoDto {
-  @ApiProperty({ example: "uuid-del-cliente" })
+  @ApiPropertyOptional({
+    example: "uuid-del-cliente",
+    description:
+      "Obligatorio para el admin; el cliente siempre crea a su nombre (se ignora).",
+  })
+  @IsOptional()
   @IsUUID()
-  cliente_id: string;
+  cliente_id?: string;
 
   @ApiProperty({ example: "P-123ABC" })
   @IsString()

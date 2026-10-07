@@ -175,8 +175,17 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   otro campo es 400, `bloqueado: null` es 400. **El cliente puede bloquear
   (`true`) pero no desbloquear:** `bloqueado: false` es siempre 403 "Sólo la
   estación puede desbloquear un vehículo." y no aplica ningún otro campo. Vehículo
-  ajeno o inexistente: 404 indistinguible. El `PATCH /vehiculos/:id` general sigue
-  siendo sólo `admin`.
+  ajeno o inexistente: 404 indistinguible.
+- **El cliente gestiona su flota y sus pilotos:** `POST`, `PATCH /:id` y
+  `DELETE /:id` de `/vehiculos` y `/pilotos` admiten `admin` y `cliente`.
+  El `cliente_id` sale del token y pisa el del body (opcional en el DTO; el admin
+  sin él recibe 400); el filtro por empresa va en el propio UPDATE (ajeno = 404);
+  un `cliente_id` ajeno en el PATCH es 403 ("No puede asignar el vehículo/piloto a
+  otra empresa"); `bloqueado: false` por el PATCH general sigue siendo 403. Asignar
+  pilotos a vehículos (`/vehiculos/:id/pilotos/:pilotoId`) es sólo `admin`.
+  Reglas en `vehiculos.reglas.ts` y `pilotos.reglas.ts`.
+- `GET /vehiculos` y `/:id` incluyen `ultimo_kilometraje` (`MAX(despachos.kilometraje)`,
+  string numérico o `null`) vía subconsulta correlacionada, sin N+1.
 - **Alcance del cliente, fail-closed:** `GET /vehiculos`, `/pilotos`, `/clientes`
   (y sus `:id`), `/despachos/vehiculo/:id/consumo-hoy` y los reportes (`resumen`,
   `consumo-por-vehiculo`, `consumo-por-piloto`, `tendencia-mensual`,
@@ -194,7 +203,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 
 ## Testing
 
-- Unit (`pnpm test`): 351 tests in 28 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 408 tests in 30 suites, no Postgres, about a second.
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
   plain rows (numerics as strings) and `ahora: Date`, never read the clock, the
   DB or `DbService`, and throw the same Nest exceptions with the exact Spanish
@@ -208,13 +217,12 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   compares the message and `toThrow("m")` accepts substrings.
 - Puppeteer is replaced in unit tests by `test/__mocks__/puppeteer.js`
   (`moduleNameMapper` in `package.json`), so PDF code runs without Chromium.
-- Unit suite: 384 tests in 29 suites (`pnpm test`).
 - The suspected bugs H1–H7 found during the extraction were all fixed on
   2026-10-07 (analysis kept in
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 241 tests in 3 suites — `gasfuel` 165, `auth-rotacion` 8,
-  `fase6` 68. Needs live Postgres and a migrated DB; run with
+- E2E (`pnpm test:e2e`): 253 tests in 3 suites — `gasfuel` 166, `auth-rotacion` 8,
+  `fase6` 79. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

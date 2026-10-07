@@ -21,6 +21,10 @@ import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 import { UpdateRestriccionesVehiculoDto } from "./dto/update-restricciones-vehiculo.dto";
 
+type ReqConUsuario = {
+  user: { rol: string; cliente_id?: string | null };
+};
+
 @ApiTags("vehiculos")
 @ApiBearerAuth("JWT")
 @Controller("vehiculos")
@@ -54,17 +58,23 @@ export class VehiculosController {
   }
 
   @Post()
-  @Auth("admin")
-  @ApiOperation({ summary: "Crear vehículo" })
-  create(@Body() dto: CreateVehiculoDto) {
-    return this.service.create(dto);
+  @Auth("admin", "cliente")
+  @ApiOperation({
+    summary: "Crear vehículo (el cliente, a nombre de su empresa)",
+  })
+  create(@Body() dto: CreateVehiculoDto, @Request() req: ReqConUsuario) {
+    return this.service.create(dto, req.user);
   }
 
   @Patch(":id")
-  @Auth("admin")
-  @ApiOperation({ summary: "Editar vehículo" })
-  update(@Param("id") id: string, @Body() dto: UpdateVehiculoDto) {
-    return this.service.update(id, dto);
+  @Auth("admin", "cliente")
+  @ApiOperation({ summary: "Editar vehículo (el cliente, sólo los suyos)" })
+  update(
+    @Param("id") id: string,
+    @Body() dto: UpdateVehiculoDto,
+    @Request() req: ReqConUsuario,
+  ) {
+    return this.service.update(id, dto, req.user);
   }
 
   @Patch(":id/restricciones")
@@ -82,10 +92,12 @@ export class VehiculosController {
   }
 
   @Delete(":id")
-  @Auth("admin")
-  @ApiOperation({ summary: "Desactivar vehículo (soft delete)" })
-  remove(@Param("id") id: string) {
-    return this.service.remove(id);
+  @Auth("admin", "cliente")
+  @ApiOperation({
+    summary: "Desactivar vehículo (soft delete; el cliente, sólo los suyos)",
+  })
+  remove(@Param("id") id: string, @Request() req: ReqConUsuario) {
+    return this.service.remove(id, req.user);
   }
 
   @Post(":id/pilotos/:pilotoId")

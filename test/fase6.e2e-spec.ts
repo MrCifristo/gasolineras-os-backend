@@ -23,7 +23,7 @@ import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { PushService } from "../src/push/push.service";
 import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { RecordatoriosService } from "../src/modules/turnos/recordatorios.service";
-import { clientes, gasolineras, recordatoriosTurno, suscripcionesPush, turnosGasolinera, usuarios } from "../src/db/schema";
+import { clientes, despachos, gasolineras, recordatoriosTurno, suscripcionesPush, turnosGasolinera, usuarios, vehiculos } from "../src/db/schema";
 import { fechaGuatemala } from "../src/common/hora-guatemala";
 
 dotenv.config();
@@ -752,10 +752,10 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(res.status).toBe(400);
     });
 
-    it("el cliente sigue sin poder editar el vehículo en general", async () => {
+    it("el supervisor no puede editar el vehículo en general", async () => {
       const res = await http()
         .patch(`/api/v1/vehiculos/${vehPropioId}`)
-        .set("Authorization", `Bearer ${clienteToken}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
         .send({ marca: "X" });
       expect(res.status).toBe(403);
     });
@@ -879,6 +879,144 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         const res = await http().get(`/api/v1/reportes/rendimiento-vehiculo/${vehAjenoId}`).set(auth());
         expect(res.status).toBe(200);
         expect(res.body).toEqual([]);
+      });
+
+      describe("el cliente gestiona su flota y sus pilotos", () => {
+        const post = (ruta: string, body: object, token = clienteToken) =>
+          http().post(`/api/v1/${ruta}`).set("Authorization", `Bearer ${token}`).send(body);
+        const patchGeneral = (ruta: string, id: string, body: object, token = clienteToken) =>
+          http().patch(`/api/v1/${ruta}/${id}`).set("Authorization", `Bearer ${token}`).send(body);
+
+        it("crea un vehículo a su nombre aunque mande el cliente_id de otro", async () => {
+          const res = await post("vehiculos", { cliente_id: otroClienteId, placa: `NC${RUN_ID}` });
+          expect(res.status).toBe(201);
+          expect(res.body.cliente_id).toBe(clienteId);
+          const sin = await post("vehiculos", { placa: `NS${RUN_ID}` });
+          expect(sin.status).toBe(201);
+          expect(sin.body.cliente_id).toBe(clienteId);
+        });
+
+        it("crea un piloto a su nombre aunque mande el cliente_id de otro", async () => {
+          const res = await post("pilotos", { cliente_id: otroClienteId, nombre_completo: `Nuevo ${RUN_ID}` });
+          expect(res.status).toBe(201);
+          expect(res.body.cliente_id).toBe(clienteId);
+        });
+
+        it("el admin sin cliente_id recibe 400 al crear", async () => {
+          expect((await post("vehiculos", { placa: `AD${RUN_ID}` }, adminToken)).status).toBe(400);
+          expect((await post("pilotos", { nombre_completo: "X" }, adminToken)).status).toBe(400);
+        });
+
+        it("edita su vehículo (200) y uno ajeno da 404", async () => {
+          const ok = await patchGeneral("vehiculos", vehPropioId, { marca: "Hino" });
+          expect(ok.status).toBe(200);
+          expect(ok.body.marca).toBe("Hino");
+          const ajeno = await patchGeneral("vehiculos", vehAjenoId, { marca: "Hack" });
+          expect(ajeno.status).toBe(404);
+          expect(ajeno.body.message).toBe("Vehículo no encontrado");
+          const [fila] = await db.db.select().from(vehiculos).where(eq(vehiculos.id, vehAjenoId));
+          expect(fila.marca).not.toBe("Hack");
+        });
+
+        it("edita su piloto (200) y uno ajeno da 404", async () => {
+          const ok = await patchGeneral("pilotos", pilPropioId, { nombre_completo: "Renombrado" });
+          expect(ok.status).toBe(200);
+          expect(ok.body.nombre_completo).toBe("Renombrado");
+          const ajeno = await patchGeneral("pilotos", pilAjenoId, { nombre_completo: "Hack" });
+          expect(ajeno.status).toBe(404);
+          expect(ajeno.body.message).toBe("Piloto no encontrado");
+        });
+
+        it("no puede mover un vehículo o piloto a otra empresa: 403", async () => {
+          const v = await patchGeneral("vehiculos", vehPropioId, { cliente_id: otroClienteId });
+          expect(v.status).toBe(403);
+          expect(v.body.message).toBe("No puede asignar el vehículo a otra empresa");
+          const p = await patchGeneral("pilotos", pilPropioId, { cliente_id: otroClienteId });
+          expect(p.status).toBe(403);
+          expect(p.body.message).toBe("No puede asignar el piloto a otra empresa");
+        });
+
+        it("bloquea pero no desbloquea por la ruta general", async () => {
+          const bloq = await patchGeneral("vehiculos", vehPropioId, { bloqueado: true });
+          expect(bloq.status).toBe(200);
+          expect(bloq.body.bloqueado).toBe(true);
+          const desb = await patchGeneral("vehiculos", vehPropioId, { bloqueado: false });
+          expect(desb.status).toBe(403);
+          expect(desb.body.message).toBe("Sólo la estación puede desbloquear un vehículo.");
+          const ajeno = await patchGeneral("vehiculos", vehAjenoId, { bloqueado: false });
+          expect(ajeno.status).toBe(404);
+          // El admin sí desbloquea.
+          const admin = await patchGeneral("vehiculos", vehPropioId, { bloqueado: false }, adminToken);
+          expect(admin.status).toBe(200);
+          expect(admin.body.bloqueado).toBe(false);
+        });
+
+        it("da de baja lo suyo y lo ajeno da 404", async () => {
+          const v = await post("vehiculos", { placa: `BJ${RUN_ID}` });
+          const p = await post("pilotos", { nombre_completo: `Baja ${RUN_ID}` });
+          const del = (ruta: string, id: string) =>
+            http().delete(`/api/v1/${ruta}/${id}`).set(auth());
+          const dv = await del("vehiculos", v.body.id);
+          expect(dv.status).toBe(200);
+          expect(dv.body.activo).toBe(false);
+          const dp = await del("pilotos", p.body.id);
+          expect(dp.status).toBe(200);
+          expect(dp.body.activo).toBe(false);
+          expect((await del("vehiculos", vehAjenoId)).status).toBe(404);
+          expect((await del("pilotos", pilAjenoId)).status).toBe(404);
+          const [fila] = await db.db.select().from(vehiculos).where(eq(vehiculos.id, vehAjenoId));
+          expect(fila.activo).toBe(true);
+        });
+
+        it("no puede asignar pilotos a vehículos (sólo admin)", async () => {
+          const res = await http()
+            .post(`/api/v1/vehiculos/${vehPropioId}/pilotos/${pilPropioId}`)
+            .set(auth());
+          expect(res.status).toBe(403);
+        });
+
+        it("un cliente sin empresa no crea, edita ni da de baja", async () => {
+          const u = await crearUsuario("cliente");
+          const token = await loginToken(u.email!);
+          expect((await post("vehiculos", { placa: `SE${RUN_ID}` }, token)).status).toBe(404);
+          expect((await post("pilotos", { nombre_completo: "X" }, token)).status).toBe(404);
+          expect((await patchGeneral("vehiculos", vehPropioId, { marca: "X" }, token)).status).toBe(404);
+          expect((await patchGeneral("pilotos", pilPropioId, { nombre_completo: "X" }, token)).status).toBe(404);
+          const del = await http().delete(`/api/v1/vehiculos/${vehPropioId}`).set("Authorization", `Bearer ${token}`);
+          expect(del.status).toBe(404);
+        });
+
+        it("ultimo_kilometraje: null sin despachos y el máximo con ellos", async () => {
+          const [admin] = await db.db.select().from(usuarios).where(eq(usuarios.email, ADMIN_EMAIL));
+          const nuevo = await post("vehiculos", { placa: `KM${RUN_ID}` });
+          const id = nuevo.body.id as string;
+          const antes = await http().get(`/api/v1/vehiculos/${id}`).set(auth());
+          expect(antes.body.ultimo_kilometraje).toBeNull();
+          const lista0 = await http().get("/api/v1/vehiculos").set(auth());
+          expect(lista0.body.find((v: any) => v.id === id).ultimo_kilometraje).toBeNull();
+
+          const base = {
+            gasolinera_id: gasAId,
+            cliente_id: clienteId,
+            vehiculo_id: id,
+            despachador_id: admin.id,
+            turno: "manana",
+            serie_vale: `KM${RUN_ID}`,
+            galones: "1.000",
+            monto_total: "10.000",
+          };
+          await db.db.insert(despachos).values([
+            { ...base, numero_vale: "000001", kilometraje: "100.000" },
+            { ...base, numero_vale: "000002", kilometraje: "250.500" },
+            { ...base, numero_vale: "000003", kilometraje: null },
+          ]);
+          const uno = await http().get(`/api/v1/vehiculos/${id}`).set(auth());
+          expect(uno.body.ultimo_kilometraje).toBe("250.500");
+          const lista = await http().get("/api/v1/vehiculos").set(auth());
+          expect(lista.body.find((v: any) => v.id === id).ultimo_kilometraje).toBe("250.500");
+          const otro = lista.body.find((v: any) => v.id === vehPropioId);
+          expect(otro).toHaveProperty("ultimo_kilometraje");
+        });
       });
     });
   });

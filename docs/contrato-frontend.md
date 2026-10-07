@@ -307,7 +307,7 @@ Ya **no** responde un arreglo. Ahora:
 
 ### Restricciones de vehículo: `PATCH /vehiculos/:id/restricciones`
 
-`admin` (cualquier vehículo) y `cliente` (sólo los suyos). El `PATCH /vehiculos/:id` general sigue siendo sólo `admin`. El body acepta únicamente campos de restricción, todos opcionales y con las mismas validaciones que al crear el vehículo: `bloqueado`, `limite_monto_{transaccion,dia,semana,mes}`, `limite_volumen_{transaccion,dia,semana,mes}`, `limite_trans_{dia,semana,mes}`, `productos_permitidos`, `dias_permitidos`, `hora_inicio`, `hora_fin` (`HH:mm`). `null` limpia el campo.
+`admin` (cualquier vehículo) y `cliente` (sólo los suyos). El `PATCH /vehiculos/:id` general también lo admite el `cliente` (ver "Flota y pilotos del cliente" abajo). El body acepta únicamente campos de restricción, todos opcionales y con las mismas validaciones que al crear el vehículo: `bloqueado`, `limite_monto_{transaccion,dia,semana,mes}`, `limite_volumen_{transaccion,dia,semana,mes}`, `limite_trans_{dia,semana,mes}`, `productos_permitidos`, `dias_permitidos`, `hora_inicio`, `hora_fin` (`HH:mm`). `null` limpia el campo.
 
 ```json
 // PATCH /api/v1/vehiculos/6f1c.../restricciones
@@ -340,6 +340,15 @@ El rol `cliente` lee los catálogos (no contienen datos de otros clientes) para 
 
 `GET /gasolineras/:id` devuelve también las gasolineras **inactivas** (es un catálogo por id, no un listado operativo); la lista `GET /gasolineras` sólo trae las activas.
 
+### Flota y pilotos del cliente
+
+El `cliente` crea, edita y da de baja **sus** vehículos y pilotos (`POST`, `PATCH /:id`, `DELETE /:id` en `/vehiculos` y `/pilotos`); asignar pilotos a vehículos sigue siendo sólo del `admin`. El `cliente_id` se toma siempre del token y pisa el del body (para el cliente es opcional; para el `admin` sigue siendo obligatorio: 400 `"cliente_id es obligatorio"`). El filtro por empresa va en el propio `UPDATE`, así que ajeno e inexistente dan el mismo 404 (`"Vehículo no encontrado"` / `"Piloto no encontrado"`). Errores 403 del cliente:
+
+- `PATCH` con un `cliente_id` distinto al suyo: `"No puede asignar el vehículo a otra empresa"` / `"No puede asignar el piloto a otra empresa"`.
+- `PATCH /vehiculos/:id` con `bloqueado: false`: `"Sólo la estación puede desbloquear un vehículo."` (puede bloquear, no desbloquear; el vehículo ajeno sigue dando 404 primero).
+
+**`ultimo_kilometraje`** en `GET /vehiculos` y `GET /vehiculos/:id` (cualquier rol que los lea): `MAX(despachos.kilometraje)` del vehículo, como string numérico con 3 decimales (`"250.500"`) o `null` si no tiene despachos con kilometraje. Pasa por `mappers.ts` como el resto de numéricos. Las respuestas de `POST`/`PATCH`/`DELETE` devuelven la fila del vehículo sin ese campo.
+
 ### Alcance del cliente (fail-closed)
 
 Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query (o lo combina con el del token, que es lo mismo: lo ajeno no aparece) y usa el del token. Un recurso ajeno responde 404 (nunca el recurso). Éstas son **todas** las rutas que admiten al rol `cliente`, y lo que recibe un usuario `cliente` sin `cliente_id`:
@@ -357,8 +366,15 @@ Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query (o lo 
 | `GET /reportes/rendimiento-vehiculo/:id` | vehículo ajeno → `[]` | `[]` |
 | `POST /reportes/pdf` | sólo sus datos (los `filtros.cliente_id` se pisan) | 403 `"Cliente sin empresa asignada"` |
 | `GET /vehiculos`, `GET /vehiculos/:id` | sólo los suyos; ajeno → 404 | `[]` / 404 |
+| `POST /vehiculos` | se crea a nombre de su empresa; el `cliente_id` del body se ignora | 404 |
+| `PATCH /vehiculos/:id` | propio; ajeno → 404; `cliente_id` de otra empresa → 403; `bloqueado: false` → 403 | 404 |
+| `DELETE /vehiculos/:id` | baja lógica del propio; ajeno → 404 | 404 |
 | `PATCH /vehiculos/:id/restricciones` | propio; ajeno → 404 | 404 |
+| `POST/DELETE /vehiculos/:id/pilotos/:pilotoId` | sólo `admin` (el cliente recibe 403) | 403 |
 | `GET /pilotos`, `GET /pilotos/:id` | sólo los suyos; ajeno → 404 | `[]` / 404 |
+| `POST /pilotos` | se crea a nombre de su empresa; el `cliente_id` del body se ignora | 404 |
+| `PATCH /pilotos/:id` | propio; ajeno → 404; `cliente_id` de otra empresa → 403 | 404 |
+| `DELETE /pilotos/:id` | baja lógica del propio; ajeno → 404 | 404 |
 | `GET /clientes`, `GET /clientes/:id` | sólo el propio; ajeno → 404 | `[]` / 404 |
 | `GET /gasolineras`, `/gasolineras/:id`, `GET /precios-combustible`, `/hoy` | catálogos sin datos de clientes | igual que con empresa |
 

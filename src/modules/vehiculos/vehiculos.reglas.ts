@@ -1,7 +1,11 @@
 // src/modules/vehiculos/vehiculos.reglas.ts
 // Reglas puras de vehículos: coerción de decimales, alcance del cliente y
 // plantilla de límites. Las consultas siguen en el servicio.
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import type { clientes } from "../../db/schema";
 import type { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 
@@ -55,6 +59,34 @@ export function intentaDesbloquear(
   dto: { bloqueado?: boolean | null },
 ): boolean {
   return user.rol === "cliente" && dto.bloqueado === false;
+}
+
+/**
+ * Empresa dueña de un vehículo nuevo. El cliente crea siempre a su nombre (el
+ * del token pisa el del body; sin empresa, fail-closed); el admin la elige.
+ */
+export function clienteIdParaCrear(
+  user: { rol: string; cliente_id?: string | null },
+  clienteIdDelBody?: string | null,
+): string {
+  const delAlcance = clienteIdDeAlcance(user);
+  if (delAlcance) return delAlcance;
+  if (!clienteIdDelBody)
+    throw new BadRequestException("cliente_id es obligatorio");
+  return clienteIdDelBody;
+}
+
+/** Un cliente no puede mover un vehículo a otra empresa. */
+export function rechazarOtraEmpresa(
+  user: { rol: string; cliente_id?: string | null },
+  clienteIdDelBody?: string | null,
+): void {
+  if (
+    user.rol === "cliente" &&
+    clienteIdDelBody != null &&
+    clienteIdDelBody !== user.cliente_id
+  )
+    throw new ForbiddenException("No puede asignar el vehículo a otra empresa");
 }
 
 export function plantillaDesdeCliente(

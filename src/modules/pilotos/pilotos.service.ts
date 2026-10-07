@@ -4,6 +4,13 @@ import { DbService } from "../../db/db.service";
 import { pilotos, pilotosVehiculos, vehiculos } from "../../db/schema";
 import { CreatePilotoDto } from "./dto/create-piloto.dto";
 import { UpdatePilotoDto } from "./dto/update-piloto.dto";
+import {
+  clienteIdDeAlcancePiloto,
+  clienteIdParaCrearPiloto,
+  rechazarOtraEmpresaPiloto,
+} from "./pilotos.reglas";
+
+type Usuario = { rol: string; cliente_id?: string | null };
 
 @Injectable()
 export class PilotosService {
@@ -53,28 +60,49 @@ export class PilotosService {
     return { ...piloto, vehiculos: pilotoVehiculos.map((r) => r.vehiculo) };
   }
 
-  async create(dto: CreatePilotoDto) {
-    const [row] = await this.db.db.insert(pilotos).values(dto).returning();
+  async create(dto: CreatePilotoDto, user: Usuario) {
+    const cliente_id = clienteIdParaCrearPiloto(user, dto.cliente_id);
+    const [row] = await this.db.db
+      .insert(pilotos)
+      .values({ ...dto, cliente_id })
+      .returning();
     return row;
   }
 
-  async update(id: string, dto: UpdatePilotoDto) {
-    await this.findOne(id);
+  /** Alcance fail-closed: el filtro por cliente_id va en el propio UPDATE. */
+  async update(id: string, dto: UpdatePilotoDto, user: Usuario) {
+    const clienteId = clienteIdDeAlcancePiloto(user);
+    rechazarOtraEmpresaPiloto(user, dto.cliente_id);
+    const condiciones = [eq(pilotos.id, id)];
+    if (clienteId) condiciones.push(eq(pilotos.cliente_id, clienteId));
+    if (Object.keys(dto).length === 0) {
+      const [actual] = await this.db.db
+        .select()
+        .from(pilotos)
+        .where(and(...condiciones))
+        .limit(1);
+      if (!actual) throw new NotFoundException("Piloto no encontrado");
+      return actual;
+    }
     const [row] = await this.db.db
       .update(pilotos)
       .set(dto)
-      .where(eq(pilotos.id, id))
+      .where(and(...condiciones))
       .returning();
+    if (!row) throw new NotFoundException("Piloto no encontrado");
     return row;
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
+  async remove(id: string, user: Usuario) {
+    const clienteId = clienteIdDeAlcancePiloto(user);
+    const condiciones = [eq(pilotos.id, id)];
+    if (clienteId) condiciones.push(eq(pilotos.cliente_id, clienteId));
     const [row] = await this.db.db
       .update(pilotos)
       .set({ activo: false })
-      .where(eq(pilotos.id, id))
+      .where(and(...condiciones))
       .returning();
+    if (!row) throw new NotFoundException("Piloto no encontrado");
     return row;
   }
 }

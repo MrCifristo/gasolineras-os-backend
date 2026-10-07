@@ -1,8 +1,14 @@
 // src/modules/vehiculos/vehiculos.reglas.spec.ts
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { esperarError } from "../../../test/unit/esperar-error";
 import {
   clienteIdDeAlcance,
+  clienteIdParaCrear,
+  rechazarOtraEmpresa,
   coercerDecimales,
   intentaDesbloquear,
   plantillaDesdeCliente,
@@ -182,5 +188,51 @@ describe("plantillaDesdeCliente", () => {
       limite_volumen_semana: 7,
       limite_volumen_mes: 8,
     });
+  });
+});
+
+describe("clienteIdParaCrear", () => {
+  it("el cliente crea a su nombre, pisando el del body", () => {
+    expect(clienteIdParaCrear({ rol: "cliente", cliente_id: "c1" }, "c2")).toBe(
+      "c1",
+    );
+  });
+
+  it("el cliente sin empresa recibe 404", () => {
+    esperarError(
+      () => clienteIdParaCrear({ rol: "cliente", cliente_id: null }, "c2"),
+      NotFoundException,
+      "Vehículo no encontrado",
+    );
+  });
+
+  it("el admin usa el cliente_id del body", () => {
+    expect(clienteIdParaCrear({ rol: "admin" }, "c2")).toBe("c2");
+  });
+
+  it("el admin sin cliente_id recibe 400", () => {
+    esperarError(
+      () => clienteIdParaCrear({ rol: "admin" }),
+      BadRequestException,
+      "cliente_id es obligatorio",
+    );
+  });
+});
+
+describe("rechazarOtraEmpresa", () => {
+  const cliente = { rol: "cliente", cliente_id: "c1" };
+
+  it("el cliente no puede asignar otra empresa: 403", () => {
+    esperarError(
+      () => rechazarOtraEmpresa(cliente, "c2"),
+      ForbiddenException,
+      "No puede asignar el vehículo a otra empresa",
+    );
+  });
+
+  it("permite su propia empresa, el body sin cliente_id y al admin", () => {
+    expect(() => rechazarOtraEmpresa(cliente, "c1")).not.toThrow();
+    expect(() => rechazarOtraEmpresa(cliente, undefined)).not.toThrow();
+    expect(() => rechazarOtraEmpresa({ rol: "admin" }, "c2")).not.toThrow();
   });
 });
