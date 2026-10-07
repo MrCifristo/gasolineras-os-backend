@@ -1,6 +1,7 @@
 // src/auth/token.service.spec.ts
 import { ConfigService } from "@nestjs/config";
 import * as jwt from "jsonwebtoken";
+import { esperarError } from "../../test/unit/esperar-error";
 import {
   AccessClaims,
   ACCESS_TTL_SEGUNDOS,
@@ -9,6 +10,9 @@ import {
   TokenService,
 } from "./token.service";
 
+const MENSAJE_SECRETO =
+  "JWT_ACCESS_SECRET debe estar definido y tener al menos 32 caracteres. " +
+  "Generá uno con: openssl rand -base64 48";
 const SECRETO = "s".repeat(48);
 
 const config = (vars: Record<string, string | undefined>) =>
@@ -35,12 +39,12 @@ describe("TokenService", () => {
 
   it("no arranca sin secreto", () => {
     const s = new TokenService(config({}));
-    expect(() => s.onModuleInit()).toThrow(/JWT_ACCESS_SECRET/);
+    esperarError(() => s.onModuleInit(), Error, MENSAJE_SECRETO);
   });
 
   it("no arranca con un secreto de 31 caracteres", () => {
     const s = new TokenService(config({ JWT_ACCESS_SECRET: "x".repeat(31) }));
-    expect(() => s.onModuleInit()).toThrow(/al menos 32 caracteres/);
+    esperarError(() => s.onModuleInit(), Error, MENSAJE_SECRETO);
   });
 
   it("arranca con un secreto de exactamente 32 caracteres", () => {

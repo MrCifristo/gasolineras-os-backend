@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { eq, or } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { usuarios } from "../db/schema";
 import { normalizarIdentificador } from "./auth.reglas";
+import { buscarUsuarioPorIdentificador } from "./buscar-usuario";
 import { LoginDto } from "./dto/login.dto";
 import { PasswordService } from "./password.service";
 import { SessionService, type MetaSesion } from "./session.service";
@@ -37,17 +37,7 @@ export class AuthService {
   private async buscarPorIdentificador(
     identificador: string,
   ): Promise<Usuario | undefined> {
-    const [usuario] = await this.db.db
-      .select()
-      .from(usuarios)
-      .where(
-        or(
-          eq(usuarios.email, identificador),
-          eq(usuarios.telefono, identificador),
-        ),
-      )
-      .limit(1);
-    return usuario;
+    return buscarUsuarioPorIdentificador(this.db, identificador);
   }
 
   private perfil(u: Usuario): RespuestaAuth["usuario"] {

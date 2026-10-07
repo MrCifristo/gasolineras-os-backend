@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { DbService } from "../db/db.service";
 import { tokensReset, usuarios } from "../db/schema";
 import { escaparHtml } from "../common/escapar-html";
@@ -11,6 +11,7 @@ import {
   exigirUsuarioActivoParaReset,
   normalizarIdentificador,
 } from "./auth.reglas";
+import { buscarUsuarioPorIdentificador } from "./buscar-usuario";
 import { PasswordService } from "./password.service";
 import { SessionService } from "./session.service";
 
@@ -41,17 +42,7 @@ export class PasswordResetService {
   private async buscarPorIdentificador(
     identificador: string,
   ): Promise<Usuario | undefined> {
-    const [usuario] = await this.db.db
-      .select()
-      .from(usuarios)
-      .where(
-        or(
-          eq(usuarios.email, identificador),
-          eq(usuarios.telefono, identificador),
-        ),
-      )
-      .limit(1);
-    return usuario;
+    return buscarUsuarioPorIdentificador(this.db, identificador);
   }
 
   private hashear(tokenPlano: string): string {
