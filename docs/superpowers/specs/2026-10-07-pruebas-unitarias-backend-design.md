@@ -35,7 +35,7 @@ Poder refactorizar la lógica de negocio sin miedo: que las reglas que deciden s
 |---|---|
 | `despachos` | Cascada de bloqueos (sistema, gasolinera, cliente —cuenta y admin—, vehículo); validación de renglones y del par vehículo/piloto; productos permitidos; días permitidos y ventana horaria; galones desde el monto y monto > 0; límites de cuenta (día/semana/mes); límites por transacción; límites acumulados del vehículo (monto, volumen y transacciones × día/semana/mes) y el predicado que decide si se consulta el agregado; kilometraje; validación del PNG de la firma; `normalizarRenglones` y `resumenRenglones`. |
 | `ventas-insumos` | Validaciones de rol, gasolinera, bloqueo de cuenta y stock de `create()`. |
-| `session` | La decisión de rotación en `rotarEnTx`: inválida, revocada, replay (revoca la familia), expirada (por fecha y por familia), usuario inactivo, rol o alcance cambiado. |
+| `session` | La decisión de rotación en `rotarEnTx`: inválida, revocada, replay (revoca la familia), expirada (por fecha y por familia), usuario inactivo o inexistente, sesión anterior al último cambio de contraseña. El replay se decide dentro de la transacción pero la familia se revoca fuera de ella; esa separación se conserva. |
 | `vehiculos` | Permisos de `updateRestricciones`: el cliente bloquea pero no desbloquea; `bloqueado: null` da 400; coerción de decimales. |
 | `usuarios` | Reglas de rol ↔ `cliente_id`/`gasolinera_id`; unicidad de email y teléfono (la decisión, no la consulta). |
 | `saldos` | Validaciones de abono y cuadre; el saldo corrido del estado de cuenta si se calcula en JS. |
