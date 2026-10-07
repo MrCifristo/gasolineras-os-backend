@@ -73,6 +73,25 @@ export function clienteIdResultante(
   return resto.cliente_id !== undefined ? resto.cliente_id : actual.cliente_id;
 }
 
+/**
+ * La tabla exige al menos un identificador (CHECK): se valida el estado que
+ * quedaría tras la edición, igual que `clienteIdResultante`. Un `null`
+ * explícito borra; ausente o undefined conserva el actual.
+ */
+export function exigirIdentificadorResultante(
+  cambios: { email?: string | null; telefono?: string | null },
+  actual: { email: string | null; telefono: string | null },
+): void {
+  const email = cambios.email !== undefined ? cambios.email : actual.email;
+  const telefono =
+    cambios.telefono !== undefined ? cambios.telefono : actual.telefono;
+  if (!email && !telefono) {
+    throw new BadRequestException(
+      "Debe indicar un correo o un número de teléfono",
+    );
+  }
+}
+
 /** El cliente corporativo recibe el enlace para elegir su propia contraseña. */
 export function debeEnviarEnlaceDeAlta(u: {
   rol: string;

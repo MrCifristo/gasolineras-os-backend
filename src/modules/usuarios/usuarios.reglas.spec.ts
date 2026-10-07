@@ -6,6 +6,7 @@ import {
   debeEnviarEnlaceDeAlta,
   exigirEmpresaSiEsCliente,
   exigirNoRegistrado,
+  exigirIdentificadorResultante,
   identificadoresDeAlta,
   normalizarCambios,
 } from "./usuarios.reglas";
@@ -185,5 +186,55 @@ describe("debeEnviarEnlaceDeAlta", () => {
     expect(debeEnviarEnlaceDeAlta({ rol: "admin", email: "a@x.com" })).toBe(
       false,
     );
+  });
+});
+
+describe("exigirIdentificadorResultante", () => {
+  const soloTelefono = { email: null, telefono: "5555" };
+  const soloCorreo = { email: "a@b.c", telefono: null };
+  const MSG = "Debe indicar un correo o un número de teléfono";
+
+  it("sin cambios de identificadores conserva los actuales", () => {
+    expect(() => exigirIdentificadorResultante({}, soloTelefono)).not.toThrow();
+  });
+
+  it("claves presentes con undefined cuentan como ausentes", () => {
+    expect(() =>
+      exigirIdentificadorResultante(
+        { email: undefined, telefono: undefined },
+        soloTelefono,
+      ),
+    ).not.toThrow();
+  });
+
+  it("vaciar el único identificador: 400", () => {
+    esperarError(
+      () => exigirIdentificadorResultante({ telefono: null }, soloTelefono),
+      BadRequestException,
+      MSG,
+    );
+    esperarError(
+      () => exigirIdentificadorResultante({ email: null }, soloCorreo),
+      BadRequestException,
+      MSG,
+    );
+  });
+
+  it("vaciar uno estando el otro presente pasa", () => {
+    expect(() =>
+      exigirIdentificadorResultante(
+        { telefono: null },
+        { email: "a@b.c", telefono: "5555" },
+      ),
+    ).not.toThrow();
+  });
+
+  it("agregar un identificador a quien solo tenía otro pasa", () => {
+    expect(() =>
+      exigirIdentificadorResultante(
+        { email: "x@y.z", telefono: null },
+        soloTelefono,
+      ),
+    ).not.toThrow();
   });
 });

@@ -10,6 +10,7 @@ import { ModoReset } from "./dto/reset-password-admin.dto";
 import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
 import {
   clienteIdResultante,
+  exigirIdentificadorResultante,
   debeEnviarEnlaceDeAlta,
   exigirEmpresaSiEsCliente,
   exigirNoRegistrado,
@@ -163,6 +164,8 @@ export class UsuariosService {
 
     const cambios: Partial<typeof usuarios.$inferInsert> =
       normalizarCambios(resto);
+    // Tras normalizar: "   " ya es null y no debe dejar al usuario sin acceso.
+    exigirIdentificadorResultante(cambios, actual);
 
     if (password) {
       cambios.password_hash = await this.passwords.hashear(password);
