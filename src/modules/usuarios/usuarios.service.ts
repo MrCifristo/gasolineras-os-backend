@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { PasswordResetService } from "../../auth/password-reset.service";
 import { PasswordService } from "../../auth/password.service";
@@ -13,6 +8,14 @@ import { usuarios } from "../../db/schema";
 import { CreateUsuarioDto } from "./dto/create-usuario.dto";
 import { ModoReset } from "./dto/reset-password-admin.dto";
 import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
+import {
+  clienteIdResultante,
+  debeEnviarEnlaceDeAlta,
+  exigirEmpresaSiEsCliente,
+  exigirNoRegistrado,
+  identificadoresDeAlta,
+  normalizarCambios,
+} from "./usuarios.reglas";
 
 // El hash nunca sale del servicio: si se filtra en una respuesta, queda
 // expuesto a fuerza bruta offline.
@@ -26,22 +29,6 @@ const CAMPOS_PUBLICOS = {
   cliente_id: usuarios.cliente_id,
   activo: usuarios.activo,
 };
-
-/**
- * Un usuario cliente sin empresa no tiene alcance: los servicios fallan
- * cerrado con él, pero cualquier ruta que olvide hacerlo le mostraría los
- * datos de todos los clientes. Defensa en profundidad: no puede existir.
- */
-function exigirEmpresaSiEsCliente(
-  rol: string | undefined,
-  clienteId: string | null | undefined,
-) {
-  if (rol === "cliente" && !clienteId) {
-    throw new BadRequestException(
-      "Un usuario cliente debe tener una empresa (cliente_id) asignada",
-    );
-  }
-}
 
 @Injectable()
 export class UsuariosService {
@@ -74,15 +61,7 @@ export class UsuariosService {
   async create(dto: CreateUsuarioDto) {
     const { password, ...datos } = dto;
 
-    // El correo es opcional: un cliente puede tener sólo teléfono. Se exige al
-    // menos uno de los dos como identificador de acceso.
-    const email = datos.email ? datos.email.toLowerCase() : null;
-    const telefono = datos.telefono ? datos.telefono.trim() : null;
-    if (!email && !telefono) {
-      throw new BadRequestException(
-        "Debe indicar un correo o un número de teléfono",
-      );
-    }
+    const { email, telefono } = identificadoresDeAlta(datos);
     exigirEmpresaSiEsCliente(datos.rol, datos.cliente_id);
 
     if (email) {
@@ -91,8 +70,7 @@ export class UsuariosService {
         .from(usuarios)
         .where(eq(usuarios.email, email))
         .limit(1);
-      if (existente)
-        throw new BadRequestException("El email ya está registrado");
+      exigirNoRegistrado(existente, "email");
     }
     if (telefono) {
       const [existente] = await this.db.db
@@ -100,8 +78,7 @@ export class UsuariosService {
         .from(usuarios)
         .where(eq(usuarios.telefono, telefono))
         .limit(1);
-      if (existente)
-        throw new BadRequestException("El teléfono ya está registrado");
+      exigirNoRegistrado(existente, "teléfono");
     }
 
     // Si el admin no fija una, se genera. En ambos casos el texto plano sale
@@ -125,7 +102,7 @@ export class UsuariosService {
     // El cliente corporativo recibe el enlace para elegir su propia contraseña.
     // Fire-and-forget: que el proveedor de correo falle no puede tumbar el alta
     // del usuario, que ya está creado y con credenciales utilizables.
-    if (row.rol === "cliente" && row.email) {
+    if (debeEnviarEnlaceDeAlta(row)) {
       this.reset
         .enviarEnlace(row)
         .catch((e: Error) =>
@@ -181,12 +158,11 @@ export class UsuariosService {
     // quitarle la empresa a un cliente, también lo dejaría sin alcance.
     exigirEmpresaSiEsCliente(
       resto.rol ?? actual.rol,
-      "cliente_id" in resto ? resto.cliente_id : actual.cliente_id,
+      clienteIdResultante(resto, actual),
     );
 
-    const cambios: Partial<typeof usuarios.$inferInsert> = { ...resto };
-    if (resto.email) cambios.email = resto.email.toLowerCase();
-    if (resto.telefono) cambios.telefono = resto.telefono.trim();
+    const cambios: Partial<typeof usuarios.$inferInsert> =
+      normalizarCambios(resto);
 
     if (password) {
       cambios.password_hash = await this.passwords.hashear(password);
