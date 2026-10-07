@@ -219,10 +219,19 @@ export function validarHorarioVehiculo(
 
 /** Estado de la ventana horaria del vehículo, para el panel del supervisor. */
 export function estadoHorario(
-  v: { hora_inicio: string | null; hora_fin: string | null },
+  v: {
+    dias_permitidos: string[] | null;
+    hora_inicio: string | null;
+    hora_fin: string | null;
+  },
   ahora: Date,
 ): { dentro_de_horario: boolean; minutos_restantes: number } {
-  const { minutos } = diaYMinutoGuatemala(ahora);
+  const { dia, minutos } = diaYMinutoGuatemala(ahora);
+  // Igual que `validarHorarioVehiculo`: en un día no permitido `create`
+  // rechaza, así que el indicador no puede decir "dentro de horario".
+  if (v.dias_permitidos?.length && !v.dias_permitidos.includes(dia)) {
+    return { dentro_de_horario: false, minutos_restantes: 0 };
+  }
   const dentro =
     !v.hora_inicio ||
     !v.hora_fin ||

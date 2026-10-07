@@ -98,6 +98,11 @@ Los límites de tasa aplican: `solicitar` 5/min, `reset` 10/min, por IP.
 
 Ambos son `boolean` en `clientes` y se editan por `POST`/`PATCH /clientes`. `GET /despachos/vehiculo/:id/consumo-hoy` ahora devuelve **`cliente_credito_bloqueado`** junto a `cliente_bloqueado`, para que el checklist del operario diga cuál de los dos es.
 
+**`consumo-hoy`: `horario` y `consumo` del vehículo (corregido 2026-10-07).**
+- `horario.dentro_de_horario` ya **no mira sólo la ventana horaria**: también considera `dias_permitidos`, igual que `POST /despachos`. En un día no permitido (día actual de Guatemala) es `false` y `minutos_restantes` es `0`, aunque la hora esté dentro de la ventana. Sin `dias_permitidos` (o lista vacía) no cambia nada.
+- Una ventana que cruza la medianoche (`hora_inicio` > `hora_fin`, p. ej. 22:00–06:00) es válida: está dentro desde `hora_inicio` hasta las `hora_fin` del día siguiente, bordes inclusivos, y `minutos_restantes` cuenta hasta ese cierre. El día permitido se evalúa con el día actual de Guatemala.
+- `consumo.*` del vehículo cuenta sólo el renglón `vehiculo` de cada vale (no canecas ni toneles) y las transacciones por vale, exactamente lo que `POST /despachos` aplica a los límites.
+
 **Saldo inicial.** `POST /clientes` acepta `saldo_inicial` (número, `>= 0`, opcional). **No es una columna**: abre la cuenta con ese saldo y deja un movimiento `credito` con descripción `"Saldo inicial"` y **`gasolinera_id: null`**, porque una apertura no ocurre en ninguna estación.
 
 > Consecuencia para el frontend: **`movimientos_saldo.gasolinera_id` ahora puede venir `null`**. Toda tabla o agrupación por estación tiene que contemplarlo (mostrar "—", no romper).

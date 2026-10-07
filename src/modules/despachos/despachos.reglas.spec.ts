@@ -408,10 +408,12 @@ describe("validarHorarioVehiculo", () => {
 
 describe("estadoHorario", () => {
   const ventana = (hora_inicio: string | null, hora_fin: string | null) => ({
+    dias_permitidos: null,
     hora_inicio,
     hora_fin,
   });
   // Instante UTC que corresponde a esa hora de reloj en Guatemala (UTC−6).
+  // 2026-09-30 es miércoles.
   const gt = (hhmm: string) => new Date(`2026-09-30T${hhmm}:00-06:00`);
 
   it("sin ventana siempre está dentro y no hay minutos restantes", () => {
@@ -447,6 +449,42 @@ describe("estadoHorario", () => {
       dentro_de_horario: true,
       minutos_restantes: 600,
     });
+  });
+
+  it("en un día no permitido está fuera y no queda tiempo, aunque la hora sea válida", () => {
+    expect(
+      estadoHorario(
+        { ...ventana("06:00", "18:00"), dias_permitidos: ["jueves"] },
+        gt("08:00"),
+      ),
+    ).toEqual({ dentro_de_horario: false, minutos_restantes: 0 });
+  });
+
+  it("en un día no permitido está fuera aunque no haya ventana horaria", () => {
+    expect(
+      estadoHorario(
+        { ...ventana(null, null), dias_permitidos: ["jueves"] },
+        gt("08:00"),
+      ),
+    ).toEqual({ dentro_de_horario: false, minutos_restantes: 0 });
+  });
+
+  it("en un día permitido se comporta como sin restricción de días", () => {
+    expect(
+      estadoHorario(
+        { ...ventana("06:00", "18:00"), dias_permitidos: ["miercoles"] },
+        gt("08:00"),
+      ),
+    ).toEqual({ dentro_de_horario: true, minutos_restantes: 600 });
+  });
+
+  it("una lista vacía de días no restringe", () => {
+    expect(
+      estadoHorario(
+        { ...ventana("06:00", "18:00"), dias_permitidos: [] },
+        gt("08:00"),
+      ),
+    ).toEqual({ dentro_de_horario: true, minutos_restantes: 600 });
   });
 });
 
