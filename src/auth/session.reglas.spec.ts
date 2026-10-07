@@ -82,6 +82,37 @@ describe("validarSesionParaRotar", () => {
     expect((capturado as ReplayError).familiaId).toBe("fam-1");
   });
 
+  // Seguridad: una sesión ya canjeada y además vencida sigue siendo un replay.
+  // Si ganara "Sesión expirada", un refresh robado y reusado tras vencer no
+  // revocaría la familia.
+  it("usada y con expira_at vencido: ReplayError, no Sesión expirada", () => {
+    let capturado: unknown;
+    try {
+      validarSesionParaRotar(
+        { ...vigente(), usado_at: T, expira_at: en(-1) },
+        T,
+      );
+    } catch (e) {
+      capturado = e;
+    }
+    expect(capturado).toBeInstanceOf(ReplayError);
+    expect((capturado as ReplayError).familiaId).toBe("fam-1");
+  });
+
+  it("usada y con familia_expira_at vencido: ReplayError, no Sesión expirada", () => {
+    let capturado: unknown;
+    try {
+      validarSesionParaRotar(
+        { ...vigente(), usado_at: T, familia_expira_at: en(-1) },
+        T,
+      );
+    } catch (e) {
+      capturado = e;
+    }
+    expect(capturado).toBeInstanceOf(ReplayError);
+    expect((capturado as ReplayError).familiaId).toBe("fam-1");
+  });
+
   it("expira_at igual a ahora: 401 Sesión expirada", () => {
     esperarError(
       () => validarSesionParaRotar({ ...vigente(), expira_at: T }, T),

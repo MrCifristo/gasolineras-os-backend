@@ -37,6 +37,18 @@ describe("identificadoresDeAlta", () => {
   );
 });
 
+describe("hallazgos de identificadoresDeAlta", () => {
+  // HALLAZGO H6: "   " es truthy, se recorta a "" y se devuelve "" en vez de
+  // null. Como `telefono` es UNIQUE, el siguiente alta con teléfono vacío
+  // recibiría "El teléfono ya está registrado".
+  it('HALLAZGO H6: un teléfono de sólo espacios con correo da telefono "" (no null)', () => {
+    expect(identificadoresDeAlta({ email: "a@b.c", telefono: "   " })).toEqual({
+      email: "a@b.c",
+      telefono: "",
+    });
+  });
+});
+
 describe("exigirEmpresaSiEsCliente", () => {
   it.each([undefined, null, ""])(
     "rechaza con 400 a un cliente sin empresa (%p)",

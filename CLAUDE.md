@@ -193,7 +193,24 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 
 ## Testing
 
-- Unit (`pnpm test`): 36 tests in 6 suites.
+- Unit (`pnpm test`): 350 tests in 28 suites, no Postgres, about a second.
+- **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
+  plain rows (numerics as strings) and `ahora: Date`, never read the clock, the
+  DB or `DbService`, and throw the same Nest exceptions with the exact Spanish
+  messages the service used to. Queries stay in the service. A rule is a move,
+  not a redesign: same message, same validation order.
+- **`pnpm test:cov` enforces 100% (lines, branches, functions, statements) on
+  every `./src/**/*.reglas.ts`** (`coverageThreshold` in `package.json`). A new
+  rule without a test fails the run. No threshold for the rest of the code.
+- **Assert error class *and* exact message** with `esperarError` /
+  `esperarRechazo` from `test/unit/esperar-error.ts`. `toThrow(new X("m"))` only
+  compares the message and `toThrow("m")` accepts substrings.
+- Puppeteer is replaced in unit tests by `test/__mocks__/puppeteer.js`
+  (`moduleNameMapper` in `package.json`), so PDF code runs without Chromium.
+- Suspected bugs found during the extraction are pinned by tests named
+  `HALLAZGO Hn: …` (`grep -rn HALLAZGO src`) and documented in
+  `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`
+  (`## Hallazgos`). They are not fixed; fixing one means flipping its test.
 - E2E (`pnpm test:e2e`): 237 tests in 3 suites — `gasfuel` 161, `auth-rotacion` 8,
   `fase6` 68. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.

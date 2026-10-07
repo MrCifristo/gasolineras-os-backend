@@ -95,3 +95,53 @@ Poder refactorizar la lógica de negocio sin miedo: que las reglas que deciden s
 - Bugs hallados anotados y presentados a Milton.
 - `CLAUDE.md` del backend: la sección "Testing" con el conteo nuevo, la convención `*.reglas.ts` y el umbral de cobertura.
 - `CLAUDE.md` del workspace corregido: la sección "Testing reality" y la línea que dice que no existe API de saldos ni de reportes (sí existen: `/saldos/*` y `/reportes/*`; lo que falta es que el `useReportes.ts` del frontend las use).
+
+## Hallazgos
+
+Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en este trabajo: cada uno queda fijado por una prueba (que habría que invertir al corregirlo) o anotado como "sin prueba unitaria". Pendiente de la decisión de Milton.
+
+### H1. Una ventana horaria que cruza la medianoche nunca deja despachar
+
+- **Qué pasa:** con `hora_inicio` 22:00 y `hora_fin` 06:00 el vehículo rechaza todo despacho, incluso a las 23:00 GT, con "Despacho fuera del horario autorizado (22:00–06:00)". El DTO acepta esa ventana.
+- **Dónde:** `despachos.reglas.ts`, `validarHorarioVehiculo` (compara `inicio <= minutos <= fin` sin contemplar `inicio > fin`).
+- **Prueba:** `HALLAZGO H1` en `despachos.reglas.spec.ts`.
+- **Para corregirlo:** si `inicio > fin`, aceptar `minutos >= inicio || minutos <= fin`; aplicar lo mismo en `estadoHorario`; o bien hacer que el DTO rechace ventanas con `inicio > fin`.
+
+### H2. Precio por galón 0 produce galones infinitos
+
+- **Qué pasa:** `@IsNumberString` acepta "0" como precio; `valorizarRenglon` divide el monto entre 0 y da `Infinity` galones, lo que probablemente termina en un 500 al insertar en `numeric`.
+- **Dónde:** `despachos.reglas.ts`, `valorizarRenglon`.
+- **Prueba:** `HALLAZGO H2` en `despachos.reglas.spec.ts`.
+- **Para corregirlo:** rechazar precio <= 0 con 400 al crear o al fijar el precio del día, o validarlo en `valorizarRenglon`.
+
+### H3. El consumo del vehículo en `getConsumoHoy` no coincide con el que aplica `create`
+
+- **Qué pasa:** `getConsumoHoy` suma el encabezado (`despachos.monto_total` / `galones`, que incluye canecas y toneles); `create` suma `despacho_detalles` con `renglon = 'vehiculo'`. En vales mixtos el supervisor ve más consumo del que realmente se aplica al límite.
+- **Dónde:** `despachos.service.ts`, `getConsumoHoy` (SQL).
+- **Prueba:** sin prueba unitaria, porque es SQL y lo cubren los e2e.
+- **Para corregirlo:** que `getConsumoHoy` agregue sobre `despacho_detalles` filtrado a `renglon = 'vehiculo'`, igual que `create`.
+
+### H4. `dentro_de_horario` de `getConsumoHoy` ignora `dias_permitidos`
+
+- **Qué pasa:** el indicador sólo mira la ventana horaria; un vehículo en un día no permitido aparece "dentro de horario" y `create` luego lo rechaza.
+- **Dónde:** `despachos.service.ts`, `getConsumoHoy`, vía `estadoHorario` (`despachos.reglas.ts`), que no recibe los días.
+- **Prueba:** sin prueba unitaria: `estadoHorario` no recibe los días, no hay nada que fijar.
+- **Para corregirlo:** pasar `dias_permitidos` y `ahora` a `estadoHorario` (o componerlo con `validarDiaVehiculo`).
+
+### H5 (menor). `validarMontoAbono` deja pasar texto no numérico
+
+- **Qué pasa:** "abc" da `NaN` y `NaN <= 0` es falso, así que la regla no lanza. Hoy lo frena `@IsNumberString` del DTO.
+- **Dónde:** `saldos.reglas.ts`, `validarMontoAbono`.
+- **Prueba:** `HALLAZGO H5` en `saldos.reglas.spec.ts`.
+- **Para corregirlo:** `if (!(Number(monto) > 0)) throw …`.
+
+### H6. Un teléfono de sólo espacios se guarda como "" en vez de null
+
+- **Qué pasa:** `"   "` es truthy, se recorta a `""` y se guarda `""` cuando hay correo. Como `telefono` es UNIQUE, el siguiente usuario con teléfono vacío recibe "El teléfono ya está registrado". Pasa igual en `normalizarCambios` (edición).
+- **Dónde:** `usuarios.reglas.ts`, `identificadoresDeAlta` y `normalizarCambios`.
+- **Prueba:** `HALLAZGO H6` en `usuarios.reglas.spec.ts` (fija `identificadoresDeAlta({ email: "a@b.c", telefono: "   " })` con `telefono: ""`).
+- **Para corregirlo:** recortar primero y convertir el resultado vacío en `null` (`datos.telefono?.trim() || null`), también en `normalizarCambios`.
+
+### Nota menor (no es un hallazgo)
+
+El `catch` que lanza "Firma inválida" en `decodificarFirmaPng` es inalcanzable con una entrada `string`: `Buffer.from(…, "base64")` no lanza. Sólo se cubre con un doble que fuerce el error.
