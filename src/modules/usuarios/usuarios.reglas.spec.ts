@@ -38,7 +38,7 @@ describe("identificadoresDeAlta", () => {
 });
 
 describe("identificadoresDeAlta con identificadores en blanco", () => {
-  it('un teléfono de sólo espacios con correo da telefono null', () => {
+  it("un teléfono de sólo espacios con correo da telefono null", () => {
     expect(identificadoresDeAlta({ email: "a@b.c", telefono: "   " })).toEqual({
       email: "a@b.c",
       telefono: null,
@@ -53,9 +53,9 @@ describe("identificadoresDeAlta con identificadores en blanco", () => {
   });
 
   it("recorta y baja a minúsculas el correo", () => {
-    expect(identificadoresDeAlta({ email: "  A@B.C ", telefono: null })).toEqual(
-      { email: "a@b.c", telefono: null },
-    );
+    expect(
+      identificadoresDeAlta({ email: "  A@B.C ", telefono: null }),
+    ).toEqual({ email: "a@b.c", telefono: null });
   });
 
   it("ambos en blanco rechaza con 400", () => {

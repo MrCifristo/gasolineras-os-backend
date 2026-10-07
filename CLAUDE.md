@@ -208,11 +208,13 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   compares the message and `toThrow("m")` accepts substrings.
 - Puppeteer is replaced in unit tests by `test/__mocks__/puppeteer.js`
   (`moduleNameMapper` in `package.json`), so PDF code runs without Chromium.
-- Suspected bugs found during the extraction are pinned by tests named
-  `HALLAZGO Hn: …` (`grep -rn HALLAZGO src`) and documented in
-  `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`
-  (`## Hallazgos`). They are not fixed; fixing one means flipping its test.
-- E2E (`pnpm test:e2e`): 237 tests in 3 suites — `gasfuel` 161, `auth-rotacion` 8,
+- Unit suite: 384 tests in 29 suites (`pnpm test`).
+- The suspected bugs H1–H7 found during the extraction were all fixed on
+  2026-10-07 (analysis kept in
+  `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
+  `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
+  is pinned that way, `grep -rn HALLAZGO src` lists it.
+- E2E (`pnpm test:e2e`): 241 tests in 3 suites — `gasfuel` 165, `auth-rotacion` 8,
   `fase6` 68. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

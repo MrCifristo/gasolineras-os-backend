@@ -98,9 +98,11 @@ Poder refactorizar la lógica de negocio sin miedo: que las reglas que deciden s
 
 ## Hallazgos
 
-Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en este trabajo: cada uno queda fijado por una prueba (que habría que invertir al corregirlo) o anotado como "sin prueba unitaria". Pendiente de la decisión de Milton.
+Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrigió en este trabajo: cada uno quedó fijado por una prueba o anotado como "sin prueba unitaria". Milton aprobó corregirlos todos y se corrigieron el 2026-10-07 (cada uno lleva su nota **Corregido**); el análisis original se conserva.
 
 ### H1. Una ventana horaria que cruza la medianoche nunca deja despachar
+
+**Corregido (2026-10-07):** `dentroDeVentana` acepta `minutos >= inicio || minutos <= fin` cuando `inicio > fin` (bordes inclusivos); `estadoHorario` calcula los minutos restantes hasta el cierre del día siguiente.
 
 - **Qué pasa:** con `hora_inicio` 22:00 y `hora_fin` 06:00 el vehículo rechaza todo despacho, incluso a las 23:00 GT, con "Despacho fuera del horario autorizado (22:00–06:00)". El DTO acepta esa ventana.
 - **Dónde:** `despachos.reglas.ts`, `validarHorarioVehiculo` (compara `inicio <= minutos <= fin` sin contemplar `inicio > fin`).
@@ -110,12 +112,16 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 
 ### H2. Precio por galón 0 produce galones infinitos
 
+**Corregido (2026-10-07):** nueva regla `validarPrecioGalon` (400 "El precio por galón debe ser mayor a cero") en el alta y la corrección de precios; `valorizarRenglon` rechaza un precio no válido como defensa, después del chequeo del monto.
+
 - **Qué pasa:** `@IsNumberString` acepta "0" como precio; `valorizarRenglon` divide el monto entre 0 y da `Infinity` galones, lo que probablemente termina en un 500 al insertar en `numeric`.
 - **Dónde:** `despachos.reglas.ts`, `valorizarRenglon`.
 - **Prueba:** `HALLAZGO H2` en `despachos.reglas.spec.ts`.
 - **Para corregirlo:** rechazar precio <= 0 con 400 al crear o al fijar el precio del día, o validarlo en `valorizarRenglon`.
 
 ### H3. El consumo del vehículo en `getConsumoHoy` no coincide con el que aplica `create`
+
+**Corregido (2026-10-07):** `consumoVehiculo` y `consumoCliente` son privados compartidos por `create` y `getConsumoHoy`; el consumo del vehículo ya cuenta sólo el renglón `vehiculo`.
 
 - **Qué pasa:** `getConsumoHoy` suma el encabezado (`despachos.monto_total` / `galones`, que incluye canecas y toneles); `create` suma `despacho_detalles` con `renglon = 'vehiculo'`. En vales mixtos el supervisor ve más consumo del que realmente se aplica al límite.
 - **Dónde:** `despachos.service.ts`, `getConsumoHoy` (SQL).
@@ -124,12 +130,16 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 
 ### H4. `dentro_de_horario` de `getConsumoHoy` ignora `dias_permitidos`
 
+**Corregido (2026-10-07):** `estadoHorario` recibe `dias_permitidos`; en un día no permitido devuelve fuera de horario con 0 minutos restantes. Documentado en el contrato.
+
 - **Qué pasa:** el indicador sólo mira la ventana horaria; un vehículo en un día no permitido aparece "dentro de horario" y `create` luego lo rechaza.
 - **Dónde:** `despachos.service.ts`, `getConsumoHoy`, vía `estadoHorario` (`despachos.reglas.ts`), que no recibe los días.
 - **Prueba:** sin prueba unitaria: `estadoHorario` no recibe los días, no hay nada que fijar.
 - **Para corregirlo:** pasar `dias_permitidos` y `ahora` a `estadoHorario` (o componerlo con `validarDiaVehiculo`).
 
 ### H5 (menor). `validarMontoAbono` deja pasar texto no numérico
+
+**Corregido (2026-10-07):** `validarMontoAbono` usa `!(Number(monto) > 0)`.
 
 - **Qué pasa:** "abc" da `NaN` y `NaN <= 0` es falso, así que la regla no lanza. Hoy lo frena `@IsNumberString` del DTO.
 - **Dónde:** `saldos.reglas.ts`, `validarMontoAbono`.
@@ -138,6 +148,8 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 
 ### H6. Un teléfono de sólo espacios se guarda como "" en vez de null
 
+**Corregido (2026-10-07):** `identificadoresDeAlta` y `normalizarCambios` recortan y convierten el vacío en `null`; la migración `0007_telefono_vacio_a_null` limpia los `""` ya guardados en `usuarios.telefono` y `usuarios.email`.
+
 - **Qué pasa:** `"   "` es truthy, se recorta a `""` y se guarda `""` cuando hay correo. En `usuarios.service.ts` (`create`) la comprobación de unicidad está dentro de `if (telefono)` y `""` es falsy, así que `exigirNoRegistrado` no corre: el segundo alta con teléfono vacío llega al INSERT y choca con `telefono UNIQUE` (`usuarios.schema.ts:26`). El servicio no captura el `23505`, así que el resultado es un error de base de datos sin mensaje en español (probablemente un 500; no verificado, igual que en H2). En `update` no hay comprobación de unicidad. `normalizarCambios` tiene el mismo recorte.
 - **Dónde:** `usuarios.reglas.ts`, `identificadoresDeAlta` y `normalizarCambios`.
 - **Mismo origen en la autenticación:** `LoginDto` (`@IsNotEmpty`) y `SolicitarResetDto` (`@MinLength(3)`) aceptan `"   "`; `normalizarIdentificador` lo reduce a `""`, que coincide con el usuario que tenga `telefono = ""`. No es una vulnerabilidad: el login exige contraseña y el reset llega al dueño de la cuenta.
@@ -145,6 +157,8 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 - **Para corregirlo:** recortar primero y convertir el resultado vacío en `null` (`datos.telefono?.trim() || null`), también en `normalizarCambios`.
 
 ### H7. `PATCH /usuarios/:id` a un cliente sin reenviar `cliente_id` responde 400
+
+**Corregido (2026-10-07):** `clienteIdResultante` usa `resto.cliente_id !== undefined`; un `null` explícito sigue quitando la empresa. E2E nuevo del `PATCH` sin `cliente_id`.
 
 - **Qué pasa:** `clienteIdResultante` usa `"cliente_id" in resto`. Con `target: ES2023`, `UpdateUsuarioDto` emite sus campos como class fields, y tras el `ValidationPipe` de producción (whitelist + forbidNonWhitelisted + transform) un body `{ nombre: "Ana" }` llega con `cliente_id` como clave propia con valor `undefined` (verificado con `plainToInstance`: `Object.keys` incluye `cliente_id`). La condición es siempre verdadera, el resultado es `undefined` y `exigirEmpresaSiEsCliente` responde 400 "Un usuario cliente debe tener una empresa (cliente_id) asignada". El frontend siempre reenvía `cliente_id`, y ningún e2e cubre este caso.
 - **Dónde:** `usuarios.reglas.ts`, `clienteIdResultante`, llamada desde `usuarios.service.ts` (`update`).
