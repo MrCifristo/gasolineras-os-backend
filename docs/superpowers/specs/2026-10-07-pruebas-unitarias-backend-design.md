@@ -106,6 +106,7 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 - **Dónde:** `despachos.reglas.ts`, `validarHorarioVehiculo` (compara `inicio <= minutos <= fin` sin contemplar `inicio > fin`).
 - **Prueba:** `HALLAZGO H1` en `despachos.reglas.spec.ts`.
 - **Para corregirlo:** si `inicio > fin`, aceptar `minutos >= inicio || minutos <= fin`; aplicar lo mismo en `estadoHorario`; o bien hacer que el DTO rechace ventanas con `inicio > fin`.
+- **Un solo lugar:** `validarHorarioVehiculo` y `estadoHorario` comparten el helper interno `dentroDeVentana` (`despachos.reglas.ts`), así que corregir H1 toca una sola función.
 
 ### H2. Precio por galón 0 produce galones infinitos
 
@@ -139,8 +140,16 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 
 - **Qué pasa:** `"   "` es truthy, se recorta a `""` y se guarda `""` cuando hay correo. En `usuarios.service.ts` (`create`) la comprobación de unicidad está dentro de `if (telefono)` y `""` es falsy, así que `exigirNoRegistrado` no corre: el segundo alta con teléfono vacío llega al INSERT y choca con `telefono UNIQUE` (`usuarios.schema.ts:26`). El servicio no captura el `23505`, así que el resultado es un error de base de datos sin mensaje en español (probablemente un 500; no verificado, igual que en H2). En `update` no hay comprobación de unicidad. `normalizarCambios` tiene el mismo recorte.
 - **Dónde:** `usuarios.reglas.ts`, `identificadoresDeAlta` y `normalizarCambios`.
+- **Mismo origen en la autenticación:** `LoginDto` (`@IsNotEmpty`) y `SolicitarResetDto` (`@MinLength(3)`) aceptan `"   "`; `normalizarIdentificador` lo reduce a `""`, que coincide con el usuario que tenga `telefono = ""`. No es una vulnerabilidad: el login exige contraseña y el reset llega al dueño de la cuenta.
 - **Prueba:** `HALLAZGO H6` en `usuarios.reglas.spec.ts` (fija `identificadoresDeAlta({ email: "a@b.c", telefono: "   " })` con `telefono: ""`).
 - **Para corregirlo:** recortar primero y convertir el resultado vacío en `null` (`datos.telefono?.trim() || null`), también en `normalizarCambios`.
+
+### H7. `PATCH /usuarios/:id` a un cliente sin reenviar `cliente_id` responde 400
+
+- **Qué pasa:** `clienteIdResultante` usa `"cliente_id" in resto`. Con `target: ES2023`, `UpdateUsuarioDto` emite sus campos como class fields, y tras el `ValidationPipe` de producción (whitelist + forbidNonWhitelisted + transform) un body `{ nombre: "Ana" }` llega con `cliente_id` como clave propia con valor `undefined` (verificado con `plainToInstance`: `Object.keys` incluye `cliente_id`). La condición es siempre verdadera, el resultado es `undefined` y `exigirEmpresaSiEsCliente` responde 400 "Un usuario cliente debe tener una empresa (cliente_id) asignada". El frontend siempre reenvía `cliente_id`, y ningún e2e cubre este caso.
+- **Dónde:** `usuarios.reglas.ts`, `clienteIdResultante`, llamada desde `usuarios.service.ts` (`update`).
+- **Prueba:** `HALLAZGO H7` en `usuarios.reglas.spec.ts` (fija `clienteIdResultante({ cliente_id: undefined }, { cliente_id: "c1" })` con `undefined`).
+- **Para corregirlo:** `resto.cliente_id !== undefined ? resto.cliente_id : actual.cliente_id`.
 
 ### Nota menor (no es un hallazgo)
 

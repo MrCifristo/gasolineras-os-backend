@@ -118,7 +118,8 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 - Dispatch create takes `monto` (quetzales); the server derives `galones` from
   its own price. `serie_vale` comes from `gasolineras.serie_vale_actual`, not
   the client.
-- All time math hardcodes **UTC-6** for Guatemala (`getGuatemalaTime()`, plus
+- All time math hardcodes **UTC-6** for Guatemala (`ahoraGuatemala()` /
+  `diaYMinutoGuatemala()`, plus
   `- INTERVAL '6 hours'` in raw SQL). No DST, no `AT TIME ZONE`.
 
 ## Shifts, reminders and push (Fase 6)
