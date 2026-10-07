@@ -50,6 +50,13 @@
       "when": 1790803613506,
       "tag": "0006_mature_shard",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791401186767,
+      "tag": "0007_telefono_vacio_a_null",
+      "breakpoints": true
     }
   ]
 }

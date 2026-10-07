@@ -37,18 +37,33 @@ describe("identificadoresDeAlta", () => {
   );
 });
 
-describe("hallazgos de identificadoresDeAlta", () => {
-  // HALLAZGO H6: "   " es truthy, se recorta a "" y se devuelve "" en vez de
-  // null. En `create` la comprobación de unicidad vive dentro de
-  // `if (telefono)` y "" es falsy, así que no corre `exigirNoRegistrado`: el
-  // segundo alta con "" llega al INSERT y choca con `telefono UNIQUE`, y el
-  // servicio no captura el 23505 (error de BD sin mensaje en español; 500
-  // probable, no verificado). En `update` no hay comprobación de unicidad.
-  it('HALLAZGO H6: un teléfono de sólo espacios con correo da telefono "" (no null)', () => {
+describe("identificadoresDeAlta con identificadores en blanco", () => {
+  it('un teléfono de sólo espacios con correo da telefono null', () => {
     expect(identificadoresDeAlta({ email: "a@b.c", telefono: "   " })).toEqual({
       email: "a@b.c",
-      telefono: "",
+      telefono: null,
     });
+  });
+
+  it("un correo de sólo espacios con teléfono da email null", () => {
+    expect(identificadoresDeAlta({ email: "  ", telefono: "5555" })).toEqual({
+      email: null,
+      telefono: "5555",
+    });
+  });
+
+  it("recorta y baja a minúsculas el correo", () => {
+    expect(identificadoresDeAlta({ email: "  A@B.C ", telefono: null })).toEqual(
+      { email: "a@b.c", telefono: null },
+    );
+  });
+
+  it("ambos en blanco rechaza con 400", () => {
+    esperarError(
+      () => identificadoresDeAlta({ email: " ", telefono: "  " }),
+      BadRequestException,
+      "Debe indicar un correo o un número de teléfono",
+    );
   });
 });
 
@@ -111,6 +126,19 @@ describe("normalizarCambios", () => {
     expect(r).toEqual({ nombre: "Ana" });
     expect("email" in r).toBe(false);
     expect("telefono" in r).toBe(false);
+  });
+
+  it("un correo o teléfono en blanco queda en null", () => {
+    expect(normalizarCambios({ email: "  ", telefono: "" })).toEqual({
+      email: null,
+      telefono: null,
+    });
+  });
+
+  it("claves presentes con undefined siguen sin valor", () => {
+    const r = normalizarCambios({ email: undefined, telefono: undefined });
+    expect(r.email).toBeUndefined();
+    expect(r.telefono).toBeUndefined();
   });
 
   it("no muta la entrada", () => {

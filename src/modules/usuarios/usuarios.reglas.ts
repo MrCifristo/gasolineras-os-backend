@@ -26,8 +26,8 @@ export function identificadoresDeAlta(datos: {
   email?: string | null;
   telefono?: string | null;
 }): { email: string | null; telefono: string | null } {
-  const email = datos.email ? datos.email.toLowerCase() : null;
-  const telefono = datos.telefono ? datos.telefono.trim() : null;
+  const email = datos.email?.trim().toLowerCase() || null;
+  const telefono = datos.telefono?.trim() || null;
   if (!email && !telefono) {
     throw new BadRequestException(
       "Debe indicar un correo o un número de teléfono",
@@ -47,13 +47,16 @@ export function exigirNoRegistrado(
   }
 }
 
-/** Normaliza correo y teléfono sin mutar la entrada ni agregar claves. */
+/** Normaliza correo y teléfono (en blanco = null) sin mutar la entrada ni agregar claves. */
 export function normalizarCambios<
   T extends { email?: string | null; telefono?: string | null },
 >(cambios: T): T {
   const resultado = { ...cambios };
-  if (cambios.email) resultado.email = cambios.email.toLowerCase();
-  if (cambios.telefono) resultado.telefono = cambios.telefono.trim();
+  // Vacío tras recortar es null: "" chocaría con el UNIQUE del segundo alta.
+  if (typeof cambios.email === "string")
+    resultado.email = cambios.email.trim().toLowerCase() || null;
+  if (typeof cambios.telefono === "string")
+    resultado.telefono = cambios.telefono.trim() || null;
   return resultado;
 }
 
