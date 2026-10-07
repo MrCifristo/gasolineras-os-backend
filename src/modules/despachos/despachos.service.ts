@@ -5,12 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { and, eq, getTableColumns, gte, lte, sql } from "drizzle-orm";
-import {
-  ahoraGuatemala,
-  aMinutos,
-  fechaGuatemala,
-  fechaGtSql,
-} from "../../common/hora-guatemala";
+import { fechaGuatemala, fechaGtSql } from "../../common/hora-guatemala";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
@@ -34,9 +29,10 @@ import {
   exigirRol,
 } from "../../common/bloqueos.reglas";
 import {
+  aNumero,
   claveFirma,
   decodificarFirmaPng,
-  DIAS_GT,
+  estadoHorario,
   exigirOperarioDeLaGasolinera,
   exigirPrecio,
   exigirSistemaActivo,
@@ -58,11 +54,6 @@ import {
 import { StorageService, StorageObject } from "../../storage/storage.service";
 
 type Usuario = typeof usuarios.$inferSelect;
-
-function getGuatemalaTime(): { dayName: string; totalMinutes: number } {
-  const { diaSemana, minutos } = ahoraGuatemala();
-  return { dayName: DIAS_GT[diaSemana], totalMinutes: minutos };
-}
 
 export interface DespachoFilters {
   gasolinera_id?: string;
@@ -551,8 +542,6 @@ export class DespachosService {
     gasolineraId?: string,
     user?: { rol: string; cliente_id?: string | null },
   ) {
-    const n = (x: unknown) => (x != null ? parseFloat(String(x)) : null);
-
     const [v] = await this.db.db
       .select()
       .from(vehiculos)
@@ -606,9 +595,9 @@ export class DespachosService {
       cliente_bloqueado = cliRow.bloqueado ?? false;
       cliente_credito_bloqueado = cliRow.credito_bloqueado ?? false;
       clienteLimites = {
-        dia: n(cliRow.limite_monto_dia),
-        semana: n(cliRow.limite_monto_semana),
-        mes: n(cliRow.limite_monto_mes),
+        dia: aNumero(cliRow.limite_monto_dia),
+        semana: aNumero(cliRow.limite_monto_semana),
+        mes: aNumero(cliRow.limite_monto_mes),
       };
       if (
         clienteLimites.dia != null ||
@@ -648,19 +637,7 @@ export class DespachosService {
       .where(eq(despachos.vehiculo_id, vehiculoId));
 
     // Horario
-    const { dayName, totalMinutes } = getGuatemalaTime();
-    void dayName; // used only in create() for day-of-week check; included here for reference
-    const dentroDeHorario = (() => {
-      if (!v.hora_inicio || !v.hora_fin) return true;
-      return (
-        totalMinutes >= aMinutos(v.hora_inicio) &&
-        totalMinutes <= aMinutos(v.hora_fin)
-      );
-    })();
-    const minutosRestantes = (() => {
-      if (!v.hora_fin || !dentroDeHorario) return 0;
-      return Math.max(0, aMinutos(v.hora_fin) - totalMinutes);
-    })();
+    const horario = estadoHorario(v, new Date());
 
     return {
       sistema_bloqueado: sysConfig?.sistema_bloqueado ?? false,
@@ -675,21 +652,21 @@ export class DespachosService {
         dias_permitidos: v.dias_permitidos ?? null,
         hora_inicio: v.hora_inicio ?? null,
         hora_fin: v.hora_fin ?? null,
-        dentro_de_horario: dentroDeHorario,
-        minutos_restantes: minutosRestantes,
+        dentro_de_horario: horario.dentro_de_horario,
+        minutos_restantes: horario.minutos_restantes,
       },
       limites: {
         monto: {
-          transaccion: n(v.limite_monto_transaccion),
-          dia: n(v.limite_monto_dia),
-          semana: n(v.limite_monto_semana),
-          mes: n(v.limite_monto_mes),
+          transaccion: aNumero(v.limite_monto_transaccion),
+          dia: aNumero(v.limite_monto_dia),
+          semana: aNumero(v.limite_monto_semana),
+          mes: aNumero(v.limite_monto_mes),
         },
         volumen: {
-          transaccion: n(v.limite_volumen_transaccion),
-          dia: n(v.limite_volumen_dia),
-          semana: n(v.limite_volumen_semana),
-          mes: n(v.limite_volumen_mes),
+          transaccion: aNumero(v.limite_volumen_transaccion),
+          dia: aNumero(v.limite_volumen_dia),
+          semana: aNumero(v.limite_volumen_semana),
+          mes: aNumero(v.limite_volumen_mes),
         },
         transacciones: {
           dia: v.limite_trans_dia ?? null,

@@ -205,6 +205,21 @@ export function validarHorarioVehiculo(
   }
 }
 
+/** Estado de la ventana horaria del vehículo, para el panel del supervisor. */
+export function estadoHorario(
+  v: { hora_inicio: string | null; hora_fin: string | null },
+  ahora: Date,
+): { dentro_de_horario: boolean; minutos_restantes: number } {
+  const { minutos } = diaYMinutoGuatemala(ahora);
+  const dentro =
+    !v.hora_inicio ||
+    !v.hora_fin ||
+    (minutos >= aMinutos(v.hora_inicio) && minutos <= aMinutos(v.hora_fin));
+  const restantes =
+    !v.hora_fin || !dentro ? 0 : Math.max(0, aMinutos(v.hora_fin) - minutos);
+  return { dentro_de_horario: dentro, minutos_restantes: restantes };
+}
+
 // ── Precio y totales ───────────────────────────────────────────────────
 
 export function exigirPrecio<T>(

@@ -14,6 +14,7 @@ import {
   exigirOperarioDeLaGasolinera,
   exigirPrecio,
   exigirSistemaActivo,
+  estadoHorario,
   exigirVehiculoHabilitado,
   necesitaAgregadoCliente,
   necesitaAgregadoVehiculo,
@@ -402,6 +403,50 @@ describe("validarHorarioVehiculo", () => {
       ForbiddenException,
       "Despacho fuera del horario autorizado (22:00–06:00)",
     );
+  });
+});
+
+describe("estadoHorario", () => {
+  const ventana = (hora_inicio: string | null, hora_fin: string | null) => ({
+    hora_inicio,
+    hora_fin,
+  });
+  // Instante UTC que corresponde a esa hora de reloj en Guatemala (UTC−6).
+  const gt = (hhmm: string) => new Date(`2026-09-30T${hhmm}:00-06:00`);
+
+  it("sin ventana siempre está dentro y no hay minutos restantes", () => {
+    expect(estadoHorario(ventana(null, null), gt("08:00"))).toEqual({
+      dentro_de_horario: true,
+      minutos_restantes: 0,
+    });
+  });
+
+  it("dentro de la ventana cuenta los minutos que faltan para el cierre", () => {
+    expect(estadoHorario(ventana("06:00", "18:00"), gt("08:00"))).toEqual({
+      dentro_de_horario: true,
+      minutos_restantes: 600,
+    });
+  });
+
+  it("a la hora exacta de cierre sigue dentro, con cero minutos", () => {
+    expect(estadoHorario(ventana("06:00", "18:00"), gt("18:00"))).toEqual({
+      dentro_de_horario: true,
+      minutos_restantes: 0,
+    });
+  });
+
+  it("pasado el cierre está fuera y no queda tiempo", () => {
+    expect(estadoHorario(ventana("06:00", "18:00"), gt("18:30"))).toEqual({
+      dentro_de_horario: false,
+      minutos_restantes: 0,
+    });
+  });
+
+  it("sólo con hora_fin cuenta como dentro y calcula hasta el cierre (se fija como está hoy)", () => {
+    expect(estadoHorario(ventana(null, "18:00"), gt("08:00"))).toEqual({
+      dentro_de_horario: true,
+      minutos_restantes: 600,
+    });
   });
 });
 
