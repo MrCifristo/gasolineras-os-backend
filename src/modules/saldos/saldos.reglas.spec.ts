@@ -20,10 +20,12 @@ describe("validarMontoAbono", () => {
     );
   });
 
-  // HALLAZGO H5 (menor): un texto no numérico da NaN, y `NaN <= 0` es falso,
-  // así que la regla lo deja pasar. Hoy lo frena `@IsNumberString` del DTO.
-  it("HALLAZGO H5: un monto no numérico pasa la regla (lo frena el DTO)", () => {
-    expect(() => validarMontoAbono("abc")).not.toThrow();
+  it("un monto no numérico: 400", () => {
+    esperarError(
+      () => validarMontoAbono("abc"),
+      BadRequestException,
+      "El monto debe ser mayor a cero",
+    );
   });
 });
 

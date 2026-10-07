@@ -3,7 +3,7 @@
 import { BadRequestException } from "@nestjs/common";
 
 export function validarMontoAbono(monto: string): void {
-  if (parseFloat(monto) <= 0) {
+  if (!(Number(monto) > 0)) {
     throw new BadRequestException("El monto debe ser mayor a cero");
   }
 }
