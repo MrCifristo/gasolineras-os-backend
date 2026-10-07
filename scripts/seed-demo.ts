@@ -1,6 +1,6 @@
 /**
  * Siembra una base de DEMO con datos ficticios pero creíbles para presentar
- * EstacionFlow a clientes: ~120 días de historia (precios, despachos, abonos,
+ * EstacionFlow a clientes: ~13 meses de historia (precios, despachos, abonos,
  * insumos, cuadres) más los despachos de hoy hasta la hora actual de Guatemala.
  *
  *   DATABASE_URL=postgresql://…/gasfuel_demo pnpm seed:demo
@@ -32,7 +32,7 @@ import {
 // Mismos parámetros que PasswordService (Argon2id === 2 en el const enum).
 const ARGON2 = { algorithm: 2, memoryCost: 19456, timeCost: 2, parallelism: 1 };
 const PASSWORD = 'Demo2026!';
-const DIAS_HISTORIA = 120; // incluye hoy
+const DIAS_HISTORIA = 400; // incluye hoy (más de 12 meses: las tendencias anuales salen completas)
 const DIAS_GT = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const LUN_VIE = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
 
@@ -638,7 +638,10 @@ async function main() {
         let monto: number;
         if (k < dias.length - 1) {
           const consumo = debitosPorDia.slice(d, dias[k + 1]).reduce((a, b) => a + b, 0);
-          monto = Math.ceil((consumo * 1.04 + (k === 0 ? 5000 : 0)) / 500) * 500;
+          // Hacia abajo y sin colchón: con más de un año de historia, redondear
+          // hacia arriba acumulaba un excedente que el abono final ya no podía
+          // compensar y el saldo no llegaba a su objetivo.
+          monto = Math.max(500, Math.floor((consumo + (k === 0 ? 5000 : 0)) / 500) * 500);
         } else {
           monto = Math.max(1000, Math.ceil((c.saldoObjetivo + totalDebitos - acumulado) / 100) * 100);
         }
