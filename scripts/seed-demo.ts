@@ -92,14 +92,12 @@ const DIFERENCIA_BARRIOS: Record<Combustible, number> = {
   gas_lp: -0.05,
 };
 
-type Clase = 'pesado' | 'mediano' | 'pickup' | 'moto' | 'bus';
+type Clase = 'pesado' | 'mediano' | 'pickup';
 const CLASE: Record<Clase, { monto: [number, number]; p: number; rend: [number, number]; extra: number }> = {
   // monto en Q, probabilidad de cargar un día hábil, km/galón, prob. de 2.ª carga
   pesado: { monto: [1600, 3000], p: 0.86, rend: [8, 11], extra: 0.2 },
   mediano: { monto: [800, 1800], p: 0.85, rend: [13, 17], extra: 0.12 },
   pickup: { monto: [200, 600], p: 0.8, rend: [30, 40], extra: 0.12 },
-  moto: { monto: [50, 120], p: 0.7, rend: [90, 120], extra: 0 },
-  bus: { monto: [900, 1600], p: 0.92, rend: [10, 13], extra: 0.3 },
 };
 
 interface VehiculoDef {
@@ -185,7 +183,7 @@ const CLIENTES: ClienteDef[] = [
       { placa: 'C-290MRS', marca: 'Hino', modelo: '500 GH 2016', tipo: 'Camión Cisterna', ruta: 'Riego fincas El Estor', clase: 'pesado', combustible: 'diesel', restr: { productos_permitidos: ['diesel'] } },
       { placa: 'P-318DFG', marca: 'Toyota', modelo: 'Hilux 2021', tipo: 'Pick-up', ruta: 'Administración de fincas', clase: 'pickup', combustible: 'super', restr: { dias_permitidos: LUN_VIE, limite_monto_mes: '7000.00' } },
       { placa: 'P-772GHJ', marca: 'Mitsubishi', modelo: 'L200 2020', tipo: 'Pick-up', ruta: 'Mantenimiento de canales', clase: 'pickup', combustible: 'diesel', restr: { dias_permitidos: LUN_VIE } },
-      { placa: 'M-551BCN', marca: 'Honda', modelo: 'XR150L 2023', tipo: 'Motocicleta', ruta: 'Mensajería fincas', clase: 'moto', combustible: 'regular', restr: { limite_monto_transaccion: '150.00', limite_trans_dia: 1 } },
+      { placa: 'P-551BCN', marca: 'Isuzu', modelo: 'D-Max 2023', tipo: 'Pick-up', ruta: 'Mensajería fincas', clase: 'pickup', combustible: 'regular', restr: { limite_monto_transaccion: '400.00', limite_trans_dia: 1 } },
     ],
   },
   {
@@ -238,10 +236,10 @@ const CLIENTES: ClienteDef[] = [
       { placa: 'C-150PZK', marca: 'Freightliner', modelo: 'M2 112 2018', tipo: 'Trailer', ruta: 'Fincas Motagua – muelle Santo Tomás', clase: 'pesado', combustible: 'diesel', restr: { productos_permitidos: ['diesel'] } },
       { placa: 'C-151PZK', marca: 'Freightliner', modelo: 'M2 112 2018', tipo: 'Trailer', ruta: 'Fincas Motagua – muelle Santo Tomás', clase: 'pesado', combustible: 'diesel', restr: { productos_permitidos: ['diesel'] } },
       { placa: 'C-482QWB', marca: 'Hino', modelo: '500 FC 2019', tipo: 'Camión de Carga', ruta: 'Empacadora Bananera – fincas', clase: 'mediano', combustible: 'diesel' },
-      { placa: 'C-913RTD', marca: 'Blue Bird', modelo: 'Vision 2014', tipo: 'Bus', ruta: 'Transporte de personal Morales – fincas', clase: 'bus', combustible: 'diesel', restr: { limite_trans_dia: 2 } },
+      { placa: 'C-913RTD', marca: 'Toyota', modelo: 'Hiace Commuter 2019', tipo: 'Panel', ruta: 'Transporte de personal Morales – fincas', clase: 'pickup', combustible: 'diesel', restr: { limite_trans_dia: 2 } },
       { placa: 'P-336VCH', marca: 'Toyota', modelo: 'Hilux 2020', tipo: 'Pick-up', ruta: 'Caporales finca Arapahoe', clase: 'pickup', combustible: 'diesel' },
       { placa: 'P-337VCH', marca: 'Toyota', modelo: 'Hilux 2020', tipo: 'Pick-up', ruta: 'Caporales finca Omagua', clase: 'pickup', combustible: 'diesel' },
-      { placa: 'M-774DKP', marca: 'Yamaha', modelo: 'DT 125 2022', tipo: 'Motocicleta', ruta: 'Inspección de cultivo', clase: 'moto', combustible: 'regular', restr: { limite_monto_transaccion: '120.00' } },
+      { placa: 'P-774DKP', marca: 'Mazda', modelo: 'BT-50 2022', tipo: 'Pick-up', ruta: 'Inspección de cultivo', clase: 'pickup', combustible: 'regular', restr: { limite_monto_transaccion: '450.00' } },
     ],
   },
   {
@@ -399,7 +397,7 @@ async function main() {
         else if (prob(0.3)) asignados.push(pilIds[(i + 1) % pilIds.length]);
         asignados.forEach((pid) => filasPV.push({ piloto_id: pid, vehiculo_id: vid }));
         filasVeh.push({ id: vid, cliente_id: id, placa: v.placa, marca: v.marca, modelo: v.modelo, ruta: v.ruta, tipo_vehiculo: v.tipo, bloqueado: v.bloqueadoDesde !== undefined, ...(v.restr ?? {}) });
-        const kmBase = { pesado: [180000, 520000], mediano: [90000, 260000], pickup: [25000, 140000], moto: [6000, 30000], bus: [300000, 450000] }[v.clase];
+        const kmBase = { pesado: [180000, 520000], mediano: [90000, 260000], pickup: [25000, 140000] }[v.clase];
         vehiculos.push({ ...v, id: vid, clienteId: id, cliKey: c.clave, pilotos: asignados, km: entero(kmBase[0], kmBase[1]), base: c.base });
       });
     }
@@ -505,7 +503,7 @@ async function main() {
           if (monto < cl.monto[0] * 0.6) continue;
           const renglones: Renglon[] = [{ renglon: 'vehiculo', comb: v.combustible, monto, galones: monto / pr.valor, precioId: pr.id }];
           // ~10 % de vales mixtos: una caneca (planta, motosierra) o un tonel.
-          if (v.clase !== 'moto' && prob(0.11)) {
+          if (prob(0.11)) {
             const tonel = prob(0.4);
             const comb: Combustible = tonel || prob(0.6) ? 'diesel' : 'super';
             const pc = precio[`${gas[g].id}|${f}|${comb}`];
