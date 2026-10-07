@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -19,6 +18,16 @@ import {
 } from "../../db/schema";
 import { CreateVentaInsumoDto, FormaPago } from "./dto/create-venta-insumo.dto";
 import { fechaGtSql } from "../../common/hora-guatemala";
+import {
+  exigirClienteConCredito,
+  exigirGasolineraOperable,
+  exigirRol,
+} from "../../common/bloqueos.reglas";
+import {
+  exigirProductosSinRepetir,
+  validarFormaPago,
+  valorizarRenglonVenta,
+} from "./ventas-insumos.reglas";
 
 export interface FiltrosVenta {
   gasolinera_id?: string;
@@ -106,22 +115,13 @@ export class VentasInsumosService {
    * de vale es propia, no la de combustible.
    */
   async create(dto: CreateVentaInsumoDto, user: any) {
-    if (user.rol !== "supervisor" && user.rol !== "admin") {
-      throw new ForbiddenException("Solo supervisores pueden vender insumos");
-    }
+    exigirRol(
+      user.rol,
+      ["supervisor", "admin"],
+      "Solo supervisores pueden vender insumos",
+    );
 
-    // El cliente sólo tiene sentido cuando se le carga a su cuenta. Exigirlo en
-    // cargo y prohibirlo en efectivo evita ventas de contado imputadas por error.
-    if (dto.forma_pago === FormaPago.CARGO_CLIENTE && !dto.cliente_id) {
-      throw new BadRequestException(
-        "Una venta a cargo del cliente necesita cliente_id",
-      );
-    }
-    if (dto.forma_pago === FormaPago.EFECTIVO && dto.cliente_id) {
-      throw new BadRequestException(
-        "Una venta en efectivo no se imputa a ningún cliente",
-      );
-    }
+    validarFormaPago(dto);
 
     const [gas] = await this.db.db
       .select({
@@ -131,12 +131,7 @@ export class VentasInsumosService {
       .from(gasolineras)
       .where(eq(gasolineras.id, user.gasolinera_id))
       .limit(1);
-    if (!gas) throw new NotFoundException("Gasolinera no encontrada");
-    if (gas.bloqueado) {
-      throw new ForbiddenException(
-        "Gasolinera bloqueada — contacte al administrador",
-      );
-    }
+    exigirGasolineraOperable(gas);
     const serieVale = gas.serie_vale_actual;
 
     if (dto.cliente_id) {
@@ -145,26 +140,12 @@ export class VentasInsumosService {
         .from(clientes)
         .where(eq(clientes.id, dto.cliente_id))
         .limit(1);
-      if (!cliente) throw new NotFoundException("Cliente no encontrado");
-      if (cliente.bloqueado) {
-        throw new ForbiddenException("Cuenta bloqueada por el cliente");
-      }
       // Cargar insumos a la cuenta también es consumir crédito.
-      if (cliente.credito_bloqueado) {
-        throw new ForbiddenException(
-          "Crédito suspendido — consulte con administración",
-        );
-      }
+      exigirClienteConCredito(cliente);
     }
 
-    // Una línea por producto: dos renglones del mismo producto descuadrarían la
-    // verificación de stock, que mira cada producto una sola vez.
     const ids = dto.detalles.map((d) => d.producto_id);
-    if (new Set(ids).size !== ids.length) {
-      throw new BadRequestException(
-        "Hay productos repetidos: agrupá la cantidad en un solo renglón",
-      );
-    }
+    exigirProductosSinRepetir(ids);
 
     return this.db.db.transaction(async (tx) => {
       // Se bloquean las filas de producto antes de leer el stock: sin esto, dos
@@ -177,31 +158,9 @@ export class VentasInsumosService {
 
       const porId = new Map(filas.map((p) => [p.id, p]));
 
-      const renglones = dto.detalles.map((d) => {
-        const producto = porId.get(d.producto_id);
-        if (!producto) {
-          throw new NotFoundException(
-            `Producto ${d.producto_id} no encontrado`,
-          );
-        }
-        if (!producto.activo) {
-          throw new BadRequestException(
-            `El producto ${producto.nombre} está descontinuado`,
-          );
-        }
-        if (producto.stock_actual < d.cantidad) {
-          throw new BadRequestException(
-            `Stock insuficiente de ${producto.nombre}: hay ${producto.stock_actual} y se piden ${d.cantidad}`,
-          );
-        }
-        const precioUnitario = parseFloat(producto.precio);
-        return {
-          producto,
-          cantidad: d.cantidad,
-          precioUnitario,
-          subtotal: precioUnitario * d.cantidad,
-        };
-      });
+      const renglones = dto.detalles.map((d) =>
+        valorizarRenglonVenta(porId.get(d.producto_id), d),
+      );
 
       const montoTotal = renglones.reduce((acc, r) => acc + r.subtotal, 0);
 
