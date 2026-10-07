@@ -7,6 +7,8 @@ import {
 import { esperarError } from "../../../test/unit/esperar-error";
 import {
   aNumero,
+  claveFirma,
+  decodificarFirmaPng,
   DIAS_GT,
   diaYMinutoGuatemala,
   exigirOperarioDeLaGasolinera,
@@ -926,6 +928,70 @@ describe("validarKilometraje", () => {
       () => validarKilometraje("15000", 15000),
       ForbiddenException,
       "Inconsistencia de kilometraje detectada",
+    );
+  });
+});
+
+describe("decodificarFirmaPng", () => {
+  const MAGIA = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  const png = Buffer.from([...MAGIA, 1, 2, 3, 4]);
+
+  it("devuelve los bytes de un PNG sin prefijo", () => {
+    expect(decodificarFirmaPng(png.toString("base64")).equals(png)).toBe(true);
+  });
+
+  it("quita el prefijo data:image/png;base64, y devuelve los bytes", () => {
+    const entrada = `data:image/png;base64,${png.toString("base64")}`;
+    expect(decodificarFirmaPng(entrada).equals(png)).toBe(true);
+  });
+
+  it("rechaza bytes de JPEG", () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0]);
+    esperarError(
+      () => decodificarFirmaPng(jpeg.toString("base64")),
+      BadRequestException,
+      "La firma debe ser un PNG válido",
+    );
+  });
+
+  it("rechaza un valor demasiado corto para tener la firma mágica", () => {
+    esperarError(
+      () => decodificarFirmaPng("iVBORw=="),
+      BadRequestException,
+      "La firma debe ser un PNG válido",
+    );
+    esperarError(
+      () => decodificarFirmaPng(""),
+      BadRequestException,
+      "La firma debe ser un PNG válido",
+    );
+  });
+
+  it("no confía en el prefijo: data:image/jpeg delante de bytes PNG se rechaza", () => {
+    const entrada = `data:image/jpeg;base64,${png.toString("base64")}`;
+    esperarError(
+      () => decodificarFirmaPng(entrada),
+      BadRequestException,
+      "La firma debe ser un PNG válido",
+    );
+  });
+
+  it("responde 'Firma inválida' si la decodificación lanza", () => {
+    // Un objeto cuyo replace no devuelve texto hace que Buffer.from lance.
+    const raro = { replace: () => 123 } as unknown as string;
+    esperarError(
+      () => decodificarFirmaPng(raro),
+      BadRequestException,
+      "Firma inválida",
+    );
+  });
+});
+
+describe("claveFirma", () => {
+  it("arma la llave con año y mes de Guatemala", () => {
+    // 03:00Z del 1 de noviembre: en Guatemala todavía es 31 de octubre.
+    expect(claveFirma("gas-1", new Date("2026-11-01T03:00:00Z"), "abc")).toBe(
+      "firmas/gas-1/2026/10/abc.png",
     );
   });
 });

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -35,6 +34,8 @@ import {
   exigirRol,
 } from "../../common/bloqueos.reglas";
 import {
+  claveFirma,
+  decodificarFirmaPng,
   DIAS_GT,
   exigirOperarioDeLaGasolinera,
   exigirPrecio,
@@ -97,27 +98,8 @@ export class DespachosService {
   ): Promise<string | null> {
     if (!firmaBase64) return null;
 
-    // No se confía en el prefijo data:image/png: se decodifica y se verifica la
-    // firma mágica del PNG (89 50 4E 47 0D 0A 1A 0A) sobre los bytes reales.
-    const base64 = firmaBase64.replace(/^data:image\/png;base64,/, "");
-    let bytes: Buffer;
-    try {
-      bytes = Buffer.from(base64, "base64");
-    } catch {
-      throw new BadRequestException("Firma inválida");
-    }
-    const PNG_MAGIC = Buffer.from([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-    ]);
-    if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_MAGIC)) {
-      throw new BadRequestException("La firma debe ser un PNG válido");
-    }
-
-    // Key con fecha (hora de Guatemala) para poder barrer huérfanos por antigüedad.
-    const gt = new Date(Date.now() - 6 * 3600 * 1000);
-    const yyyy = gt.getUTCFullYear();
-    const mm = String(gt.getUTCMonth() + 1).padStart(2, "0");
-    const key = `firmas/${gasolineraId}/${yyyy}/${mm}/${crypto.randomUUID()}.png`;
+    const bytes = decodificarFirmaPng(firmaBase64);
+    const key = claveFirma(gasolineraId, new Date(), crypto.randomUUID());
 
     await this.storage.put(key, bytes, "image/png");
     return key;

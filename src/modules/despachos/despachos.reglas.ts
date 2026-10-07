@@ -452,3 +452,34 @@ export function validarKilometraje(
     throw new ForbiddenException("Inconsistencia de kilometraje detectada");
   }
 }
+
+// ── Firma ──────────────────────────────────────────────────────────────
+
+export function decodificarFirmaPng(firmaBase64: string): Buffer {
+  // No se confía en el prefijo data:image/png: se decodifica y se verifica la
+  // firma mágica del PNG (89 50 4E 47 0D 0A 1A 0A) sobre los bytes reales.
+  const base64 = firmaBase64.replace(/^data:image\/png;base64,/, "");
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(base64, "base64");
+  } catch {
+    throw new BadRequestException("Firma inválida");
+  }
+  const PNG_MAGIC = Buffer.from([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  ]);
+  if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_MAGIC)) {
+    throw new BadRequestException("La firma debe ser un PNG válido");
+  }
+  return bytes;
+}
+
+// Key con fecha (hora de Guatemala) para poder barrer huérfanos por antigüedad.
+export function claveFirma(
+  gasolineraId: string,
+  ahora: Date,
+  id: string,
+): string {
+  const [yyyy, mm] = ahoraGuatemala(ahora).fecha.split("-");
+  return `firmas/${gasolineraId}/${yyyy}/${mm}/${id}.png`;
+}
