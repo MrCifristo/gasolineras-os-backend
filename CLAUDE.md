@@ -209,7 +209,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 
 ## Testing
 
-- Unit (`pnpm test`): 419 tests in 30 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 424 tests in 30 suites, no Postgres, about a second.
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
   plain rows (numerics as strings) and `ahora: Date`, never read the clock, the
   DB or `DbService`, and throw the same Nest exceptions with the exact Spanish
