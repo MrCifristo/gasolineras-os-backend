@@ -2,6 +2,8 @@
 import { ForbiddenException } from "@nestjs/common";
 import puppeteer from "puppeteer";
 import { esperarRechazo } from "../../../../test/unit/esperar-error";
+import type { DbService } from "../../../db/db.service";
+import type { ReportesService } from "../reportes.service";
 import { ReportesPdfService } from "./reportes-pdf.service";
 
 type PuppeteerMock = {
@@ -29,7 +31,10 @@ function armar() {
     consumoPorVehiculo: jest.fn().mockResolvedValue([]),
     consumoPorPiloto: jest.fn().mockResolvedValue([]),
   };
-  const s = new ReportesPdfService({} as any, reportes as any);
+  const s = new ReportesPdfService(
+    {} as unknown as DbService,
+    reportes as unknown as ReportesService,
+  );
   const fetchDespachos = jest
     .spyOn(s as any, "fetchDespachos")
     .mockResolvedValue({ rows: [], total: 0 });

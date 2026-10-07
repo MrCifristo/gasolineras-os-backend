@@ -1,5 +1,6 @@
 // src/modules/despachos/despachos-excel.service.spec.ts
 import ExcelJS from "exceljs";
+import type { DbService } from "../../db/db.service";
 import { DespachosExcelService } from "./despachos-excel.service";
 
 const fila = (parcial: Record<string, unknown> = {}) => ({
@@ -30,12 +31,12 @@ async function exportar(
   renglones: Map<string, string> = new Map(),
   filtros: Record<string, unknown> = {},
 ) {
-  const s = new DespachosExcelService({} as any);
+  const s = new DespachosExcelService({} as unknown as DbService);
   jest.spyOn(s as any, "fetchRows").mockResolvedValue(rows);
   jest.spyOn(s as any, "fetchRenglones").mockResolvedValue(renglones);
   const buf = await s.exportXlsx(filtros, { rol: "admin" });
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf as any);
+  await wb.xlsx.load(buf as unknown as ExcelJS.Buffer);
   return wb;
 }
 
@@ -74,13 +75,16 @@ describe("DespachosExcelService", () => {
   });
 
   it.each([
-    [[fila(), fila({ id: "d2" })], "2 registros"],
-    [[fila()], "1 registro"],
-  ])("el subtítulo dice «%#»", async (rows, texto) => {
-    const wb = await exportar(rows);
-    const sub = wb.getWorksheet("Despachos")!.getCell("A2").value as string;
-    expect(sub.endsWith(`·   ${texto}`)).toBe(true);
-  });
+    { n: 2, rows: [fila(), fila({ id: "d2" })], texto: "2 registros" },
+    { n: 1, rows: [fila()], texto: "1 registro" },
+  ])(
+    "con $n despacho(s) el subtítulo dice «$texto»",
+    async ({ rows, texto }) => {
+      const wb = await exportar(rows);
+      const sub = wb.getWorksheet("Despachos")!.getCell("A2").value as string;
+      expect(sub.endsWith(`·   ${texto}`)).toBe(true);
+    },
+  );
 
   it("el resumen trae cantidad, galones y monto", async () => {
     const wb = await exportar([
@@ -125,10 +129,10 @@ describe("DespachosExcelService", () => {
 
   it("un cliente sin empresa exporta un libro vacío sin tocar la base", async () => {
     // `db` vacío: cualquier acceso a this.db.db lanzaría.
-    const s = new DespachosExcelService({} as any);
+    const s = new DespachosExcelService({} as unknown as DbService);
     const buf = await s.exportXlsx({}, { rol: "cliente", cliente_id: null });
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf as any);
+    await wb.xlsx.load(buf as unknown as ExcelJS.Buffer);
     const ws = wb.getWorksheet("Despachos")!;
     expect((ws.getCell("A2").value as string).endsWith("0 registros")).toBe(
       true,
