@@ -1,7 +1,12 @@
 // src/modules/despachos/despachos.reglas.ts
 // Reglas puras de la creación de despachos: reciben datos ya leídos, no tocan
 // la base ni el reloj. Las consultas y la transacción siguen en el servicio.
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
+import { ahoraGuatemala, aMinutos } from "../../common/hora-guatemala";
 import type { Renglon } from "../../db/schema";
 
 export interface LineaDespacho {
@@ -112,4 +117,87 @@ export function resumenRenglones(
       return `${etiqueta}${r.tipo_combustible} ${r.galones.toFixed(3)} gal`;
     })
     .join(" + ");
+}
+
+// ── Vehículo, productos, días y horario ────────────────────────────────
+
+/** Nombres de día en el orden de `Date.getUTCDay()`: domingo = 0. */
+export const DIAS_GT = [
+  "domingo",
+  "lunes",
+  "martes",
+  "miercoles",
+  "jueves",
+  "viernes",
+  "sabado",
+];
+
+/** Día y minuto del día en Guatemala para un instante UTC. */
+export function diaYMinutoGuatemala(ahora: Date): {
+  dia: string;
+  minutos: number;
+} {
+  const { diaSemana, minutos } = ahoraGuatemala(ahora);
+  return { dia: DIAS_GT[diaSemana], minutos };
+}
+
+export function exigirVehiculoHabilitado<T extends { bloqueado: boolean }>(
+  v: T | undefined,
+): asserts v is T {
+  if (!v) throw new NotFoundException("Vehículo no encontrado");
+
+  if (v.bloqueado) {
+    throw new ForbiddenException(
+      "Vehículo bloqueado — consulte con su administrador",
+    );
+  }
+}
+
+// Los productos permitidos son del vehículo, así que sólo restringen el
+// renglón que le despacha a él: en una caneca puede ir otro combustible.
+export function validarProductosPermitidos(
+  v: { productos_permitidos: string[] | null },
+  lineas: LineaDespacho[],
+): void {
+  if (v.productos_permitidos && v.productos_permitidos.length > 0) {
+    for (const l of lineas) {
+      if (
+        l.renglon === "vehiculo" &&
+        !v.productos_permitidos.includes(l.tipo_combustible)
+      ) {
+        throw new ForbiddenException(
+          `Este vehículo no puede cargar ${l.tipo_combustible}`,
+        );
+      }
+    }
+  }
+}
+
+export function validarHorarioVehiculo(
+  v: {
+    dias_permitidos: string[] | null;
+    hora_inicio: string | null;
+    hora_fin: string | null;
+  } | null,
+  ahora: Date,
+): void {
+  const { dia, minutos } = diaYMinutoGuatemala(ahora);
+
+  if (v?.dias_permitidos && v.dias_permitidos.length > 0) {
+    if (!v.dias_permitidos.includes(dia)) {
+      throw new ForbiddenException(
+        `Despacho no permitido hoy (${dia}) para este vehículo`,
+      );
+    }
+  }
+
+  if (v?.hora_inicio && v.hora_fin) {
+    const inicio = aMinutos(v.hora_inicio);
+    const fin = aMinutos(v.hora_fin);
+    if (minutos < inicio || minutos > fin) {
+      throw new ForbiddenException(
+        `Despacho fuera del horario autorizado (${v.hora_inicio}–${v.hora_fin})`,
+      );
+    }
+  }
 }

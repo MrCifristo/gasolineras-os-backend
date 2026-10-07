@@ -35,29 +35,23 @@ import {
   exigirRol,
 } from "../../common/bloqueos.reglas";
 import {
+  DIAS_GT,
   exigirOperarioDeLaGasolinera,
   exigirSistemaActivo,
+  exigirVehiculoHabilitado,
   normalizarRenglones,
   resumenRenglones,
+  validarHorarioVehiculo,
   validarParVehiculoPiloto,
+  validarProductosPermitidos,
 } from "./despachos.reglas";
 import { StorageService, StorageObject } from "../../storage/storage.service";
 
 type Usuario = typeof usuarios.$inferSelect;
 
-const GT_DAYS = [
-  "domingo",
-  "lunes",
-  "martes",
-  "miercoles",
-  "jueves",
-  "viernes",
-  "sabado",
-];
-
 function getGuatemalaTime(): { dayName: string; totalMinutes: number } {
   const { diaSemana, minutos } = ahoraGuatemala();
-  return { dayName: GT_DAYS[diaSemana], totalMinutes: minutos };
+  return { dayName: DIAS_GT[diaSemana], totalMinutes: minutos };
 }
 
 export interface DespachoFilters {
@@ -327,50 +321,13 @@ export class DespachosService {
         .where(eq(vehiculos.id, dto.vehiculo_id))
         .limit(1);
 
-      if (!fila) throw new NotFoundException("Vehículo no encontrado");
+      exigirVehiculoHabilitado(fila);
       v = fila;
 
-      if (v.bloqueado) {
-        throw new ForbiddenException(
-          "Vehículo bloqueado — consulte con su administrador",
-        );
-      }
-
-      // Los productos permitidos son del vehículo, así que sólo restringen el
-      // renglón que le despacha a él: en una caneca puede ir otro combustible.
-      if (v.productos_permitidos && v.productos_permitidos.length > 0) {
-        for (const l of lineas) {
-          if (
-            l.renglon === "vehiculo" &&
-            !v.productos_permitidos.includes(l.tipo_combustible)
-          ) {
-            throw new ForbiddenException(
-              `Este vehículo no puede cargar ${l.tipo_combustible}`,
-            );
-          }
-        }
-      }
+      validarProductosPermitidos(v, lineas);
     }
 
-    const { dayName, totalMinutes } = getGuatemalaTime();
-
-    if (v?.dias_permitidos && v.dias_permitidos.length > 0) {
-      if (!v.dias_permitidos.includes(dayName)) {
-        throw new ForbiddenException(
-          `Despacho no permitido hoy (${dayName}) para este vehículo`,
-        );
-      }
-    }
-
-    if (v?.hora_inicio && v.hora_fin) {
-      const inicio = aMinutos(v.hora_inicio);
-      const fin = aMinutos(v.hora_fin);
-      if (totalMinutes < inicio || totalMinutes > fin) {
-        throw new ForbiddenException(
-          `Despacho fuera del horario autorizado (${v.hora_inicio}–${v.hora_fin})`,
-        );
-      }
-    }
+    validarHorarioVehiculo(v, new Date());
 
     // ── Cálculo de precio por renglón (antes de la matriz de límites) ─
     // Cada renglón resuelve su propio precio del día: una caneca puede llevar

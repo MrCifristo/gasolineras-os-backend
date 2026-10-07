@@ -1,12 +1,21 @@
 // src/modules/despachos/despachos.reglas.spec.ts
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { esperarError } from "../../../test/unit/esperar-error";
 import {
+  DIAS_GT,
+  diaYMinutoGuatemala,
   exigirOperarioDeLaGasolinera,
   exigirSistemaActivo,
+  exigirVehiculoHabilitado,
   normalizarRenglones,
   resumenRenglones,
+  validarHorarioVehiculo,
   validarParVehiculoPiloto,
+  validarProductosPermitidos,
   type LineaDespacho,
 } from "./despachos.reglas";
 
@@ -178,5 +187,208 @@ describe("resumenRenglones", () => {
         { renglon: "vehiculo", tipo_combustible: "diesel", galones: 80 },
       ]),
     ).toBe("diesel 80.000 gal");
+  });
+});
+
+// El 2026-10-07 es miércoles. 14:00Z = 08:00 GT (UTC−6).
+const MIERCOLES_0800_GT = new Date("2026-10-07T14:00:00Z");
+// 18:30 GT del miércoles; en UTC ya es jueves.
+const MIERCOLES_1830_GT = new Date("2026-10-08T00:30:00Z");
+
+describe("diaYMinutoGuatemala", () => {
+  it("DIAS_GT empieza en domingo y tiene los siete días", () => {
+    expect(DIAS_GT).toEqual([
+      "domingo",
+      "lunes",
+      "martes",
+      "miercoles",
+      "jueves",
+      "viernes",
+      "sabado",
+    ]);
+  });
+
+  it("da el día y los minutos de Guatemala", () => {
+    expect(diaYMinutoGuatemala(MIERCOLES_0800_GT)).toEqual({
+      dia: "miercoles",
+      minutos: 480,
+    });
+  });
+
+  it("a las 18:30 GT sigue siendo miércoles aunque en UTC sea jueves", () => {
+    expect(diaYMinutoGuatemala(MIERCOLES_1830_GT)).toEqual({
+      dia: "miercoles",
+      minutos: 1110,
+    });
+  });
+});
+
+describe("exigirVehiculoHabilitado", () => {
+  it("rechaza con 404 si el vehículo no existe", () => {
+    esperarError(
+      () => exigirVehiculoHabilitado(undefined),
+      NotFoundException,
+      "Vehículo no encontrado",
+    );
+  });
+
+  it("rechaza con 403 si el vehículo está bloqueado", () => {
+    esperarError(
+      () => exigirVehiculoHabilitado({ bloqueado: true }),
+      ForbiddenException,
+      "Vehículo bloqueado — consulte con su administrador",
+    );
+  });
+
+  it("deja pasar un vehículo habilitado", () => {
+    expect(() => exigirVehiculoHabilitado({ bloqueado: false })).not.toThrow();
+  });
+});
+
+describe("validarProductosPermitidos", () => {
+  const vehiculoDiesel: LineaDespacho = {
+    renglon: "vehiculo",
+    tipo_combustible: "diesel",
+    monto: "100.00",
+  };
+
+  it("sin restricción si la lista es null", () => {
+    expect(() =>
+      validarProductosPermitidos({ productos_permitidos: null }, [
+        { ...vehiculoDiesel, tipo_combustible: "super" },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("sin restricción si la lista está vacía", () => {
+    expect(() =>
+      validarProductosPermitidos({ productos_permitidos: [] }, [
+        { ...vehiculoDiesel, tipo_combustible: "super" },
+      ]),
+    ).not.toThrow();
+  });
+
+  it("deja pasar el combustible permitido en el renglón vehículo", () => {
+    expect(() =>
+      validarProductosPermitidos({ productos_permitidos: ["diesel"] }, [
+        vehiculoDiesel,
+      ]),
+    ).not.toThrow();
+  });
+
+  it("rechaza con 403 un combustible no permitido en el renglón vehículo", () => {
+    esperarError(
+      () =>
+        validarProductosPermitidos({ productos_permitidos: ["diesel"] }, [
+          { ...vehiculoDiesel, tipo_combustible: "super" },
+        ]),
+      ForbiddenException,
+      "Este vehículo no puede cargar super",
+    );
+  });
+
+  it("no restringe una caneca: ahí puede ir otro combustible", () => {
+    expect(() =>
+      validarProductosPermitidos({ productos_permitidos: ["diesel"] }, [
+        { renglon: "caneca", tipo_combustible: "super", monto: "50.00" },
+      ]),
+    ).not.toThrow();
+  });
+});
+
+describe("validarHorarioVehiculo", () => {
+  const ventana = (hora_inicio: string | null, hora_fin: string | null) => ({
+    dias_permitidos: null,
+    hora_inicio,
+    hora_fin,
+  });
+  // Instante UTC que corresponde a esa hora de reloj en Guatemala (UTC−6).
+  const gt = (fecha: string, hhmm: string) =>
+    new Date(new Date(`${fecha}T${hhmm}:00Z`).getTime() + 6 * 3600 * 1000);
+
+  it("sin vehículo no hay restricción", () => {
+    expect(() => validarHorarioVehiculo(null, MIERCOLES_0800_GT)).not.toThrow();
+  });
+
+  it("deja pasar un día permitido", () => {
+    expect(() =>
+      validarHorarioVehiculo(
+        {
+          dias_permitidos: ["lunes", "miercoles"],
+          hora_inicio: null,
+          hora_fin: null,
+        },
+        MIERCOLES_0800_GT,
+      ),
+    ).not.toThrow();
+  });
+
+  it("juzga el día de Guatemala, no el de UTC", () => {
+    esperarError(
+      () =>
+        validarHorarioVehiculo(
+          { dias_permitidos: ["jueves"], hora_inicio: null, hora_fin: null },
+          MIERCOLES_1830_GT,
+        ),
+      ForbiddenException,
+      "Despacho no permitido hoy (miercoles) para este vehículo",
+    );
+  });
+
+  it("la ventana es inclusiva en los dos extremos", () => {
+    const v = ventana("06:00", "18:00");
+    expect(() =>
+      validarHorarioVehiculo(v, gt("2026-10-07", "06:00")),
+    ).not.toThrow();
+    expect(() => validarHorarioVehiculo(v, MIERCOLES_0800_GT)).not.toThrow();
+    expect(() =>
+      validarHorarioVehiculo(v, gt("2026-10-07", "18:00")),
+    ).not.toThrow();
+  });
+
+  it("rechaza 05:59 y 18:01 con el mensaje del horario", () => {
+    const v = ventana("06:00", "18:00");
+    for (const hora of ["05:59", "18:01"]) {
+      esperarError(
+        () => validarHorarioVehiculo(v, gt("2026-10-07", hora)),
+        ForbiddenException,
+        "Despacho fuera del horario autorizado (06:00–18:00)",
+      );
+    }
+  });
+
+  it("sólo hora_inicio, sin hora_fin, no restringe", () => {
+    expect(() =>
+      validarHorarioVehiculo(ventana("06:00", null), gt("2026-10-07", "09:00")),
+    ).not.toThrow();
+  });
+
+  it("si el día no es permitido y además está fuera de hora, gana el mensaje del día", () => {
+    esperarError(
+      () =>
+        validarHorarioVehiculo(
+          {
+            dias_permitidos: ["jueves"],
+            hora_inicio: "06:00",
+            hora_fin: "07:00",
+          },
+          MIERCOLES_0800_GT,
+        ),
+      ForbiddenException,
+      "Despacho no permitido hoy (miercoles) para este vehículo",
+    );
+  });
+
+  it("HALLAZGO H1: una ventana que cruza la medianoche (22:00–06:00) rechaza siempre, incluso a las 23:00 GT", () => {
+    // 23:00 GT = 05:00Z del día siguiente.
+    esperarError(
+      () =>
+        validarHorarioVehiculo(
+          ventana("22:00", "06:00"),
+          new Date("2026-10-08T05:00:00Z"),
+        ),
+      ForbiddenException,
+      "Despacho fuera del horario autorizado (22:00–06:00)",
+    );
   });
 });
