@@ -6,13 +6,13 @@ export class LoginDto {
     example: "admin@gasolinera.com",
     description: "Correo o número de teléfono del usuario",
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(254)
+  @IsString({ message: "Ingrese su correo o teléfono" })
+  @IsNotEmpty({ message: "Ingrese su correo o teléfono" })
+  @MaxLength(254, { message: "El correo o teléfono es demasiado largo" })
   identificador: string;
 
   @ApiProperty({ example: "Contraseña123!" })
-  @IsString()
-  @MinLength(8)
+  @IsString({ message: "Ingrese su contraseña" })
+  @MinLength(8, { message: "La contraseña debe tener al menos 8 caracteres" })
   password: string;
 }
