@@ -39,8 +39,11 @@ describe("identificadoresDeAlta", () => {
 
 describe("hallazgos de identificadoresDeAlta", () => {
   // HALLAZGO H6: "   " es truthy, se recorta a "" y se devuelve "" en vez de
-  // null. Como `telefono` es UNIQUE, el siguiente alta con teléfono vacío
-  // recibiría "El teléfono ya está registrado".
+  // null. En `create` la comprobación de unicidad vive dentro de
+  // `if (telefono)` y "" es falsy, así que no corre `exigirNoRegistrado`: el
+  // segundo alta con "" llega al INSERT y choca con `telefono UNIQUE`, y el
+  // servicio no captura el 23505 (error de BD sin mensaje en español; 500
+  // probable, no verificado). En `update` no hay comprobación de unicidad.
   it('HALLAZGO H6: un teléfono de sólo espacios con correo da telefono "" (no null)', () => {
     expect(identificadoresDeAlta({ email: "a@b.c", telefono: "   " })).toEqual({
       email: "a@b.c",

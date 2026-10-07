@@ -137,7 +137,7 @@ Comportamientos dudosos hallados al extraer las reglas. Ninguno se corrige en es
 
 ### H6. Un teléfono de sólo espacios se guarda como "" en vez de null
 
-- **Qué pasa:** `"   "` es truthy, se recorta a `""` y se guarda `""` cuando hay correo. Como `telefono` es UNIQUE, el siguiente usuario con teléfono vacío recibe "El teléfono ya está registrado". Pasa igual en `normalizarCambios` (edición).
+- **Qué pasa:** `"   "` es truthy, se recorta a `""` y se guarda `""` cuando hay correo. En `usuarios.service.ts` (`create`) la comprobación de unicidad está dentro de `if (telefono)` y `""` es falsy, así que `exigirNoRegistrado` no corre: el segundo alta con teléfono vacío llega al INSERT y choca con `telefono UNIQUE` (`usuarios.schema.ts:26`). El servicio no captura el `23505`, así que el resultado es un error de base de datos sin mensaje en español (probablemente un 500; no verificado, igual que en H2). En `update` no hay comprobación de unicidad. `normalizarCambios` tiene el mismo recorte.
 - **Dónde:** `usuarios.reglas.ts`, `identificadoresDeAlta` y `normalizarCambios`.
 - **Prueba:** `HALLAZGO H6` en `usuarios.reglas.spec.ts` (fija `identificadoresDeAlta({ email: "a@b.c", telefono: "   " })` con `telefono: ""`).
 - **Para corregirlo:** recortar primero y convertir el resultado vacío en `null` (`datos.telefono?.trim() || null`), también en `normalizarCambios`.
