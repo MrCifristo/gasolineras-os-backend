@@ -195,6 +195,12 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `POST /reportes/pdf` también: un cliente sin empresa recibe 403 (antes omitía
   el filtro y el PDF traía a **todos** los clientes). La tabla completa de rutas
   que admiten al cliente está en el contrato, §1f "Alcance del cliente".
+- **El cliente lee su cuenta:** `GET /saldos/cliente/:id`, `/movimientos`,
+  `/estado-cuenta` y `/estado-cuenta/pdf` admiten `admin` y `cliente`. Para el
+  cliente, `exigirMismaEmpresa` (`saldos.reglas.ts`) exige que `:id` sea su
+  `cliente_id`; otro id o un cliente sin empresa = 404 con el mismo mensaje que
+  da el servicio ("Cliente sin saldo registrado" / "Cliente no encontrado").
+  `POST /saldos/abonos` y `/cuadres` siguen sólo admin.
 - **Un usuario `cliente` siempre tiene `cliente_id`.** `UsuariosService.create`
   y `update` responden 400 si el resultado sería un cliente sin empresa. El
   fail-closed de los servicios se mantiene para filas viejas o editadas en BD;
@@ -222,7 +228,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 256 tests in 3 suites — `gasfuel` 166, `auth-rotacion` 8,
-  `fase6` 82. Needs live Postgres and a migrated DB; run with
+- E2E (`pnpm test:e2e`): 262 tests in 3 suites — `gasfuel` 166, `auth-rotacion` 8,
+  `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

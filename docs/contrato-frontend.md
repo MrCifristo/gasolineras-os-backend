@@ -378,6 +378,9 @@ Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query (o lo 
 | `PATCH /pilotos/:id` | propio; ajeno → 404; `cliente_id` de otra empresa → 403 | 404 |
 | `DELETE /pilotos/:id` | baja lógica del propio; ajeno → 404 | 404 |
 | `GET /clientes`, `GET /clientes/:id` | sólo el propio; ajeno → 404 | `[]` / 404 |
+| `GET /saldos/cliente/:id`, `/movimientos` | sólo su empresa; otro `:id` → 404 "Cliente sin saldo registrado" | 404 |
+| `GET /saldos/cliente/:id/estado-cuenta`, `/estado-cuenta/pdf` | sólo su empresa; otro `:id` → 404 "Cliente no encontrado" (el PDF sólo usa ese `:id`) | 404 |
+| `POST /saldos/abonos`, `POST/GET /saldos/cuadres` | sólo `admin` (el cliente recibe 403) | 403 |
 | `GET /gasolineras`, `/gasolineras/:id`, `GET /precios-combustible`, `/hoy` | catálogos sin datos de clientes | igual que con empresa |
 
 Además, un usuario así **ya no puede crearse por la API**: `POST /usuarios` con `rol: "cliente"` sin `cliente_id`, o un `PATCH /usuarios/:id` que deje a un cliente sin empresa (quitar `cliente_id` o pasar a `rol: "cliente"` sin él), responde 400. El fail-closed de la tabla sigue siendo necesario para filas viejas o editadas a mano en la BD.

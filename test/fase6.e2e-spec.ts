@@ -23,7 +23,7 @@ import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { PushService } from "../src/push/push.service";
 import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { RecordatoriosService } from "../src/modules/turnos/recordatorios.service";
-import { clientes, despachos, gasolineras, recordatoriosTurno, suscripcionesPush, turnosGasolinera, usuarios, vehiculos } from "../src/db/schema";
+import { clientes, despachos, gasolineras, recordatoriosTurno, saldosCliente, suscripcionesPush, turnosGasolinera, usuarios, vehiculos } from "../src/db/schema";
 import { fechaGuatemala } from "../src/common/hora-guatemala";
 
 dotenv.config();
@@ -879,6 +879,75 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         const res = await http().get(`/api/v1/reportes/rendimiento-vehiculo/${vehAjenoId}`).set(auth());
         expect(res.status).toBe(200);
         expect(res.body).toEqual([]);
+      });
+
+      describe("saldo y estado de cuenta del cliente", () => {
+        const rutas = (id: string) => [
+          `/api/v1/saldos/cliente/${id}`,
+          `/api/v1/saldos/cliente/${id}/movimientos`,
+          `/api/v1/saldos/cliente/${id}/estado-cuenta`,
+          `/api/v1/saldos/cliente/${id}/estado-cuenta/pdf`,
+        ];
+
+        beforeAll(async () => {
+          await db.db
+            .insert(saldosCliente)
+            .values([{ cliente_id: clienteId }, { cliente_id: otroClienteId }])
+            .onConflictDoNothing();
+        });
+
+        it("lee su saldo, sus movimientos y su estado de cuenta", async () => {
+          for (const ruta of rutas(clienteId).slice(0, 3)) {
+            const res = await http().get(ruta).set(auth());
+            expect(res.status).toBe(200);
+          }
+        });
+
+        it("descarga su estado de cuenta en PDF", async () => {
+          const res = await http()
+            .get(rutas(clienteId)[3])
+            .set(auth())
+            .buffer(true);
+          expect(res.status).toBe(200);
+          expect(res.headers["content-type"]).toContain("application/pdf");
+        });
+
+        it("las cuatro lecturas con el id de otra empresa dan 404", async () => {
+          for (const ruta of rutas(otroClienteId)) {
+            const res = await http().get(ruta).set(auth());
+            expect(res.status).toBe(404);
+          }
+          const saldo = await http().get(rutas(otroClienteId)[0]).set(auth());
+          expect(saldo.body.message).toBe("Cliente sin saldo registrado");
+        });
+
+        it("un cliente sin empresa recibe 404 en las cuatro", async () => {
+          const u = await crearUsuario("cliente");
+          const token = await loginToken(u.email!);
+          for (const ruta of rutas(clienteId)) {
+            const res = await http().get(ruta).set("Authorization", `Bearer ${token}`);
+            expect(res.status).toBe(404);
+          }
+        });
+
+        it("el admin sigue leyendo cualquier cliente", async () => {
+          for (const id of [clienteId, otroClienteId]) {
+            const res = await http()
+              .get(`/api/v1/saldos/cliente/${id}`)
+              .set("Authorization", `Bearer ${adminToken}`);
+            expect(res.status).toBe(200);
+          }
+        });
+
+        it("el cliente no puede registrar abonos ni leer cuadres", async () => {
+          const abono = await http()
+            .post("/api/v1/saldos/abonos")
+            .set(auth())
+            .send({ cliente_id: clienteId, monto: "100" });
+          expect(abono.status).toBe(403);
+          const cuadres = await http().get("/api/v1/saldos/cuadres").set(auth());
+          expect(cuadres.status).toBe(403);
+        });
       });
 
       describe("el cliente gestiona su flota y sus pilotos", () => {

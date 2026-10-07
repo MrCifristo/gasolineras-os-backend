@@ -1,7 +1,8 @@
 // src/modules/saldos/saldos.reglas.spec.ts
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { esperarError } from "../../../test/unit/esperar-error";
 import {
+  exigirMismaEmpresa,
   resumenEstadoCuenta,
   validarCuadre,
   validarMontoAbono,
@@ -102,5 +103,48 @@ describe("resumenEstadoCuenta", () => {
         parseFloat(r.total_abonos) -
         parseFloat(r.total_debitos),
     ).toBeCloseTo(parseFloat(r.saldo_final), 3);
+  });
+});
+
+describe("exigirMismaEmpresa", () => {
+  const MSG = "Cliente sin saldo registrado";
+
+  it("el admin lee cualquier cliente", () => {
+    expect(() => exigirMismaEmpresa({ rol: "admin" }, "c2", MSG)).not.toThrow();
+  });
+
+  it("el cliente lee su propia empresa", () => {
+    expect(() =>
+      exigirMismaEmpresa({ rol: "cliente", cliente_id: "c1" }, "c1", MSG),
+    ).not.toThrow();
+  });
+
+  it("el cliente con otra empresa: 404 con el mensaje dado", () => {
+    esperarError(
+      () => exigirMismaEmpresa({ rol: "cliente", cliente_id: "c1" }, "c2", MSG),
+      NotFoundException,
+      MSG,
+    );
+  });
+
+  it("el cliente sin cliente_id: 404", () => {
+    esperarError(
+      () =>
+        exigirMismaEmpresa(
+          { rol: "cliente", cliente_id: null },
+          "c1",
+          "Cliente no encontrado",
+        ),
+      NotFoundException,
+      "Cliente no encontrado",
+    );
+  });
+
+  it("otro rol sin empresa: 404 (fail-closed)", () => {
+    esperarError(
+      () => exigirMismaEmpresa({ rol: "supervisor" }, "c1", MSG),
+      NotFoundException,
+      MSG,
+    );
   });
 });

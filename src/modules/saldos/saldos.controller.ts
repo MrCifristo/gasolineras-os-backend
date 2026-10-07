@@ -17,6 +17,7 @@ import { QueryCuadresDto } from "./dto/query-cuadres.dto";
 import { QueryEstadoCuentaDto } from "./dto/query-estado-cuenta.dto";
 import { QueryMovimientosDto } from "./dto/query-movimientos.dto";
 import { SaldosPdfService } from "./pdf/saldos-pdf.service";
+import { exigirMismaEmpresa } from "./saldos.reglas";
 import { SaldosService } from "./saldos.service";
 
 @ApiTags("saldos")
@@ -29,26 +30,29 @@ export class SaldosController {
   ) {}
 
   @Get("cliente/:id")
-  @Auth("admin")
+  @Auth("admin", "cliente")
   @ApiOperation({
     summary: "Saldo actual + últimos 20 movimientos del cliente",
   })
-  getClienteSaldo(@Param("id") id: string) {
+  getClienteSaldo(@Param("id") id: string, @Request() req: any) {
+    exigirMismaEmpresa(req.user, id, "Cliente sin saldo registrado");
     return this.service.getClienteSaldo(id);
   }
 
   @Get("cliente/:id/movimientos")
-  @Auth("admin")
+  @Auth("admin", "cliente")
   @ApiOperation({ summary: "Historial paginado de movimientos del cliente" })
   getClienteMovimientos(
     @Param("id") id: string,
     @Query() query: QueryMovimientosDto,
+    @Request() req: any,
   ) {
+    exigirMismaEmpresa(req.user, id, "Cliente sin saldo registrado");
     return this.service.getClienteMovimientos(id, query);
   }
 
   @Get("cliente/:id/estado-cuenta")
-  @Auth("admin")
+  @Auth("admin", "cliente")
   @ApiOperation({
     summary:
       "Estado de cuenta del período: saldo inicial, abonos, consumos y saldo final",
@@ -56,18 +60,22 @@ export class SaldosController {
   getEstadoCuenta(
     @Param("id") id: string,
     @Query() query: QueryEstadoCuentaDto,
+    @Request() req: any,
   ) {
+    exigirMismaEmpresa(req.user, id, "Cliente no encontrado");
     return this.service.getEstadoCuenta(id, query);
   }
 
   @Get("cliente/:id/estado-cuenta/pdf")
-  @Auth("admin")
+  @Auth("admin", "cliente")
   @ApiOperation({ summary: "Estado de cuenta del período en PDF" })
   async getEstadoCuentaPdf(
     @Param("id") id: string,
     @Query() query: QueryEstadoCuentaDto,
+    @Request() req: any,
     @Res() res: Response,
   ) {
+    exigirMismaEmpresa(req.user, id, "Cliente no encontrado");
     const pdf = await this.pdf.generarEstadoCuenta(id, query);
     res.set({
       "Content-Type": "application/pdf",

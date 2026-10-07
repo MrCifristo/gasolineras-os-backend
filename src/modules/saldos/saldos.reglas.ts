@@ -1,6 +1,6 @@
 // src/modules/saldos/saldos.reglas.ts
 // Reglas puras de saldos: sin base de datos ni reloj.
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 export function validarMontoAbono(monto: string): void {
   if (!(Number(monto) > 0)) {
@@ -47,4 +47,21 @@ export function resumenEstadoCuenta(
     total_debitos: debitos.toFixed(3),
     saldo_final: (saldoInicial + abonos - debitos).toFixed(3),
   };
+}
+
+/**
+ * Alcance fail-closed de las lecturas de cuenta: el admin lee la de cualquier
+ * cliente; un `cliente` sólo la de su propia empresa. Lo ajeno, o un cliente
+ * sin `cliente_id`, responde el mismo 404 que da el servicio para un cliente
+ * inexistente (`mensaje`), para no revelar qué empresas existen.
+ */
+export function exigirMismaEmpresa(
+  user: { rol: string; cliente_id?: string | null },
+  clienteId: string,
+  mensaje: string,
+): void {
+  if (user.rol === "admin") return;
+  if (!user.cliente_id || user.cliente_id !== clienteId) {
+    throw new NotFoundException(mensaje);
+  }
 }
