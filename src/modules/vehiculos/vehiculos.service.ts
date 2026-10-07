@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -15,35 +14,17 @@ import {
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 import { UpdateRestriccionesVehiculoDto } from "./dto/update-restricciones-vehiculo.dto";
+import {
+  clienteIdDeAlcance,
+  coercerDecimales,
+  intentaDesbloquear,
+  plantillaDesdeCliente,
+  rechazarBloqueadoNulo,
+} from "./vehiculos.reglas";
 
 @Injectable()
 export class VehiculosService {
   constructor(private db: DbService) {}
-
-  private readonly DECIMAL_FIELDS = [
-    "limite_monto_transaccion",
-    "limite_monto_dia",
-    "limite_monto_semana",
-    "limite_monto_mes",
-    "limite_volumen_transaccion",
-    "limite_volumen_dia",
-    "limite_volumen_semana",
-    "limite_volumen_mes",
-  ] as const;
-
-  private coerceDecimals(dto: Record<string, any>) {
-    const out: Record<string, any> = { ...dto };
-    for (const f of this.DECIMAL_FIELDS) {
-      if (out[f] != null) out[f] = String(out[f]);
-    }
-    return out;
-  }
-
-  /** PartialType vuelve opcionales (y nulables) todos los campos; bloqueado es NOT NULL. */
-  private rechazarBloqueadoNulo(dto: { bloqueado?: boolean | null }) {
-    if (dto.bloqueado === null)
-      throw new BadRequestException("bloqueado debe ser verdadero o falso");
-  }
 
   /** Alcance fail-closed: un cliente sólo ve sus vehículos; sin cliente_id, nada. */
   async findAll(
@@ -89,61 +70,22 @@ export class VehiculosService {
       .where(eq(clientes.id, dto.cliente_id))
       .limit(1);
 
-    const plantilla: Partial<typeof dto> = {};
-    if (cli) {
-      const p = cli;
-      if (p.plantilla_monto_transaccion != null)
-        plantilla.limite_monto_transaccion = parseFloat(
-          String(p.plantilla_monto_transaccion),
-        );
-      if (p.plantilla_monto_dia != null)
-        plantilla.limite_monto_dia = parseFloat(String(p.plantilla_monto_dia));
-      if (p.plantilla_monto_semana != null)
-        plantilla.limite_monto_semana = parseFloat(
-          String(p.plantilla_monto_semana),
-        );
-      if (p.plantilla_monto_mes != null)
-        plantilla.limite_monto_mes = parseFloat(String(p.plantilla_monto_mes));
-      if (p.plantilla_volumen_transaccion != null)
-        plantilla.limite_volumen_transaccion = parseFloat(
-          String(p.plantilla_volumen_transaccion),
-        );
-      if (p.plantilla_volumen_dia != null)
-        plantilla.limite_volumen_dia = parseFloat(
-          String(p.plantilla_volumen_dia),
-        );
-      if (p.plantilla_volumen_semana != null)
-        plantilla.limite_volumen_semana = parseFloat(
-          String(p.plantilla_volumen_semana),
-        );
-      if (p.plantilla_volumen_mes != null)
-        plantilla.limite_volumen_mes = parseFloat(
-          String(p.plantilla_volumen_mes),
-        );
-      if (p.plantilla_trans_dia != null)
-        plantilla.limite_trans_dia = p.plantilla_trans_dia;
-      if (p.plantilla_trans_semana != null)
-        plantilla.limite_trans_semana = p.plantilla_trans_semana;
-      if (p.plantilla_trans_mes != null)
-        plantilla.limite_trans_mes = p.plantilla_trans_mes;
-      if (p.plantilla_productos_permitidos?.length)
-        plantilla.productos_permitidos = p.plantilla_productos_permitidos;
-    }
+    const plantilla = plantillaDesdeCliente(cli);
 
     const merged = { ...plantilla, ...dto };
     const [row] = await this.db.db
       .insert(vehiculos)
-      .values(this.coerceDecimals(merged) as any)
+      .values(coercerDecimales(merged) as any)
       .returning();
     return row;
   }
 
   async update(id: string, dto: UpdateVehiculoDto) {
-    this.rechazarBloqueadoNulo(dto);
+    rechazarBloqueadoNulo(dto);
     await this.findOne(id);
     const [row] = await this.db.db
       .update(vehiculos)
-      .set(this.coerceDecimals(dto) as any)
+      .set(coercerDecimales(dto) as any)
       .where(eq(vehiculos.id, id))
       .returning();
     return row;
@@ -159,18 +101,15 @@ export class VehiculosService {
     dto: UpdateRestriccionesVehiculoDto,
     user: { rol: string; cliente_id?: string | null },
   ) {
-    this.rechazarBloqueadoNulo(dto);
+    rechazarBloqueadoNulo(dto);
     const condiciones = [eq(vehiculos.id, id)];
-    if (user.rol !== "admin") {
-      if (!user.cliente_id)
-        throw new NotFoundException("Vehículo no encontrado");
-      condiciones.push(eq(vehiculos.cliente_id, user.cliente_id));
-    }
+    const clienteId = clienteIdDeAlcance(user);
+    if (clienteId) condiciones.push(eq(vehiculos.cliente_id, clienteId));
     // Un cliente puede bloquear sus vehículos pero no desbloquearlos: eso lo
     // decide la estación. Siempre se rechaza (no sólo si está bloqueado) y,
     // como va antes del UPDATE, el resto de campos de la petición no se aplica.
     // Primero el alcance, para que un vehículo ajeno siga dando 404.
-    if (user.rol === "cliente" && dto.bloqueado === false) {
+    if (intentaDesbloquear(user, dto)) {
       const [propio] = await this.db.db
         .select({ id: vehiculos.id })
         .from(vehiculos)
@@ -192,7 +131,7 @@ export class VehiculosService {
     }
     const [row] = await this.db.db
       .update(vehiculos)
-      .set(this.coerceDecimals(dto) as any)
+      .set(coercerDecimales(dto) as any)
       .where(and(...condiciones))
       .returning();
     if (!row) throw new NotFoundException("Vehículo no encontrado");
