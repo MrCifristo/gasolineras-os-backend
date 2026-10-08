@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.env
+.env.*
+test
+docs
+docker-compose*.yml
+Dockerfile
+.dockerignore
+*.sql
+prompt.md
+esquema.dbml
