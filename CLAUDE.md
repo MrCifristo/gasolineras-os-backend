@@ -160,7 +160,10 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   ts-jest (`transformIgnorePatterns` in `package.json` and `test/jest-e2e.json`).
   Verified on Node 24.
 - `GET /despachos` returns `{ data, total, page, limit }` and every despacho
-  (list and detail) carries `operario: { id, nombre } | null`. `POST /despachos`
+  (list and detail) carries `operario: { id, nombre } | null`. The detail
+  (`GET /despachos/:id`) also carries `despachador: { id, nombre } | null`, the
+  "Despachado por" of a reprinted vale (the client reprints and can't read
+  `/usuarios`). `POST /despachos`
   rejects an `operario_id` from another station or inactive (400).
 
 ## Client role: catalogues, restrictions and scoping
