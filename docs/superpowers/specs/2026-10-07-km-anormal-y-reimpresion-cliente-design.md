@@ -10,6 +10,8 @@ Tres mejoras que Milton pidió el 2026-10-07:
 2. El cliente ve el kilometraje de cada despacho en su tabla y en el Excel que descarga.
 3. El sistema detecta un kilometraje **anormal**, no solo uno menor al anterior: saltos imposibles (error de digitación) y rendimientos sospechosos (posible desvío de combustible).
 
+> **Sección 3 en pausa (2026-10-07).** Antes de implementarla, Milton va a confirmar con el personal de la gasolinera cómo cargan los clientes. El método "tanque a tanque" supone que cada carga llena el tanque; con cargas por monto (Q300 un día, Q1 500 otro) el rendimiento varía más del ±40 % sin que pase nada raro, y la etiqueta, que el cliente ve en su portal, se llenaría de falsas alarmas. Según la respuesta, el rendimiento se mide por carga, sobre una ventana de 3 cargas o se omite y queda solo el salto. Los defaults (1 500 km de salto y la tolerancia) también se confirman con el personal. Las secciones 1 y 2 no dependen de esto y avanzan ya.
+
 **Criterio de éxito:** un despacho con km anormal no pasa en la tablet sin que el supervisor lo confirme; si lo confirma, queda marcado con su motivo y tanto el admin como el cliente lo ven y lo filtran. El cliente imprime el vale de cualquiera de sus despachos y nunca el de otro cliente. Los e2e existentes siguen en verde.
 
 ## Decisiones cerradas
