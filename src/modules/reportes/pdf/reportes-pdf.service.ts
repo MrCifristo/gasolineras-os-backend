@@ -12,6 +12,7 @@ import { ReportesService, ReporteFilters } from "../reportes.service";
 import { GenerarPdfDto } from "./reportes-pdf.dto";
 import { buildPdfHtml, PdfTemplateData } from "./html-template";
 import { fechaGtSql } from "../../../common/hora-guatemala";
+import { opcionesChrome } from "../../../common/chrome";
 
 @Injectable()
 export class ReportesPdfService {
@@ -134,13 +135,8 @@ export class ReportesPdfService {
   }
 
   private async renderPdf(html: string): Promise<Buffer> {
-    // El sandbox de Chrome queda activo a propósito: el HTML lleva datos
-    // enviados por el cliente (graficas.*), así que un escape del renderer
-    // llegaría al host. Si esto se contenedoriza, hay que darle al contenedor
-    // los permisos del sandbox (seccomp/SYS_ADMIN), no reactivar --no-sandbox.
-    const browser = await puppeteer.launch({
-      headless: true,
-    });
+    // Sandbox activo salvo CHROME_SIN_SANDBOX=true: ver common/chrome.ts.
+    const browser = await puppeteer.launch(opcionesChrome());
     try {
       const page = await browser.newPage();
 

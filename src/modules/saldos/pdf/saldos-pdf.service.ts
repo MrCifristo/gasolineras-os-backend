@@ -3,6 +3,7 @@ import puppeteer from "puppeteer";
 import { SaldosService } from "../saldos.service";
 import { QueryEstadoCuentaDto } from "../dto/query-estado-cuenta.dto";
 import { buildEstadoCuentaHtml } from "./estado-cuenta-template";
+import { opcionesChrome } from "../../../common/chrome";
 
 @Injectable()
 export class SaldosPdfService {
@@ -46,13 +47,11 @@ export class SaldosPdfService {
   /**
    * Mismo endurecimiento que ReportesPdfService, y por el mismo motivo: el HTML
    * lleva texto que viene de la base (nombre del cliente, descripción del
-   * movimiento), así que un escape del renderer llegaría al host.
-   *
-   * Si esto se contenedoriza, hay que darle al contenedor los permisos del
-   * sandbox (seccomp/SYS_ADMIN); no reactivar --no-sandbox.
+   * movimiento), así que un escape del renderer llegaría al host. El sandbox
+   * se decide en common/chrome.ts.
    */
   private async renderPdf(html: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch(opcionesChrome());
     try {
       const page = await browser.newPage();
 
