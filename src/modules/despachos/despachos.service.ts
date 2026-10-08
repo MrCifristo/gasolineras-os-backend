@@ -194,6 +194,9 @@ export class DespachosService {
         precio: preciosCombustible,
         cliente: clientes,
         operario: { id: operarios.id, nombre: operarios.nombre },
+        // Para "Despachado por" en el vale reimpreso: el cliente también
+        // reimprime y no puede leer /usuarios.
+        despachador: { id: usuarios.id, nombre: usuarios.nombre },
       })
       .from(despachos)
       // leftJoin y no innerJoin: un vale sólo de canecas no tiene vehículo ni
@@ -202,6 +205,8 @@ export class DespachosService {
       .leftJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
       // leftJoin: los vales anteriores a la Fase 1 no tienen operario.
       .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
+      // leftJoin: un despachador ausente no debe esconder el despacho.
+      .leftJoin(usuarios, eq(despachos.despachador_id, usuarios.id))
       .innerJoin(gasolineras, eq(despachos.gasolinera_id, gasolineras.id))
       .leftJoin(
         preciosCombustible,

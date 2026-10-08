@@ -1218,6 +1218,31 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.despacho.id).toBe(despacho1Id);
     });
 
+    // El vale reimpreso lleva "Despachado por": el nombre viene en el detalle,
+    // porque /usuarios es sólo del admin y el cliente también reimprime.
+    it("el detalle trae al despachador → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.despachador).toEqual({
+        id: res.body.despacho.despachador_id,
+        nombre: tag("Operario López"),
+      });
+    });
+
+    it("cliente de su empresa ve al despachador de su despacho → 200", async () => {
+      const empresaToken = await tokenDeClienteLigado(
+        cliente1Id,
+        "despachador",
+      );
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despacho1Id}`)
+        .set("Authorization", `Bearer ${empresaToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.despachador.nombre).toBe(tag("Operario López"));
+    });
+
     it("cliente de OTRA empresa no puede leer el despacho ajeno → 404", async () => {
       // Empresa distinta a la del despacho.
       const otraEmpresa = await request(app.getHttpServer())
@@ -1344,6 +1369,36 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/despachos/${despacho1Id}/firma`)
         .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(404);
+    });
+
+    // El cliente reimprime sus vales con firma: la baja él mismo, pero sólo
+    // la de sus despachos.
+    it("cliente de su empresa baja la firma de su despacho → 200", async () => {
+      const empresaToken = await tokenDeClienteLigado(
+        cliente1Id,
+        "firma-propia",
+      );
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despachoFirmaId}/firma`)
+        .set("Authorization", `Bearer ${empresaToken}`)
+        .buffer(true);
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("image/png");
+    });
+
+    it("cliente de otra empresa recibe 404 en la firma ajena", async () => {
+      const otraEmpresa = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Empresa Ajena Firma"), nit: `AJF-${RUN_ID}` });
+      const otraToken = await tokenDeClienteLigado(
+        otraEmpresa.body.id,
+        "firma-ajena",
+      );
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/${despachoFirmaId}/firma`)
+        .set("Authorization", `Bearer ${otraToken}`);
       expect(res.status).toBe(404);
     });
   });

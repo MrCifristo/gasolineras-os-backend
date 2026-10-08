@@ -299,6 +299,11 @@ Ya **no** responde un arreglo. Ahora:
 - El Excel de despachos tiene una columna "Operario".
 - `POST /despachos` valida `operario_id`: debe existir, estar activo y ser de la **misma gasolinera** del despacho. Si no, 400 `"El operario no pertenece a esta gasolinera o está inactivo."`.
 
+### `despachador` en el detalle (2026-10-07)
+
+- `GET /despachos/:id` incluye, junto a `operario`, `despachador: { id, nombre } | null`: el usuario (supervisor) que registró el despacho. Es la línea "Despachado por" del vale. Llega para todos los roles que leen el detalle, con el mismo alcance que el despacho. Así el **cliente reimprime sus vales** con `GET /despachos/:id` + `GET /despachos/:id/firma`, sin leer `/usuarios` (que es sólo del admin). Es `null` si el usuario ya no existe.
+- `GET /despachos` (el listado) no lo incluye.
+
 ### Permisos de lectura del jefe de pista
 
 `jefe_pista` ahora puede leer, además de escribir precios: `GET /gasolineras`, `GET /gasolineras/:id`, `GET /precios-combustible` y `GET /precios-combustible/hoy`. Y `GET /gasolineras/:id/turnos`.
