@@ -48,6 +48,13 @@ Tres mejoras que Milton pidió el 2026-10-07:
 - `DespachoTable` recibe un `onReimprimir` opcional; cuando está presente, cada fila muestra el botón "Reimprimir vale" (amarillo: es una acción física, según el Design System). El portal del cliente lo pasa; el espejo del portal en el admin lo hereda.
 - `ValeImpresion` se monta fuera de cualquier modal, igual que en admin. La regla global de aislamiento de `globals.css` ya cubre cualquier página.
 
+**Toda reimpresión se marca (decisión de Milton, 2026-10-07).** Con el cliente reimprimiendo en su oficina, un vale idéntico al original permitiría que un mismo despacho circule como varios vales. Por eso, cuando reimprimen el admin, el supervisor o el cliente:
+- el título del original pasa de "Vale de Combustible — ORIGINAL" a "Vale de Combustible — REIMPRESIÓN";
+- la copia lleva "COPIA — PILOTO · REIMPRESIÓN";
+- ambas páginas agregan la línea "Reimpreso: <fecha y hora de Guatemala>".
+
+Solo el vale que sale de la bomba al crear el despacho se imprime como ORIGINAL. `ValeImpresion` recibe un `reimpresoEn?: Date` opcional; sin él, el vale sale exactamente como hoy.
+
 **Riesgo conocido.** En una impresora de oficina el vale sale angosto (formato 80 mm). El diálogo del navegador permite "Guardar como PDF". No se diseña un formato carta en este alcance.
 
 ## 2. Kilometraje en la tabla y en el Excel
