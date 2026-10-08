@@ -21,6 +21,7 @@ import { InventarioModule } from "./modules/inventario/inventario.module";
 import { VentasInsumosModule } from "./modules/ventas-insumos/ventas-insumos.module";
 import { TurnosModule } from "./modules/turnos/turnos.module";
 import { PushSuscripcionesModule } from "./modules/push/push-suscripciones.module";
+import { SaludModule } from "./salud/salud.module";
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PushSuscripcionesModule } from "./modules/push/push-suscripciones.modul
     VentasInsumosModule,
     TurnosModule,
     PushSuscripcionesModule,
+    SaludModule,
   ],
 })
 export class AppModule {}
