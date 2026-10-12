@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Request,
-  Res,
-} from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { Auth } from "../../auth/roles.decorator";
@@ -19,6 +10,7 @@ import { QueryMovimientosDto } from "./dto/query-movimientos.dto";
 import { SaldosPdfService } from "./pdf/saldos-pdf.service";
 import { exigirMismaEmpresa } from "./saldos.reglas";
 import { SaldosService } from "./saldos.service";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("saldos")
 @ApiBearerAuth("JWT")
@@ -34,8 +26,11 @@ export class SaldosController {
   @ApiOperation({
     summary: "Saldo actual + últimos 20 movimientos del cliente",
   })
-  getClienteSaldo(@Param("id") id: string, @Request() req: any) {
-    exigirMismaEmpresa(req.user, id, "Cliente sin saldo registrado");
+  getClienteSaldo(
+    @Param("id") id: string,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    exigirMismaEmpresa(usuario, id, "Cliente sin saldo registrado");
     return this.service.getClienteSaldo(id);
   }
 
@@ -45,9 +40,9 @@ export class SaldosController {
   getClienteMovimientos(
     @Param("id") id: string,
     @Query() query: QueryMovimientosDto,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
   ) {
-    exigirMismaEmpresa(req.user, id, "Cliente sin saldo registrado");
+    exigirMismaEmpresa(usuario, id, "Cliente sin saldo registrado");
     return this.service.getClienteMovimientos(id, query);
   }
 
@@ -60,9 +55,9 @@ export class SaldosController {
   getEstadoCuenta(
     @Param("id") id: string,
     @Query() query: QueryEstadoCuentaDto,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
   ) {
-    exigirMismaEmpresa(req.user, id, "Cliente no encontrado");
+    exigirMismaEmpresa(usuario, id, "Cliente no encontrado");
     return this.service.getEstadoCuenta(id, query);
   }
 
@@ -72,10 +67,10 @@ export class SaldosController {
   async getEstadoCuentaPdf(
     @Param("id") id: string,
     @Query() query: QueryEstadoCuentaDto,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Res() res: Response,
   ) {
-    exigirMismaEmpresa(req.user, id, "Cliente no encontrado");
+    exigirMismaEmpresa(usuario, id, "Cliente no encontrado");
     const pdf = await this.pdf.generarEstadoCuenta(id, query);
     res.set({
       "Content-Type": "application/pdf",
@@ -95,8 +90,11 @@ export class SaldosController {
   @Post("cuadres")
   @Auth("admin")
   @ApiOperation({ summary: "Registrar cuadre de conciliación" })
-  createCuadre(@Body() dto: CreateCuadreDto, @Request() req: any) {
-    return this.service.createCuadre(dto, req.user.id);
+  createCuadre(
+    @Body() dto: CreateCuadreDto,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    return this.service.createCuadre(dto, usuario.id);
   }
 
   @Get("cuadres")

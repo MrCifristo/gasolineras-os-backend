@@ -5,6 +5,7 @@ import { esperarRechazo } from "../../../../test/unit/esperar-error";
 import type { DbService } from "../../../db/db.service";
 import type { ReportesService } from "../reportes.service";
 import { ReportesPdfService } from "./reportes-pdf.service";
+import { espiarPrivado } from "../../../../test/unit/dobles";
 
 type PuppeteerMock = {
   __paginas: {
@@ -35,9 +36,10 @@ function armar() {
     {} as unknown as DbService,
     reportes as unknown as ReportesService,
   );
-  const fetchDespachos = jest
-    .spyOn(s as any, "fetchDespachos")
-    .mockResolvedValue({ rows: [], total: 0 });
+  const fetchDespachos = espiarPrivado(s, "fetchDespachos").mockResolvedValue({
+    rows: [],
+    total: 0,
+  });
   return { s, reportes, fetchDespachos };
 }
 

@@ -10,6 +10,7 @@ import {
 } from "../../db/schema";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
+import { decimalesATexto } from "../../common/decimales";
 
 @Injectable()
 export class ClientesService {
@@ -29,12 +30,8 @@ export class ClientesService {
     "plantilla_volumen_mes",
   ] as const;
 
-  private coerceDecimales(dto: Record<string, any>) {
-    const out: Record<string, any> = { ...dto };
-    for (const f of this.CLIENTE_DECIMAL_FIELDS) {
-      if (out[f] != null) out[f] = String(out[f]);
-    }
-    return out;
+  private coerceDecimales<T extends object>(dto: T) {
+    return decimalesATexto(dto, this.CLIENTE_DECIMAL_FIELDS);
   }
 
   findAll(user?: { rol: string; cliente_id?: string | null }) {
@@ -85,7 +82,7 @@ export class ClientesService {
     return this.db.db.transaction(async (tx) => {
       const [cliente] = await tx
         .insert(clientes)
-        .values(this.coerceDecimales(datos) as any)
+        .values(this.coerceDecimales(datos))
         .returning();
 
       // El saldo arranca en 0 para que los despachos tengan de dónde descontar.
@@ -114,7 +111,7 @@ export class ClientesService {
     await this.findOne(id);
     const [row] = await this.db.db
       .update(clientes)
-      .set(this.coerceDecimales(dto) as any)
+      .set(this.coerceDecimales(dto))
       .where(eq(clientes.id, id))
       .returning();
     return row;

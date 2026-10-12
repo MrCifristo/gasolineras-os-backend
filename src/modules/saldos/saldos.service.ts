@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   clientes,
@@ -52,7 +52,7 @@ export class SaldosService {
     if (!saldo) throw new NotFoundException("Cliente sin saldo registrado");
 
     const { page = 1, limit = 20, fecha_desde, fecha_hasta, tipo } = query;
-    const conditions: any[] = [eq(movimientosSaldo.cliente_id, clienteId)];
+    const conditions: SQL[] = [eq(movimientosSaldo.cliente_id, clienteId)];
 
     if (fecha_desde)
       conditions.push(
@@ -198,7 +198,7 @@ export class SaldosService {
   }
 
   async findCuadres(query: QueryCuadresDto) {
-    const conditions: any[] = [];
+    const conditions: SQL[] = [];
 
     if (query.tipo) conditions.push(eq(cuadres.tipo, query.tipo));
     if (query.cliente_id)

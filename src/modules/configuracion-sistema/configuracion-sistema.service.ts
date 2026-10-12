@@ -18,13 +18,14 @@ export class ConfiguracionSistemaService {
     return created;
   }
 
-  async update(dto: UpdateConfiguracionDto, adminEmail: string) {
+  /** `responsable`: correo del admin, o su teléfono si no tiene correo. */
+  async update(dto: UpdateConfiguracionDto, responsable: string) {
     const current = await this.findOne();
     const [updated] = await this.db.db
       .update(configuracionSistema)
       .set({
         sistema_bloqueado: dto.sistema_bloqueado,
-        bloqueado_por: dto.sistema_bloqueado ? adminEmail : null,
+        bloqueado_por: dto.sistema_bloqueado ? responsable : null,
         bloqueado_en: dto.sistema_bloqueado ? new Date() : null,
         updated_at: new Date(),
       })

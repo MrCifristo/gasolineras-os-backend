@@ -6,13 +6,13 @@ import {
   Param,
   Patch,
   Post,
-  Request,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
 import { GasolinerasService } from "./gasolineras.service";
 import { CreateGasolineraDto } from "./dto/create-gasolinera.dto";
 import { UpdateGasolineraDto } from "./dto/update-gasolinera.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("gasolineras")
 @ApiBearerAuth("JWT")
@@ -26,9 +26,9 @@ export class GasolinerasController {
     summary:
       "Listar gasolineras (admin, jefe de pista y cliente: todas; supervisor: la propia)",
   })
-  findAll(@Request() req: any) {
-    if (req.user.rol === "supervisor" && req.user.gasolinera_id) {
-      return this.service.findOne(req.user.gasolinera_id);
+  findAll(@UsuarioActual() usuario: UsuarioSesion) {
+    if (usuario.rol === "supervisor" && usuario.gasolinera_id) {
+      return this.service.findOne(usuario.gasolinera_id);
     }
     return this.service.findAll();
   }

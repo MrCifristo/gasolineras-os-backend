@@ -7,7 +7,10 @@ import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import { inventarioMovimientos, productos } from "../../db/schema";
 import { CreateProductoDto } from "./dto/create-producto.dto";
-import { AjustarStockDto } from "./dto/ajustar-stock.dto";
+import {
+  AjustarStockDto,
+  TipoMovimientoInventario,
+} from "./dto/ajustar-stock.dto";
 import { UpdateProductoDto } from "./dto/update-producto.dto";
 
 @Injectable()
@@ -103,7 +106,10 @@ export class InventarioService {
         .limit(1);
       if (!producto) throw new NotFoundException("Producto no encontrado");
 
-      const delta = dto.tipo === "entrada" ? dto.cantidad : -dto.cantidad;
+      const delta =
+        dto.tipo === TipoMovimientoInventario.ENTRADA
+          ? dto.cantidad
+          : -dto.cantidad;
       const resultante = producto.stock_actual + delta;
 
       // El stock no puede quedar negativo: a diferencia del saldo del cliente,

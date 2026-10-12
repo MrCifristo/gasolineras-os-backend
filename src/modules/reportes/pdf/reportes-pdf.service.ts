@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import puppeteer from "puppeteer";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, sql, type SQL } from "drizzle-orm";
 import { DbService } from "../../../db/db.service";
 import {
   despachos,
@@ -83,7 +83,7 @@ export class ReportesPdfService {
   }
 
   private async fetchDespachos(filtros: ReporteFilters) {
-    const conditions: any[] = [];
+    const conditions: SQL[] = [];
 
     if (filtros.cliente_id)
       conditions.push(eq(despachos.cliente_id, filtros.cliente_id));

@@ -2,6 +2,7 @@
 import ExcelJS from "exceljs";
 import type { DbService } from "../../db/db.service";
 import { DespachosExcelService } from "./despachos-excel.service";
+import { espiarPrivado, usuarioDePrueba } from "../../../test/unit/dobles";
 
 const fila = (parcial: Record<string, unknown> = {}) => ({
   id: "d1",
@@ -32,9 +33,9 @@ async function exportar(
   filtros: Record<string, unknown> = {},
 ) {
   const s = new DespachosExcelService({} as unknown as DbService);
-  jest.spyOn(s as any, "fetchRows").mockResolvedValue(rows);
-  jest.spyOn(s as any, "fetchRenglones").mockResolvedValue(renglones);
-  const buf = await s.exportXlsx(filtros, { rol: "admin" });
+  espiarPrivado(s, "fetchRows").mockResolvedValue(rows);
+  espiarPrivado(s, "fetchRenglones").mockResolvedValue(renglones);
+  const buf = await s.exportXlsx(filtros, usuarioDePrueba({ rol: "admin" }));
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf as unknown as ExcelJS.Buffer);
   return wb;
@@ -130,7 +131,7 @@ describe("DespachosExcelService", () => {
   it("un cliente sin empresa exporta un libro vacío sin tocar la base", async () => {
     // `db` vacío: cualquier acceso a this.db.db lanzaría.
     const s = new DespachosExcelService({} as unknown as DbService);
-    const buf = await s.exportXlsx({}, { rol: "cliente", cliente_id: null });
+    const buf = await s.exportXlsx({}, usuarioDePrueba({ rol: "cliente" }));
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf as unknown as ExcelJS.Buffer);
     const ws = wb.getWorksheet("Despachos")!;

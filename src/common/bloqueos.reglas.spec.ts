@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { esperarError } from "../../test/unit/esperar-error";
 import {
   exigirClienteConCredito,
+  exigirGasolineraDelUsuario,
   exigirGasolineraOperable,
   exigirRol,
 } from "./bloqueos.reglas";
@@ -86,5 +87,19 @@ describe("exigirClienteConCredito", () => {
     expect(() =>
       exigirClienteConCredito({ bloqueado: false, credito_bloqueado: false }),
     ).not.toThrow();
+  });
+});
+
+describe("exigirGasolineraDelUsuario", () => {
+  it("pasa con la gasolinera del usuario", () => {
+    expect(() => exigirGasolineraDelUsuario("g1")).not.toThrow();
+  });
+
+  it("sin gasolinera (admin o supervisor sin estación) es el 404 de siempre", () => {
+    esperarError(
+      () => exigirGasolineraDelUsuario(null),
+      NotFoundException,
+      "Gasolinera no encontrada",
+    );
   });
 });

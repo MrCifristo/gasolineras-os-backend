@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -19,10 +18,7 @@ import { Auth } from "../../auth/roles.decorator";
 import { PilotosService } from "./pilotos.service";
 import { CreatePilotoDto } from "./dto/create-piloto.dto";
 import { UpdatePilotoDto } from "./dto/update-piloto.dto";
-
-type ReqConUsuario = {
-  user: { rol: string; cliente_id?: string | null };
-};
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("pilotos")
 @ApiBearerAuth("JWT")
@@ -34,15 +30,18 @@ export class PilotosController {
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar pilotos, filtrable por cliente_id" })
   @ApiQuery({ name: "cliente_id", required: false })
-  findAll(@Query("cliente_id") clienteId?: string, @Request() req?: any) {
-    return this.service.findAll(clienteId, req?.user);
+  findAll(
+    @UsuarioActual() usuario: UsuarioSesion,
+    @Query("cliente_id") clienteId?: string,
+  ) {
+    return this.service.findAll(clienteId, usuario);
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener piloto con sus vehículos asignados" })
-  findOne(@Param("id") id: string, @Request() req: any) {
-    return this.service.findOne(id, req.user);
+  findOne(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.findOne(id, usuario);
   }
 
   @Post()
@@ -50,8 +49,11 @@ export class PilotosController {
   @ApiOperation({
     summary: "Crear piloto (el cliente, a nombre de su empresa)",
   })
-  create(@Body() dto: CreatePilotoDto, @Request() req: ReqConUsuario) {
-    return this.service.create(dto, req.user);
+  create(
+    @Body() dto: CreatePilotoDto,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    return this.service.create(dto, usuario);
   }
 
   @Patch(":id")
@@ -60,9 +62,9 @@ export class PilotosController {
   update(
     @Param("id") id: string,
     @Body() dto: UpdatePilotoDto,
-    @Request() req: ReqConUsuario,
+    @UsuarioActual() usuario: UsuarioSesion,
   ) {
-    return this.service.update(id, dto, req.user);
+    return this.service.update(id, dto, usuario);
   }
 
   @Delete(":id")
@@ -70,7 +72,7 @@ export class PilotosController {
   @ApiOperation({
     summary: "Desactivar piloto (soft delete; el cliente, sólo los suyos)",
   })
-  remove(@Param("id") id: string, @Request() req: ReqConUsuario) {
-    return this.service.remove(id, req.user);
+  remove(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.remove(id, usuario);
   }
 }

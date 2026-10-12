@@ -13,6 +13,13 @@ import {
  * opcionales: sin ellas el push queda apagado con un warning y el backend
  * arranca igual. Un recordatorio sin push sigue saliendo por correo.
  */
+/** Status HTTP del rechazo de web-push (WebPushError lo trae en statusCode). */
+function statusHttp(e: unknown): number | undefined {
+  if (typeof e === "object" && e !== null && "statusCode" in e)
+    return typeof e.statusCode === "number" ? e.statusCode : undefined;
+  return undefined;
+}
+
 @Injectable()
 export class WebPushService extends PushService {
   private readonly logger = new Logger(WebPushService.name);
@@ -53,11 +60,10 @@ export class WebPushService extends PushService {
         { timeout: 10_000 },
       );
       return "ok";
-    } catch (e: any) {
-      if (e?.statusCode === 404 || e?.statusCode === 410) return "expirada";
-      this.logger.error(
-        `Fallo al enviar push (${e?.statusCode ?? "sin status"})`,
-      );
+    } catch (e) {
+      const status = statusHttp(e);
+      if (status === 404 || status === 410) return "expirada";
+      this.logger.error(`Fallo al enviar push (${status ?? "sin status"})`);
       return "error";
     }
   }

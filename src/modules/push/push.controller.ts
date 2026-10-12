@@ -3,9 +3,9 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Post,
-  Request,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
@@ -13,6 +13,7 @@ import { PushService } from "../../push/push.service";
 import { SuscripcionesPushService } from "./suscripciones-push.service";
 import { CrearSuscripcionDto } from "./dto/crear-suscripcion.dto";
 import { BorrarSuscripcionDto } from "./dto/borrar-suscripcion.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("push")
 @Controller("push")
@@ -35,8 +36,12 @@ export class PushController {
   @ApiBearerAuth("JWT")
   @Auth("admin", "jefe_pista")
   @ApiOperation({ summary: "Registrar la suscripción push de este navegador" })
-  guardar(@Request() req: any, @Body() dto: CrearSuscripcionDto) {
-    return this.service.guardar(req.user.id, dto, req.headers["user-agent"]);
+  guardar(
+    @UsuarioActual() usuario: UsuarioSesion,
+    @Body() dto: CrearSuscripcionDto,
+    @Headers("user-agent") userAgent?: string,
+  ) {
+    return this.service.guardar(usuario.id, dto, userAgent);
   }
 
   @Delete("suscripciones")
@@ -44,7 +49,10 @@ export class PushController {
   @ApiBearerAuth("JWT")
   @Auth("admin", "jefe_pista")
   @ApiOperation({ summary: "Eliminar la suscripción push de este navegador" })
-  borrar(@Request() req: any, @Body() dto: BorrarSuscripcionDto) {
-    return this.service.borrar(req.user.id, dto.endpoint);
+  borrar(
+    @UsuarioActual() usuario: UsuarioSesion,
+    @Body() dto: BorrarSuscripcionDto,
+  ) {
+    return this.service.borrar(usuario.id, dto.endpoint);
   }
 }

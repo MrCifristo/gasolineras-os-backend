@@ -273,12 +273,10 @@ function page1(d: PdfTemplateData): string {
 // ─────────────────────────────────────────
 function page2(d: PdfTemplateData): string {
   const totalGal = parseFloat(String(d.kpis.total_galones || "0")) || 1;
-  const totalMonto = parseFloat(String(d.kpis.total_monto || "0")) || 1;
 
   const tipoRows = d.porTipo
     .map((t) => {
       const gal = parseFloat(String(t.total_galones || "0"));
-      const mon = parseFloat(String(t.total_monto || "0"));
       const pct = ((gal / totalGal) * 100).toFixed(1);
       return `<tr>
       <td>${tipoBadge(t.tipo_combustible)}</td>

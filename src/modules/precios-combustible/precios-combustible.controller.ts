@@ -8,7 +8,6 @@ import {
   Patch,
   Post,
   Query,
-  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -20,6 +19,7 @@ import { Auth } from "../../auth/roles.decorator";
 import { PreciosCombustibleService } from "./precios-combustible.service";
 import { CreatePrecioDto } from "./dto/create-precio.dto";
 import { UpdatePrecioDto } from "./dto/update-precio.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("precios-combustible")
 @ApiBearerAuth("JWT")
@@ -49,13 +49,13 @@ export class PreciosCombustibleController {
   })
   @ApiQuery({ name: "gasolinera_id", required: false })
   findHoy(
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("gasolinera_id", new ParseUUIDPipe({ optional: true }))
     gasolineraId?: string,
   ) {
     // El supervisor sólo ve su gasolinera; admin, jefe de pista y cliente eligen.
     const id =
-      req.user.rol === "supervisor" ? req.user.gasolinera_id : gasolineraId;
+      usuario.rol === "supervisor" ? usuario.gasolinera_id : gasolineraId;
     if (!id) throw new BadRequestException("Falta gasolinera_id");
     return this.service.findHoy(id);
   }

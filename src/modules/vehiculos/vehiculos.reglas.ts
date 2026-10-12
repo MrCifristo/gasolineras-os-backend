@@ -9,6 +9,8 @@ import {
 } from "@nestjs/common";
 import type { clientes } from "../../db/schema";
 import type { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
+import { decimalesATexto } from "../../common/decimales";
+import { esViolacionUnica } from "../../common/errores-pg.reglas";
 
 type ClienteRow = typeof clientes.$inferSelect;
 
@@ -23,14 +25,8 @@ export const CAMPOS_DECIMALES = [
   "limite_volumen_mes",
 ] as const;
 
-export function coercerDecimales(
-  dto: Record<string, any>,
-): Record<string, any> {
-  const out: Record<string, any> = { ...dto };
-  for (const f of CAMPOS_DECIMALES) {
-    if (out[f] != null) out[f] = String(out[f]);
-  }
-  return out;
+export function coercerDecimales<T extends object>(dto: T) {
+  return decimalesATexto(dto, CAMPOS_DECIMALES);
 }
 
 /** PartialType vuelve opcionales (y nulables) todos los campos; bloqueado es NOT NULL. */
@@ -114,8 +110,7 @@ export function rechazarCambioDePlaca(
 
 /** 23505 (unique) de la placa -> 409. Devuelve el error original si es otro. */
 export function errorPorPlacaDuplicada(error: unknown): unknown {
-  const e = error as { code?: string; cause?: { code?: string } } | undefined;
-  if (e?.code === "23505" || e?.cause?.code === "23505")
+  if (esViolacionUnica(error))
     return new ConflictException("Ya existe un vehículo con esa placa");
   return error;
 }

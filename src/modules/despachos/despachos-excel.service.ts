@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import ExcelJS from "exceljs";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
@@ -14,32 +14,39 @@ import {
 } from "../../db/schema";
 import { DespachoFilters } from "./despachos.service";
 import { fechaGtSql } from "../../common/hora-guatemala";
+import type { UsuarioSesion } from "../../auth/usuario-actual";
 
 // Corporate Blue palette
 const NAVY = "0F2044";
 const BLUE = "2563EB";
 const LIGHT = "DBEAFE";
 const WHITE = "FFFFFF";
-const GRAY = "F8FAFC";
 const TEXT = "1E293B";
 
 @Injectable()
 export class DespachosExcelService {
   constructor(private db: DbService) {}
 
-  async exportXlsx(filters: DespachoFilters, user: any): Promise<Buffer> {
+  async exportXlsx(
+    filters: DespachoFilters,
+    user: UsuarioSesion,
+  ): Promise<Buffer> {
     const rows = await this.fetchRows(filters, user);
     return this.buildWorkbook(rows, filters);
   }
 
-  private async fetchRows(filters: DespachoFilters, user: any) {
-    const conditions: any[] = [];
+  private async fetchRows(filters: DespachoFilters, user: UsuarioSesion) {
+    const conditions: SQL[] = [];
 
-    if (user.rol === "cliente" && !user.cliente_id) return [];
-    if (user.rol === "supervisor")
+    // Fail-closed: un cliente sin empresa o un supervisor sin estación no ven nada.
+    if (user.rol === "supervisor") {
+      if (!user.gasolinera_id) return [];
       conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
-    if (user.rol === "cliente")
+    }
+    if (user.rol === "cliente") {
+      if (!user.cliente_id) return [];
       conditions.push(eq(despachos.cliente_id, user.cliente_id));
+    }
 
     if (filters.gasolinera_id)
       conditions.push(eq(despachos.gasolinera_id, filters.gasolinera_id));

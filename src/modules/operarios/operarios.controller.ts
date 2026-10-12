@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -19,6 +18,7 @@ import { Auth } from "../../auth/roles.decorator";
 import { OperariosService } from "./operarios.service";
 import { CreateOperarioDto } from "./dto/create-operario.dto";
 import { UpdateOperarioDto } from "./dto/update-operario.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("operarios")
 @ApiBearerAuth("JWT")
@@ -33,10 +33,13 @@ export class OperariosController {
       "Listar operarios activos. El supervisor ve los de su gasolinera; el admin, todos (filtrable por gasolinera_id).",
   })
   @ApiQuery({ name: "gasolinera_id", required: false })
-  findAll(@Request() req: any, @Query("gasolinera_id") gasolineraId?: string) {
+  findAll(
+    @UsuarioActual() usuario: UsuarioSesion,
+    @Query("gasolinera_id") gasolineraId?: string,
+  ) {
     // El supervisor queda acotado a su propia gasolinera; el admin puede filtrar.
-    if (req.user.rol === "supervisor") {
-      return this.service.findAll(req.user.gasolinera_id ?? undefined);
+    if (usuario.rol === "supervisor") {
+      return this.service.findAll(usuario.gasolinera_id ?? undefined);
     }
     return this.service.findAll(gasolineraId);
   }

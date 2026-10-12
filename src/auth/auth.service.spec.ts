@@ -6,6 +6,7 @@ import { AuthService } from "./auth.service";
 import type { PasswordService } from "./password.service";
 import type { SessionService } from "./session.service";
 import type { TokenService } from "./token.service";
+import { espiarPrivado } from "../../test/unit/dobles";
 
 const usuario = (extra: Record<string, unknown> = {}) => ({
   id: "u1",
@@ -43,7 +44,7 @@ describe("AuthService", () => {
       { firmarAccess } as unknown as TokenService,
       { crear, rotar } as unknown as SessionService,
     );
-    buscar = jest.spyOn(s as any, "buscarPorIdentificador");
+    buscar = espiarPrivado(s, "buscarPorIdentificador");
   });
   afterEach(() => jest.restoreAllMocks());
 

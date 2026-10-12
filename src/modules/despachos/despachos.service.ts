@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, eq, getTableColumns, gte, lte, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { fechaGuatemala, fechaGtSql } from "../../common/hora-guatemala";
 import { DbService } from "../../db/db.service";
 import {
@@ -25,6 +25,7 @@ import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
 import {
   exigirClienteConCredito,
+  exigirGasolineraDelUsuario,
   exigirGasolineraOperable,
   exigirRol,
 } from "../../common/bloqueos.reglas";
@@ -52,6 +53,7 @@ import {
   valorizarRenglon,
 } from "./despachos.reglas";
 import { StorageService, StorageObject } from "../../storage/storage.service";
+import { esViolacionUnica } from "../../common/errores-pg.reglas";
 
 type Usuario = typeof usuarios.$inferSelect;
 
@@ -96,17 +98,20 @@ export class DespachosService {
     return key;
   }
 
-  async findAll(filters: DespachoFilters, user: any) {
+  async findAll(filters: DespachoFilters, user: Usuario) {
     const { page = 1, limit = 20, ...rest } = filters;
     const offset = (page - 1) * limit;
-    const conditions: any[] = [];
+    const conditions: SQL[] = [];
 
-    if (user.rol === "cliente" && !user.cliente_id)
-      return { data: [], total: 0, page, limit };
-    if (user.rol === "supervisor")
+    // Fail-closed: un cliente sin empresa o un supervisor sin estación no ven nada.
+    if (user.rol === "supervisor") {
+      if (!user.gasolinera_id) return { data: [], total: 0, page, limit };
       conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
-    if (user.rol === "cliente")
+    }
+    if (user.rol === "cliente") {
+      if (!user.cliente_id) return { data: [], total: 0, page, limit };
       conditions.push(eq(despachos.cliente_id, user.cliente_id));
+    }
 
     if (rest.gasolinera_id)
       conditions.push(eq(despachos.gasolinera_id, rest.gasolinera_id));
@@ -244,7 +249,7 @@ export class DespachosService {
     return obj;
   }
 
-  async create(dto: CreateDespachoDto, user: any) {
+  async create(dto: CreateDespachoDto, user: Usuario) {
     exigirRol(
       user.rol,
       ["supervisor", "admin"],
@@ -259,13 +264,15 @@ export class DespachosService {
     exigirSistemaActivo(sysConfig);
 
     // ── 2. Bloqueo de gasolinera + serie de vale activa ──────────────────
+    const gasolineraId = user.gasolinera_id;
+    exigirGasolineraDelUsuario(gasolineraId);
     const [gas] = await this.db.db
       .select({
         bloqueado: gasolineras.bloqueado,
         serie_vale_actual: gasolineras.serie_vale_actual,
       })
       .from(gasolineras)
-      .where(eq(gasolineras.id, user.gasolinera_id))
+      .where(eq(gasolineras.id, gasolineraId))
       .limit(1);
     exigirGasolineraOperable(gas);
     // La serie sale de la gasolinera, no del cliente: el operario no la elige.
@@ -278,7 +285,7 @@ export class DespachosService {
       .where(
         and(
           eq(operarios.id, dto.operario_id),
-          eq(operarios.gasolinera_id, user.gasolinera_id),
+          eq(operarios.gasolinera_id, gasolineraId),
           eq(operarios.activo, true),
         ),
       )
@@ -329,7 +336,7 @@ export class DespachosService {
           .from(preciosCombustible)
           .where(
             and(
-              eq(preciosCombustible.gasolinera_id, user.gasolinera_id),
+              eq(preciosCombustible.gasolinera_id, gasolineraId),
               eq(preciosCombustible.fecha, today),
               eq(preciosCombustible.tipo_combustible, l.tipo_combustible),
             ),
@@ -393,14 +400,14 @@ export class DespachosService {
     // validación de arriba pasó pero la subida falla, no se creó ningún despacho.
     const firmaKey = await this.subirFirma(
       dto.firma_piloto_base64,
-      user.gasolinera_id,
+      gasolineraId,
     );
 
     return this.db.db.transaction(async (tx) => {
       // Advisory lock por gasolinera+serie para serializar la asignación de numero_vale.
       // pg_advisory_xact_lock toma un bigint — usamos hashtext de la clave compuesta.
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtext(${user.gasolinera_id} || ':' || ${serieVale}))`,
+        sql`SELECT pg_advisory_xact_lock(hashtext(${gasolineraId} || ':' || ${serieVale}))`,
       );
 
       // Calcular el siguiente número de vale dentro del bloqueo
@@ -409,7 +416,7 @@ export class DespachosService {
         .from(despachos)
         .where(
           and(
-            eq(despachos.gasolinera_id, user.gasolinera_id),
+            eq(despachos.gasolinera_id, gasolineraId),
             eq(despachos.serie_vale, serieVale),
           ),
         );
@@ -421,7 +428,7 @@ export class DespachosService {
         [despacho] = await tx
           .insert(despachos)
           .values({
-            gasolinera_id: user.gasolinera_id,
+            gasolinera_id: gasolineraId,
             cliente_id: dto.cliente_id,
             vehiculo_id: dto.vehiculo_id,
             piloto_id: dto.piloto_id,
@@ -440,8 +447,8 @@ export class DespachosService {
             firma_key: firmaKey,
           })
           .returning();
-      } catch (e: any) {
-        if (e?.code === "23505") {
+      } catch (e) {
+        if (esViolacionUnica(e)) {
           throw new ConflictException(
             `El vale ${serieVale}-${numeroVale} ya existe para esta gasolinera`,
           );
@@ -464,7 +471,7 @@ export class DespachosService {
       // se preserva el 1:1 con el despacho y el estado de cuenta sigue cuadrando.
       await tx.insert(movimientosSaldo).values({
         cliente_id: dto.cliente_id,
-        gasolinera_id: user.gasolinera_id,
+        gasolinera_id: gasolineraId,
         despacho_id: despacho.id,
         tipo: "debito",
         monto: montoTotal,

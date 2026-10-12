@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  Request,
   Res,
 } from "@nestjs/common";
 import {
@@ -22,6 +21,7 @@ import { DespachosExcelService } from "./despachos-excel.service";
 import { DespachosService } from "./despachos.service";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 /** page/limit: entero >= 1 (limit <= 100 por clamp); basura -> 400. */
 function parsePagina(valor: string | undefined, nombre: string, max?: number) {
@@ -62,7 +62,7 @@ export class DespachosController {
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "limit", required: false, type: Number })
   findAll(
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("cliente_id") clienteId?: string,
     @Query("vehiculo_id") vehiculoId?: string,
@@ -87,7 +87,7 @@ export class DespachosController {
         page: parsePagina(page, "page"),
         limit: parsePagina(limit, "limit", 100),
       },
-      req.user,
+      usuario,
     );
   }
 
@@ -110,7 +110,7 @@ export class DespachosController {
     enum: ["diesel", "super", "regular", "gas_lp"],
   })
   async exportXlsx(
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Res() res: Response,
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("cliente_id") clienteId?: string,
@@ -132,7 +132,7 @@ export class DespachosController {
         turno,
         tipo_combustible: tipoCombustible,
       },
-      req.user,
+      usuario,
     );
 
     const fecha = new Date().toISOString().slice(0, 10);
@@ -155,7 +155,7 @@ export class DespachosController {
   @ApiQuery({ name: "gasolinera_id", required: false })
   getConsumoHoy(
     @Param("vehiculoId") vehiculoId: string,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
   ) {
@@ -163,7 +163,7 @@ export class DespachosController {
       vehiculoId,
       clienteId,
       gasolineraId,
-      req.user,
+      usuario,
     );
   }
 
@@ -174,10 +174,10 @@ export class DespachosController {
   })
   async firma(
     @Param("id") id: string,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Res() res: Response,
   ) {
-    const obj = await this.service.getFirma(id, req.user);
+    const obj = await this.service.getFirma(id, usuario);
     res.setHeader("Content-Type", obj.contentType);
     // private: es el comprobante del piloto, no debe cachearse en proxies.
     res.setHeader("Cache-Control", "private, max-age=0, no-store");
@@ -187,8 +187,8 @@ export class DespachosController {
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener despacho completo con joins" })
-  findOne(@Param("id") id: string, @Request() req: any) {
-    return this.service.findOne(id, req.user);
+  findOne(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.findOne(id, usuario);
   }
 
   @Post()
@@ -196,8 +196,11 @@ export class DespachosController {
   @ApiOperation({
     summary: "Crear despacho (transacción: precio → monto → vale → saldo)",
   })
-  create(@Body() dto: CreateDespachoDto, @Request() req: any) {
-    return this.service.create(dto, req.user);
+  create(
+    @Body() dto: CreateDespachoDto,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    return this.service.create(dto, usuario);
   }
 
   @Patch(":id")

@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  Request,
   Res,
 } from "@nestjs/common";
 import {
@@ -21,6 +20,7 @@ import { Auth } from "../../auth/roles.decorator";
 import { GenerarPdfDto } from "./pdf/reportes-pdf.dto";
 import { ReportesPdfService } from "./pdf/reportes-pdf.service";
 import { ReportesService } from "./reportes.service";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("reportes")
 @ApiBearerAuth("JWT")
@@ -53,10 +53,10 @@ export class ReportesController {
   @ApiBody({ type: GenerarPdfDto })
   async generarPdf(
     @Body() dto: GenerarPdfDto,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Res() res: Response,
   ) {
-    const pdf = await this.pdfService.generarPdf(dto, req.user);
+    const pdf = await this.pdfService.generarPdf(dto, usuario);
     const fecha = new Date().toISOString().slice(0, 10);
     res.set({
       "Content-Type": "application/pdf",
@@ -76,14 +76,14 @@ export class ReportesController {
   @ApiQuery({ name: "fecha_desde", required: false })
   @ApiQuery({ name: "fecha_hasta", required: false })
   resumen(
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
-    @Request() req?: any,
   ) {
     return this.service.resumen(
-      this.acotar(req?.user, {
+      this.acotar(usuario, {
         cliente_id: clienteId,
         gasolinera_id: gasolineraId,
         fecha_desde: fechaDesde,
@@ -100,14 +100,14 @@ export class ReportesController {
   @ApiQuery({ name: "fecha_desde", required: false })
   @ApiQuery({ name: "fecha_hasta", required: false })
   consumoPorVehiculo(
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
-    @Request() req?: any,
   ) {
     return this.service.consumoPorVehiculo(
-      this.acotar(req?.user, {
+      this.acotar(usuario, {
         cliente_id: clienteId,
         gasolinera_id: gasolineraId,
         fecha_desde: fechaDesde,
@@ -124,14 +124,14 @@ export class ReportesController {
   @ApiQuery({ name: "fecha_desde", required: false })
   @ApiQuery({ name: "fecha_hasta", required: false })
   consumoPorPiloto(
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
-    @Request() req?: any,
   ) {
     return this.service.consumoPorPiloto(
-      this.acotar(req?.user, {
+      this.acotar(usuario, {
         cliente_id: clienteId,
         gasolinera_id: gasolineraId,
         fecha_desde: fechaDesde,
@@ -150,14 +150,14 @@ export class ReportesController {
   @ApiQuery({ name: "fecha_desde", required: false })
   @ApiQuery({ name: "fecha_hasta", required: false })
   tendenciaMensual(
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
     @Query("fecha_desde") fechaDesde?: string,
     @Query("fecha_hasta") fechaHasta?: string,
-    @Request() req?: any,
   ) {
     return this.service.tendenciaMensual(
-      this.acotar(req?.user, {
+      this.acotar(usuario, {
         cliente_id: clienteId,
         gasolinera_id: gasolineraId,
         fecha_desde: fechaDesde,
@@ -173,8 +173,8 @@ export class ReportesController {
   })
   rendimientoVehiculo(
     @Param("vehiculoId") vehiculoId: string,
-    @Request() req?: any,
+    @UsuarioActual() usuario: UsuarioSesion,
   ) {
-    return this.service.rendimientoVehiculo(vehiculoId, req?.user);
+    return this.service.rendimientoVehiculo(vehiculoId, usuario);
   }
 }

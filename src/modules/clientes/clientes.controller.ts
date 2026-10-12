@@ -6,13 +6,13 @@ import {
   Param,
   Patch,
   Post,
-  Request,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
 import { ClientesService } from "./clientes.service";
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("clientes")
 @ApiBearerAuth("JWT")
@@ -23,15 +23,15 @@ export class ClientesController {
   @Get()
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar clientes activos" })
-  findAll(@Request() req: any) {
-    return this.service.findAll(req.user);
+  findAll(@UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.findAll(usuario);
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener cliente con sus vehículos y pilotos" })
-  findOne(@Param("id") id: string, @Request() req: any) {
-    return this.service.findOne(id, req.user);
+  findOne(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.findOne(id, usuario);
   }
 
   @Post()

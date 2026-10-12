@@ -3,13 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import { preciosCombustible } from "../../db/schema";
 import { CreatePrecioDto } from "./dto/create-precio.dto";
 import { UpdatePrecioDto } from "./dto/update-precio.dto";
 import { fechaGuatemala } from "../../common/hora-guatemala";
 import { validarPrecioGalon } from "./precios-combustible.reglas";
+import { esViolacionUnica } from "../../common/errores-pg.reglas";
 
 @Injectable()
 export class PreciosCombustibleService {
@@ -78,8 +79,8 @@ export class PreciosCombustibleService {
         .values(dto)
         .returning();
       return row;
-    } catch (e: any) {
-      if (e?.cause?.code === "23505" || e?.code === "23505") {
+    } catch (e) {
+      if (esViolacionUnica(e)) {
         throw new ConflictException(
           `Ya existe un precio para ${dto.tipo_combustible} en esta gasolinera para la fecha ${dto.fecha}`,
         );

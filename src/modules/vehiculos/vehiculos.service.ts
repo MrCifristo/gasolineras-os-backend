@@ -97,7 +97,7 @@ export class VehiculosService {
     try {
       const [row] = await this.db.db
         .insert(vehiculos)
-        .values(coercerDecimales(merged) as any)
+        .values(coercerDecimales(merged))
         .returning();
       return row;
     } catch (e) {
@@ -136,7 +136,7 @@ export class VehiculosService {
     try {
       const [row] = await this.db.db
         .update(vehiculos)
-        .set(coercerDecimales(dto) as any)
+        .set(coercerDecimales(dto))
         .where(and(...condiciones))
         .returning();
       if (!row) throw new NotFoundException("Vehículo no encontrado");
@@ -186,7 +186,7 @@ export class VehiculosService {
     }
     const [row] = await this.db.db
       .update(vehiculos)
-      .set(coercerDecimales(dto) as any)
+      .set(coercerDecimales(dto))
       .where(and(...condiciones))
       .returning();
     if (!row) throw new NotFoundException("Vehículo no encontrado");

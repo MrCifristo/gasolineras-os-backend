@@ -2,6 +2,7 @@
 import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { RecordatoriosService } from "./recordatorios.service";
+import { espiarPrivado, vacio } from "../../../test/unit/dobles";
 
 const config = (vars: Record<string, string | undefined>) =>
   ({ get: (k: string) => vars[k] }) as unknown as ConfigService;
@@ -14,10 +15,10 @@ describe("RecordatoriosService", () => {
 
   it("con RECORDATORIOS_ACTIVOS=false el tick no ejecuta nada", async () => {
     const s = new RecordatoriosService(
-      {} as any,
+      vacio(),
       config({ RECORDATORIOS_ACTIVOS: "false" }),
-      {} as any,
-      {} as any,
+      vacio(),
+      vacio(),
     );
     const spy = jest.spyOn(s, "ejecutar").mockResolvedValue({ enviados: [] });
     await s.tick();
@@ -25,12 +26,7 @@ describe("RecordatoriosService", () => {
   });
 
   it("el tick nunca lanza aunque ejecutar falle", async () => {
-    const s = new RecordatoriosService(
-      {} as any,
-      config({}),
-      {} as any,
-      {} as any,
-    );
+    const s = new RecordatoriosService(vacio(), config({}), vacio(), vacio());
     const spy = jest
       .spyOn(s, "ejecutar")
       .mockRejectedValue(new Error("BD caída"));
@@ -39,13 +35,8 @@ describe("RecordatoriosService", () => {
   });
 
   it("un turno que falla no impide enviar los demás", async () => {
-    const s = new RecordatoriosService(
-      {} as any,
-      config({}),
-      {} as any,
-      {} as any,
-    );
-    jest.spyOn(s as any, "turnosCandidatos").mockResolvedValue([
+    const s = new RecordatoriosService(vacio(), config({}), vacio(), vacio());
+    espiarPrivado(s, "turnosCandidatos").mockResolvedValue([
       {
         gasolinera_id: "g1",
         gasolinera: "Uno",
@@ -59,8 +50,7 @@ describe("RecordatoriosService", () => {
         hora_inicio: "14:00",
       },
     ]);
-    const enviar = jest
-      .spyOn(s as any, "procesarTurno")
+    const enviar = espiarPrivado(s, "procesarTurno")
       .mockRejectedValueOnce(new Error("Resend caído"))
       .mockResolvedValueOnce({
         gasolinera_id: "g2",

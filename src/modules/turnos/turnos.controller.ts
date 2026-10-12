@@ -8,7 +8,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
-  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -19,6 +18,7 @@ import {
 import { Auth } from "../../auth/roles.decorator";
 import { TurnosService } from "./turnos.service";
 import { UpdateTurnoDto } from "./dto/update-turno.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("turnos")
 @ApiBearerAuth("JWT")
@@ -49,13 +49,13 @@ export class TurnosController {
   @ApiOperation({ summary: "Turno vigente según la hora de Guatemala" })
   @ApiQuery({ name: "gasolinera_id", required: false })
   actual(
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("gasolinera_id", new ParseUUIDPipe({ optional: true }))
     gasolineraId?: string,
   ) {
     // El supervisor sólo opera su gasolinera: el query se ignora.
     const id =
-      req.user.rol === "supervisor" ? req.user.gasolinera_id : gasolineraId;
+      usuario.rol === "supervisor" ? usuario.gasolinera_id : gasolineraId;
     if (!id) throw new BadRequestException("Falta gasolinera_id");
     return this.service.turnoActual(id);
   }

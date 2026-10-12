@@ -11,7 +11,7 @@ export class DbService implements OnModuleInit {
 
   constructor(private config: ConfigService) {}
 
-  async onModuleInit() {
+  onModuleInit() {
     this.pool = new Pool({
       connectionString: this.config.get<string>("DATABASE_URL"),
       // La aritmética de fechas (UTC−6 fijo) asume sesiones en UTC, sin importar el TimeZone del servidor.

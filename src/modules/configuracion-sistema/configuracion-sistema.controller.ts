@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
 import { ConfiguracionSistemaService } from "./configuracion-sistema.service";
 import { UpdateConfiguracionDto } from "./dto/update-configuracion.dto";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("configuracion-sistema")
 @ApiBearerAuth("JWT")
@@ -22,7 +23,15 @@ export class ConfiguracionSistemaController {
   @ApiOperation({
     summary: "Activar/desactivar paro de emergencia global (solo admin)",
   })
-  update(@Body() dto: UpdateConfiguracionDto, @Request() req: any) {
-    return this.service.update(dto, req.user.email);
+  update(
+    @Body() dto: UpdateConfiguracionDto,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    // Un admin puede no tener correo (alta sólo con teléfono): sin este
+    // respaldo, bloqueado_por quedaba en null y no se sabía quién paró.
+    return this.service.update(
+      dto,
+      usuario.email ?? usuario.telefono ?? usuario.nombre,
+    );
   }
 }

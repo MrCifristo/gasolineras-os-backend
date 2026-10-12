@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  Request,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -20,10 +19,7 @@ import { VehiculosService } from "./vehiculos.service";
 import { CreateVehiculoDto } from "./dto/create-vehiculo.dto";
 import { UpdateVehiculoDto } from "./dto/update-vehiculo.dto";
 import { UpdateRestriccionesVehiculoDto } from "./dto/update-restricciones-vehiculo.dto";
-
-type ReqConUsuario = {
-  user: { rol: string; cliente_id?: string | null };
-};
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("vehiculos")
 @ApiBearerAuth("JWT")
@@ -39,22 +35,22 @@ export class VehiculosController {
   @ApiQuery({ name: "cliente_id", required: false })
   @ApiQuery({ name: "activo", required: false, type: Boolean })
   findAll(
+    @UsuarioActual() usuario: UsuarioSesion,
     @Query("cliente_id") clienteId?: string,
     @Query("activo") activo?: string,
-    @Request() req?: any,
   ) {
     return this.service.findAll(
       clienteId,
       activo !== undefined ? activo === "true" : undefined,
-      req?.user,
+      usuario,
     );
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener vehículo por ID" })
-  findOne(@Param("id") id: string, @Request() req: any) {
-    return this.service.findOne(id, req.user);
+  findOne(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.findOne(id, usuario);
   }
 
   @Post()
@@ -62,8 +58,11 @@ export class VehiculosController {
   @ApiOperation({
     summary: "Crear vehículo (el cliente, a nombre de su empresa)",
   })
-  create(@Body() dto: CreateVehiculoDto, @Request() req: ReqConUsuario) {
-    return this.service.create(dto, req.user);
+  create(
+    @Body() dto: CreateVehiculoDto,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    return this.service.create(dto, usuario);
   }
 
   @Patch(":id")
@@ -72,9 +71,9 @@ export class VehiculosController {
   update(
     @Param("id") id: string,
     @Body() dto: UpdateVehiculoDto,
-    @Request() req: ReqConUsuario,
+    @UsuarioActual() usuario: UsuarioSesion,
   ) {
-    return this.service.update(id, dto, req.user);
+    return this.service.update(id, dto, usuario);
   }
 
   @Patch(":id/restricciones")
@@ -86,9 +85,9 @@ export class VehiculosController {
   updateRestricciones(
     @Param("id") id: string,
     @Body() dto: UpdateRestriccionesVehiculoDto,
-    @Request() req: any,
+    @UsuarioActual() usuario: UsuarioSesion,
   ) {
-    return this.service.updateRestricciones(id, dto, req.user);
+    return this.service.updateRestricciones(id, dto, usuario);
   }
 
   @Delete(":id")
@@ -96,8 +95,8 @@ export class VehiculosController {
   @ApiOperation({
     summary: "Desactivar vehículo (soft delete; el cliente, sólo los suyos)",
   })
-  remove(@Param("id") id: string, @Request() req: ReqConUsuario) {
-    return this.service.remove(id, req.user);
+  remove(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.remove(id, usuario);
   }
 
   @Post(":id/pilotos/:pilotoId")

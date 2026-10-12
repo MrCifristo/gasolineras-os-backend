@@ -7,6 +7,7 @@ import type { MailService } from "../mail/mail.service";
 import { PasswordResetService } from "./password-reset.service";
 import type { PasswordService } from "./password.service";
 import type { SessionService } from "./session.service";
+import { espiarPrivado } from "../../test/unit/dobles";
 
 interface CorreoEnviado {
   para: string;
@@ -83,9 +84,10 @@ describe("PasswordResetService", () => {
   describe("solicitar", () => {
     const preparar = (fila: unknown) => {
       const { s } = crear();
-      const buscar = jest
-        .spyOn(s as any, "buscarPorIdentificador")
-        .mockResolvedValue(fila);
+      const buscar = espiarPrivado(
+        s,
+        "buscarPorIdentificador",
+      ).mockResolvedValue(fila);
       const enlace = jest.spyOn(s, "enviarEnlace").mockResolvedValue();
       return { s, buscar, enlace };
     };

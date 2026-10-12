@@ -13,6 +13,17 @@ export function exigirRol(
   }
 }
 
+/**
+ * Gasolinera del usuario que despacha o vende. Sin ella (un admin, o un
+ * supervisor sin estación asignada) es el mismo 404 que una gasolinera que no
+ * existe, que es lo que respondía la consulta con `gasolinera_id = NULL`.
+ */
+export function exigirGasolineraDelUsuario(
+  gasolineraId: string | null,
+): asserts gasolineraId is string {
+  if (!gasolineraId) throw new NotFoundException("Gasolinera no encontrada");
+}
+
 export function exigirGasolineraOperable<T extends { bloqueado: boolean }>(
   gas: T | undefined,
 ): asserts gas is T {

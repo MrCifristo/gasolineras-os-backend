@@ -23,7 +23,7 @@ export class CreateCuadreDto {
     description: 'Requerido cuando tipo = "cliente"',
   })
   @IsOptional()
-  @ValidateIf((o) => o.tipo === "cliente")
+  @ValidateIf((o: CreateCuadreDto) => o.tipo === "cliente")
   @IsUUID()
   cliente_id?: string;
 

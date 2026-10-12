@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   clientes,
@@ -20,6 +20,7 @@ import { CreateVentaInsumoDto, FormaPago } from "./dto/create-venta-insumo.dto";
 import { fechaGtSql } from "../../common/hora-guatemala";
 import {
   exigirClienteConCredito,
+  exigirGasolineraDelUsuario,
   exigirGasolineraOperable,
   exigirRol,
 } from "../../common/bloqueos.reglas";
@@ -28,6 +29,8 @@ import {
   validarFormaPago,
   valorizarRenglonVenta,
 } from "./ventas-insumos.reglas";
+import { esViolacionUnica } from "../../common/errores-pg.reglas";
+import type { UsuarioSesion } from "../../auth/usuario-actual";
 
 export interface FiltrosVenta {
   gasolinera_id?: string;
@@ -41,17 +44,20 @@ export interface FiltrosVenta {
 export class VentasInsumosService {
   constructor(private readonly db: DbService) {}
 
-  async findAll(filtros: FiltrosVenta, user: any) {
-    const condiciones: any[] = [];
-
-    if (user.rol === "cliente" && !user.cliente_id) return [];
+  async findAll(filtros: FiltrosVenta, user: UsuarioSesion) {
+    const condiciones: SQL[] = [];
 
     // Mismo scoping que despachos: el supervisor ve su estación, el cliente
     // sólo lo suyo. Sin esto, cualquiera lee las ventas de cualquier cuenta.
-    if (user.rol === "supervisor")
+    // Fail-closed: sin estación o sin empresa, nada.
+    if (user.rol === "supervisor") {
+      if (!user.gasolinera_id) return [];
       condiciones.push(eq(ventasInsumos.gasolinera_id, user.gasolinera_id));
-    if (user.rol === "cliente")
+    }
+    if (user.rol === "cliente") {
+      if (!user.cliente_id) return [];
       condiciones.push(eq(ventasInsumos.cliente_id, user.cliente_id));
+    }
 
     if (filtros.gasolinera_id)
       condiciones.push(eq(ventasInsumos.gasolinera_id, filtros.gasolinera_id));
@@ -78,7 +84,7 @@ export class VentasInsumosService {
       .limit(100);
   }
 
-  async findOne(id: string, user: any) {
+  async findOne(id: string, user: UsuarioSesion) {
     const condiciones = [eq(ventasInsumos.id, id)];
     if (user.rol === "supervisor") {
       if (!user.gasolinera_id)
@@ -114,7 +120,7 @@ export class VentasInsumosService {
    * y, si aplica, el débito de saldo) dentro de la misma transacción. La serie
    * de vale es propia, no la de combustible.
    */
-  async create(dto: CreateVentaInsumoDto, user: any) {
+  async create(dto: CreateVentaInsumoDto, user: UsuarioSesion) {
     exigirRol(
       user.rol,
       ["supervisor", "admin"],
@@ -123,13 +129,15 @@ export class VentasInsumosService {
 
     validarFormaPago(dto);
 
+    const gasolineraId = user.gasolinera_id;
+    exigirGasolineraDelUsuario(gasolineraId);
     const [gas] = await this.db.db
       .select({
         bloqueado: gasolineras.bloqueado,
         serie_vale_actual: gasolineras.serie_vale_actual,
       })
       .from(gasolineras)
-      .where(eq(gasolineras.id, user.gasolinera_id))
+      .where(eq(gasolineras.id, gasolineraId))
       .limit(1);
     exigirGasolineraOperable(gas);
     const serieVale = gas.serie_vale_actual;
@@ -167,7 +175,7 @@ export class VentasInsumosService {
       // Numeración serializada por gasolinera+serie, en su propia llave de
       // advisory lock para no contender con la de combustible.
       await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtext(${user.gasolinera_id} || ':INSUMOS:' || ${serieVale}))`,
+        sql`SELECT pg_advisory_xact_lock(hashtext(${gasolineraId} || ':INSUMOS:' || ${serieVale}))`,
       );
 
       const [{ nextVal }] = await tx
@@ -175,7 +183,7 @@ export class VentasInsumosService {
         .from(ventasInsumos)
         .where(
           and(
-            eq(ventasInsumos.gasolinera_id, user.gasolinera_id),
+            eq(ventasInsumos.gasolinera_id, gasolineraId),
             eq(ventasInsumos.serie_vale, serieVale),
           ),
         );
@@ -186,7 +194,7 @@ export class VentasInsumosService {
         [venta] = await tx
           .insert(ventasInsumos)
           .values({
-            gasolinera_id: user.gasolinera_id,
+            gasolinera_id: gasolineraId,
             usuario_id: user.id,
             operario_id: dto.operario_id ?? null,
             cliente_id: dto.cliente_id ?? null,
@@ -197,8 +205,8 @@ export class VentasInsumosService {
             monto_total: montoTotal.toFixed(2),
           })
           .returning();
-      } catch (e: any) {
-        if (e?.code === "23505") {
+      } catch (e) {
+        if (esViolacionUnica(e)) {
           throw new ConflictException(
             `La venta ${serieVale}-${numeroVale} ya existe para esta gasolinera`,
           );
@@ -237,7 +245,7 @@ export class VentasInsumosService {
       if (dto.forma_pago === FormaPago.CARGO_CLIENTE && dto.cliente_id) {
         await tx.insert(movimientosSaldo).values({
           cliente_id: dto.cliente_id,
-          gasolinera_id: user.gasolinera_id,
+          gasolinera_id: gasolineraId,
           tipo: "debito",
           monto: montoTotal.toFixed(3),
           descripcion: `Insumos ${renglones.length} producto(s) - Vale ${serieVale}-${numeroVale}`,

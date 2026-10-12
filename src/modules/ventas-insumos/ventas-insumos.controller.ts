@@ -1,12 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Request,
-} from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Auth } from "../../auth/roles.decorator";
 import { CreateVentaInsumoDto } from "./dto/create-venta-insumo.dto";
@@ -14,6 +6,7 @@ import {
   VentasInsumosService,
   type FiltrosVenta,
 } from "./ventas-insumos.service";
+import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 @ApiTags("ventas-insumos")
 @ApiBearerAuth("JWT")
@@ -24,15 +17,18 @@ export class VentasInsumosController {
   @Get()
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Listar ventas de insumos (con scoping por rol)" })
-  findAll(@Query() query: FiltrosVenta, @Request() req: any) {
-    return this.service.findAll(query, req.user);
+  findAll(
+    @Query() query: FiltrosVenta,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    return this.service.findAll(query, usuario);
   }
 
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Venta con sus renglones" })
-  findOne(@Param("id") id: string, @Request() req: any) {
-    return this.service.findOne(id, req.user);
+  findOne(@Param("id") id: string, @UsuarioActual() usuario: UsuarioSesion) {
+    return this.service.findOne(id, usuario);
   }
 
   @Post()
@@ -41,7 +37,10 @@ export class VentasInsumosController {
     summary:
       "Registrar venta. En efectivo no toca el saldo; a cargo del cliente lo debita.",
   })
-  create(@Body() dto: CreateVentaInsumoDto, @Request() req: any) {
-    return this.service.create(dto, req.user);
+  create(
+    @Body() dto: CreateVentaInsumoDto,
+    @UsuarioActual() usuario: UsuarioSesion,
+  ) {
+    return this.service.create(dto, usuario);
   }
 }

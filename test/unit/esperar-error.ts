@@ -3,7 +3,7 @@
 // exacto de la excepción: `toThrow(new X("m"))` sólo compara el mensaje y
 // `toThrow("m")` acepta substrings, así que ninguno detecta un 403 que debía
 // ser 404 ni un mensaje recortado.
-type ClaseError = abstract new (...args: any[]) => Error;
+type ClaseError = abstract new (...args: never[]) => Error;
 
 function verificar(
   capturado: unknown,
