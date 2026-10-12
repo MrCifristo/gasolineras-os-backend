@@ -275,6 +275,11 @@ export function exigirPrecio<T>(
 // El operario teclea el monto en quetzales; los galones se derivan del
 // precio autoritativo del servidor. Así el total del vale es exactamente
 // lo que paga el cliente, sin desajustes de redondeo.
+//
+// Los galones salen ya redondeados a 3 decimales, que es como se guarda el
+// renglón: el header, los límites del vehículo y los reportes suman los
+// mismos números. Sumar los galones crudos y redondear al final dejaba el
+// header hasta 0.001 gal por renglón distinto de la suma de sus renglones.
 export function valorizarRenglon(
   monto: string,
   precioGalon: string,
@@ -294,7 +299,7 @@ export function valorizarRenglon(
       `El precio registrado para ${tipoCombustible} no es válido`,
     );
   }
-  return { monto: montoNum, galones: montoNum / precio };
+  return { monto: montoNum, galones: Number((montoNum / precio).toFixed(3)) };
 }
 
 export function totalesDespacho(

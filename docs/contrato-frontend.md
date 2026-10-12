@@ -175,7 +175,7 @@ Un vale sigue siendo **una fila header**, así que la numeración por advisory l
 
 **Reportes (`/reportes/*` y el PDF), 2026-10-12.** Siguen la misma regla:
 - `resumen.totales` y `por_gasolinera` suman el **header** (el vale completo); `por_gasolinera` trae además `total_despachos`.
-- `resumen.por_tipo_combustible` se agrupa por **renglón**: un vale mixto reparte cada renglón en su combustible y un vale sólo de contenedores también aparece. Antes salía del `precio_id` del header y cargaba el vale entero a un solo combustible. La suma de galones por tipo puede diferir de `totales.total_galones` en 0.001 por renglón (el header redondea la suma; cada renglón, lo suyo).
+- `resumen.por_tipo_combustible` se agrupa por **renglón**: un vale mixto reparte cada renglón en su combustible y un vale sólo de contenedores también aparece. Antes salía del `precio_id` del header y cargaba el vale entero a un solo combustible. Desde el 2026-10-12 el `galones` del header es la suma exacta de sus renglones (cada renglón se redondea a 3 decimales al valorizarlo); en vales anteriores puede diferir en 0.001 por renglón, así que la suma por tipo y `totales.total_galones` pueden no cuadrar al milésimo en periodos viejos.
 - `consumo-por-vehiculo` y `consumo-por-piloto` cuentan **sólo el renglón `vehiculo`**; `total_despachos` es el número de vales distintos. Las canecas y toneles quedan en los totales del resumen, no en el ranking.
 - `tendencia-mensual` acepta `fecha_desde`/`fecha_hasta` y agrupa por mes de Guatemala dentro de ese rango; sin rango, los últimos 12 meses.
 

@@ -83,7 +83,9 @@ amount; the header keeps `monto_total`/`galones` as the **sum**.
   backfill is load-bearing: without it the aggregate reads zero for all history
   and a vehicle past its monthly cap would dispatch again unblocked.
 - One voucher is still **one header row**, so the advisory-lock numbering is
-  unchanged.
+  unchanged. Its `galones` is the exact sum of its lines: `valorizarRenglon`
+  rounds each line to 3 decimals up front (before 2026-10-12 the header
+  rounded the raw sum and could be off by 0.001 per line).
 - **Reports follow the same split** (`reportes.service.ts`): totals and
   per-station sums use the header; the per-fuel breakdown groups
   `despacho_detalles`; the vehicle and pilot rankings count only
@@ -225,7 +227,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 
 ## Testing
 
-- Unit (`pnpm test`): 439 tests in 33 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 441 tests in 33 suites, no Postgres, about a second.
   Test doubles without `any` live in `test/unit/dobles.ts` (`vacio()`,
   `espiarPrivado`, `usuarioDePrueba`).
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
@@ -246,7 +248,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 269 tests in 3 suites — `gasfuel` 173, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 270 tests in 3 suites — `gasfuel` 174, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

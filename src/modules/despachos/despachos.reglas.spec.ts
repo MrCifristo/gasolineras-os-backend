@@ -583,6 +583,11 @@ describe("valorizarRenglon", () => {
     });
   });
 
+  it("redondea los galones a 3 decimales, como se guarda el renglón", () => {
+    // 100 / 28.5 = 3.50877…
+    expect(valorizarRenglon("100", "28.5", "diesel").galones).toBe(3.509);
+  });
+
   it.each(["0", "-5", "abc"])("rechaza el monto %p", (monto) => {
     esperarError(
       () => valorizarRenglon(monto, "25", "diesel"),
@@ -632,6 +637,16 @@ describe("totalesDespacho", () => {
     expect(t.montoVehiculo).toBe(0);
     expect(t.galonesVehiculo).toBe(0);
     expect(t.montoEstimado).toBe(50);
+  });
+
+  it("los galones del vale son la suma exacta de los renglones guardados", () => {
+    // Tres renglones de Q1 a Q3/gal: cada uno guarda 0.333. Sumar los
+    // galones sin redondear y redondear al final daba 1.000 en el header.
+    const renglones = [1, 2, 3].map(() => ({
+      renglon: "caneca" as const,
+      ...valorizarRenglon("1", "3", "diesel"),
+    }));
+    expect(totalesDespacho(renglones).galonesEstimado.toFixed(3)).toBe("0.999");
   });
 
   it("montoTotal siempre lleva 3 decimales", () => {

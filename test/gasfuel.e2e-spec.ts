@@ -2224,11 +2224,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         (s, t) => s + parseFloat(t.total_galones),
         0,
       );
-      // Tolerancia de 0.001 gal por renglón: el header redondea la suma, y
-      // cada renglón se redondea por separado.
-      expect(
-        Math.abs(galonesPorTipo - parseFloat(res.body.totales.total_galones)),
-      ).toBeLessThanOrEqual(0.004 + 1e-9);
+      // Exacto: el header suma los galones ya redondeados de sus renglones.
+      expect(galonesPorTipo.toFixed(3)).toBe(
+        parseFloat(res.body.totales.total_galones).toFixed(3),
+      );
 
       const porGasolinera = res.body.por_gasolinera as FilaGasolinera[];
       const fila = porGasolinera.find((g) => g.gasolinera_id === gasolineraId);
@@ -2297,6 +2296,35 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // Un vale = una fila header, así que el advisory lock no cambió: los
       // números siguen sin repetirse.
       expect(new Set(numeros).size).toBe(numeros.length);
+    });
+
+    // Va al final del bloque: suma un vale al cliente y los reportes de arriba
+    // cuentan exactamente dos.
+    it("los galones del header son la suma de los renglones guardados → 201", async () => {
+      // Q2 de diesel a Q28.500 = 0.070175… gal por renglón: cada uno guarda
+      // 0.070, y redondear la suma cruda daba 0.211 en el header.
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          cliente_id: clienteMultiId,
+          operario_id: operarioId,
+          turno: "tarde",
+          detalles: [1, 2, 3].map(() => ({
+            renglon: "caneca",
+            tipo_combustible: "diesel",
+            monto: "2.000",
+          })),
+        });
+
+      expect(res.status).toBe(201);
+      const renglones = res.body.detalles as { galones: string }[];
+      expect(renglones.map((r) => r.galones)).toEqual([
+        "0.070",
+        "0.070",
+        "0.070",
+      ]);
+      expect(res.body.galones).toBe("0.210");
     });
   });
 
