@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   clientes,
   cuadres,
+  despachos,
   movimientosSaldo,
   saldosCliente,
 } from "../../db/schema";
@@ -122,8 +123,14 @@ export class SaldosService {
       );
 
     const movimientos = await this.db.db
-      .select()
+      .select({
+        ...getTableColumns(movimientosSaldo),
+        // El texto de `descripcion` no se reescribe: el N° de vale del cliente
+        // sale del despacho al que apunta el movimiento (null en abonos).
+        correlativo_cliente: despachos.correlativo_cliente,
+      })
       .from(movimientosSaldo)
+      .leftJoin(despachos, eq(movimientosSaldo.despacho_id, despachos.id))
       .where(and(...condicionesRango))
       .orderBy(movimientosSaldo.created_at);
 

@@ -20,6 +20,34 @@ const saldosCorridos = (html: string) =>
   [...html.matchAll(/<td class="num strong">([^<]*)<\/td>/g)].map((m) => m[1]);
 
 describe("buildEstadoCuentaHtml", () => {
+  it("la columna «N° cliente» muestra el correlativo del débito y «—» en el abono", () => {
+    const html = buildEstadoCuentaHtml(
+      base({
+        movimientos: [
+          {
+            created_at: "2026-10-01T15:00:00Z",
+            tipo: "credito",
+            descripcion: "Abono",
+            monto: "50",
+            correlativo_cliente: null,
+          },
+          {
+            created_at: "2026-10-02T15:00:00Z",
+            tipo: "debito",
+            descripcion: "Vale 1",
+            monto: "30",
+            correlativo_cliente: 45,
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("N° cliente");
+    const celdas = [...html.matchAll(/<td class="corr">([^<]*)<\/td>/g)].map(
+      (m) => m[1],
+    );
+    expect(celdas).toEqual(["—", "45"]);
+  });
+
   it("el saldo corrido sale de las celdas «num strong»", () => {
     const html = buildEstadoCuentaHtml(
       base({
@@ -29,18 +57,21 @@ describe("buildEstadoCuentaHtml", () => {
             tipo: "credito",
             descripcion: "Abono",
             monto: "50",
+            correlativo_cliente: null,
           },
           {
             created_at: "2026-10-02T15:00:00Z",
             tipo: "debito",
             descripcion: "Vale 1",
             monto: "30.5",
+            correlativo_cliente: null,
           },
           {
             created_at: "2026-10-03T15:00:00Z",
             tipo: "debito",
             descripcion: "Vale 2",
             monto: "0.5",
+            correlativo_cliente: null,
           },
         ],
       }),
@@ -58,6 +89,7 @@ describe("buildEstadoCuentaHtml", () => {
             tipo: "credito",
             descripcion: "<script>x</script>'",
             monto: "1",
+            correlativo_cliente: null,
           },
         ],
       }),
@@ -93,6 +125,7 @@ describe("buildEstadoCuentaHtml", () => {
             tipo: "credito",
             descripcion: "Abono",
             monto: "1",
+            correlativo_cliente: null,
           },
         ],
       }),

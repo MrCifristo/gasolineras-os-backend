@@ -127,6 +127,8 @@ Los cuatro totales son **strings** con 3 decimales, como el resto de los numéri
 
 En cada movimiento el `monto` es **positivo** y el signo lo pone `tipo` (`credito` suma, `debito` resta). El saldo corriente por fila hay que acumularlo en el cliente.
 
+Cada movimiento trae además `correlativo_cliente: number | null`: el N° de vale del cliente del despacho que lo originó (`null` en abonos, saldo inicial y cuadres). Sale de un `leftJoin` a `despachos`; el texto de `descripcion` no se reescribe. El PDF lo muestra en la columna «N° cliente» ("—" si es `null`) y el Excel de despachos en «N° Cliente», junto a «N° Vale».
+
 **PDF**: `GET .../estado-cuenta/pdf` con los mismos parámetros, devuelve `application/pdf` como descarga.
 
 Un **saldo negativo es válido y esperado**: no hay control de fondos insuficientes, las cuentas se van a negativo a propósito.
