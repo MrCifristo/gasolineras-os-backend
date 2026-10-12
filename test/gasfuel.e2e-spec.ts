@@ -641,7 +641,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("El precio por galón debe ser mayor a cero");
+      expect(res.body.message).toBe(
+        "El precio por galón debe ser mayor a cero",
+      );
     });
 
     it("un precio por galón en cero se rechaza al corregir → 400", async () => {
@@ -663,7 +665,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .send({ precio_galon: "0.000" });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("El precio por galón debe ser mayor a cero");
+      expect(res.body.message).toBe(
+        "El precio por galón debe ser mayor a cero",
+      );
     });
 
     it("no se puede registrar dos precios del mismo tipo en el mismo día → 409", async () => {
@@ -771,14 +775,21 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .get(`/api/v1/despachos/${despacho1Id}`)
         .set("Authorization", `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
-      expect(res.body.operario).toEqual({ id: operarioId, nombre: tag("Operario Bomba") });
+      expect(res.body.operario).toEqual({
+        id: operarioId,
+        nombre: tag("Operario Bomba"),
+      });
     });
 
     it("rechaza un operario de otra gasolinera → 400", async () => {
       const otra = await request(app.getHttpServer())
         .post("/api/v1/gasolineras")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ nombre: tag("Otra estación"), direccion: "Km 2", ciudad: "Puerto Barrios" });
+        .send({
+          nombre: tag("Otra estación"),
+          direccion: "Km 2",
+          ciudad: "Puerto Barrios",
+        });
       const ajeno = await request(app.getHttpServer())
         .post("/api/v1/operarios")
         .set("Authorization", `Bearer ${adminToken}`)
@@ -788,19 +799,28 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .post("/api/v1/despachos")
         .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
-          cliente_id: cliente1Id, operario_id: ajeno.body.id,
-          vehiculo_id: vehiculo1Id, piloto_id: piloto1Id,
-          tipo_combustible: "diesel", turno: "manana", monto: "100.000",
+          cliente_id: cliente1Id,
+          operario_id: ajeno.body.id,
+          vehiculo_id: vehiculo1Id,
+          piloto_id: piloto1Id,
+          tipo_combustible: "diesel",
+          turno: "manana",
+          monto: "100.000",
         });
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe("El operario no pertenece a esta gasolinera o está inactivo.");
+      expect(res.body.message).toBe(
+        "El operario no pertenece a esta gasolinera o está inactivo.",
+      );
     });
 
     it("rechaza un operario inactivo → 400", async () => {
       const inactivo = await request(app.getHttpServer())
         .post("/api/v1/operarios")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ gasolinera_id: gasolineraId, nombre: tag("Operario inactivo") });
+        .send({
+          gasolinera_id: gasolineraId,
+          nombre: tag("Operario inactivo"),
+        });
       await request(app.getHttpServer())
         .delete(`/api/v1/operarios/${inactivo.body.id}`)
         .set("Authorization", `Bearer ${adminToken}`)
@@ -810,9 +830,13 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .post("/api/v1/despachos")
         .set("Authorization", `Bearer ${supervisorToken}`)
         .send({
-          cliente_id: cliente1Id, operario_id: inactivo.body.id,
-          vehiculo_id: vehiculo1Id, piloto_id: piloto1Id,
-          tipo_combustible: "diesel", turno: "manana", monto: "100.000",
+          cliente_id: cliente1Id,
+          operario_id: inactivo.body.id,
+          vehiculo_id: vehiculo1Id,
+          piloto_id: piloto1Id,
+          tipo_combustible: "diesel",
+          turno: "manana",
+          monto: "100.000",
         });
       expect(res.status).toBe(400);
     });
@@ -892,7 +916,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .get(`/api/v1/despachos?cliente_id=${cliente1Id}`)
         .set("Authorization", `Bearer ${adminToken}`);
       expect(res.body.data.length).toBeGreaterThan(0);
-      expect(res.body.data.every((d: any) => d.operario?.id === operarioId)).toBe(true);
+      expect(
+        res.body.data.every((d: any) => d.operario?.id === operarioId),
+      ).toBe(true);
     });
 
     it("filtra despachos por cliente → solo aparecen los del cliente E2E", async () => {
@@ -1595,7 +1621,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const res = await request(app.getHttpServer())
         .post("/api/v1/clientes")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ nombre: tag("Cliente Apertura"), saldo_inicial: SALDO_INICIAL });
+        .send({
+          nombre: tag("Cliente Apertura"),
+          saldo_inicial: SALDO_INICIAL,
+        });
 
       expect(res.status).toBe(201);
       clienteAperturaId = res.body.id;
@@ -1913,7 +1942,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           piloto_id: pilotoMultiId,
           turno: "manana",
           detalles: [
-            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "300.000" },
+            {
+              renglon: "vehiculo",
+              tipo_combustible: "diesel",
+              monto: "300.000",
+            },
             { renglon: "caneca", tipo_combustible: "super", monto: "400.000" },
           ],
         });
@@ -1967,7 +2000,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           piloto_id: pilotoMultiId,
           turno: "manana",
           detalles: [
-            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "300.000" },
+            {
+              renglon: "vehiculo",
+              tipo_combustible: "diesel",
+              monto: "300.000",
+            },
           ],
         });
 
@@ -2020,7 +2057,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // El super de este cliente sólo existió en una caneca; el header apunta
       // al renglón del vehículo (diesel). Filtrar por el header lo perdería.
       const res = await request(app.getHttpServer())
-        .get(`/api/v1/despachos?cliente_id=${clienteMultiId}&tipo_combustible=super`)
+        .get(
+          `/api/v1/despachos?cliente_id=${clienteMultiId}&tipo_combustible=super`,
+        )
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
@@ -2055,7 +2094,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           vehiculo_id: vehiculoMultiId,
           turno: "manana",
           detalles: [
-            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "50.000" },
+            {
+              renglon: "vehiculo",
+              tipo_combustible: "diesel",
+              monto: "50.000",
+            },
           ],
         });
 
@@ -2071,7 +2114,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           operario_id: operarioId,
           turno: "manana",
           detalles: [
-            { renglon: "vehiculo", tipo_combustible: "diesel", monto: "50.000" },
+            {
+              renglon: "vehiculo",
+              tipo_combustible: "diesel",
+              monto: "50.000",
+            },
           ],
         });
 
@@ -2156,7 +2203,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       const porTipo = res.body.por_tipo_combustible as FilaTipo[];
       const monto = (tipo: string) =>
-        parseFloat(porTipo.find((t) => t.tipo_combustible === tipo)?.total_monto ?? "0");
+        parseFloat(
+          porTipo.find((t) => t.tipo_combustible === tipo)?.total_monto ?? "0",
+        );
       // Con el precio del header, el mixto iba entero a diesel y el
       // sólo-contenedores (precio_id nulo) desaparecía del desglose.
       expect(monto("diesel")).toBeCloseTo(1500, 2);
@@ -2179,7 +2228,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
     it("consumo por vehículo y por piloto cuentan sólo el renglón del vehículo → 200", async () => {
       const veh = await request(app.getHttpServer())
-        .get(`/api/v1/reportes/consumo-por-vehiculo?cliente_id=${clienteMultiId}`)
+        .get(
+          `/api/v1/reportes/consumo-por-vehiculo?cliente_id=${clienteMultiId}`,
+        )
         .set("Authorization", `Bearer ${adminToken}`);
       expect(veh.status).toBe(200);
       const vehiculosRanking = veh.body as FilaConsumo[];

@@ -27,7 +27,9 @@ import { UpdateDespachoDto } from "./dto/update-despacho.dto";
 function parsePagina(valor: string | undefined, nombre: string, max?: number) {
   if (valor === undefined || valor === "") return undefined;
   if (!/^\d+$/.test(valor) || Number(valor) < 1) {
-    throw new BadRequestException(`${nombre} debe ser un entero mayor o igual a 1`);
+    throw new BadRequestException(
+      `${nombre} debe ser un entero mayor o igual a 1`,
+    );
   }
   const n = Number(valor);
   return max ? Math.min(n, max) : n;

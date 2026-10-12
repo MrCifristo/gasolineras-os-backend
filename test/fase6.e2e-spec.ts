@@ -23,7 +23,17 @@ import { InMemoryMailService } from "../src/mail/in-memory-mail.service";
 import { PushService } from "../src/push/push.service";
 import { InMemoryPushService } from "../src/push/in-memory-push.service";
 import { RecordatoriosService } from "../src/modules/turnos/recordatorios.service";
-import { clientes, despachos, gasolineras, recordatoriosTurno, saldosCliente, suscripcionesPush, turnosGasolinera, usuarios, vehiculos } from "../src/db/schema";
+import {
+  clientes,
+  despachos,
+  gasolineras,
+  recordatoriosTurno,
+  saldosCliente,
+  suscripcionesPush,
+  turnosGasolinera,
+  usuarios,
+  vehiculos,
+} from "../src/db/schema";
 import { fechaGuatemala } from "../src/common/hora-guatemala";
 
 dotenv.config();
@@ -97,7 +107,11 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
     );
     app.setGlobalPrefix("api/v1");
     await app.init();
@@ -110,7 +124,13 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     const hash = await passwords.hashear(ADMIN_PASSWORD);
     await db.db
       .insert(usuarios)
-      .values({ email: ADMIN_EMAIL, nombre: "Admin F6", password_hash: hash, rol: "admin", activo: true })
+      .values({
+        email: ADMIN_EMAIL,
+        nombre: "Admin F6",
+        password_hash: hash,
+        rol: "admin",
+        activo: true,
+      })
       .onConflictDoUpdate({
         target: usuarios.email,
         set: { password_hash: hash, rol: "admin", activo: true },
@@ -121,7 +141,11 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       const res = await http()
         .post("/api/v1/gasolineras")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ nombre: `[F6-${RUN_ID}] Estación ${nombre}`, direccion: "Km 245", ciudad: "Morales" });
+        .send({
+          nombre: `[F6-${RUN_ID}] Estación ${nombre}`,
+          direccion: "Km 245",
+          ciudad: "Morales",
+        });
       expect(res.status).toBe(201);
       if (nombre === "A") gasAId = res.body.id;
       else gasBId = res.body.id;
@@ -162,8 +186,18 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .set("Authorization", `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
       expect(res.body).toEqual([
-        expect.objectContaining({ turno: "manana", hora_inicio: "06:00", hora_fin: "14:00", recordatorio_activo: true }),
-        expect.objectContaining({ turno: "tarde", hora_inicio: "14:00", hora_fin: "22:00", recordatorio_activo: true }),
+        expect.objectContaining({
+          turno: "manana",
+          hora_inicio: "06:00",
+          hora_fin: "14:00",
+          recordatorio_activo: true,
+        }),
+        expect.objectContaining({
+          turno: "tarde",
+          hora_inicio: "14:00",
+          hora_fin: "22:00",
+          recordatorio_activo: true,
+        }),
       ]);
     });
 
@@ -254,11 +288,21 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       await db.db
         .update(turnosGasolinera)
         .set({ hora_inicio: "06:00", hora_fin: "14:00" })
-        .where(and(eq(turnosGasolinera.gasolinera_id, gasBId), eq(turnosGasolinera.turno, "tarde")));
+        .where(
+          and(
+            eq(turnosGasolinera.gasolinera_id, gasBId),
+            eq(turnosGasolinera.turno, "tarde"),
+          ),
+        );
       await db.db
         .update(turnosGasolinera)
         .set({ hora_inicio: "14:00", hora_fin: "06:00" })
-        .where(and(eq(turnosGasolinera.gasolinera_id, gasBId), eq(turnosGasolinera.turno, "manana")));
+        .where(
+          and(
+            eq(turnosGasolinera.gasolinera_id, gasBId),
+            eq(turnosGasolinera.turno, "manana"),
+          ),
+        );
 
       const deB = await http()
         .get(`/api/v1/turnos/actual?gasolinera_id=${gasBId}`)
@@ -277,13 +321,17 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
   describe("Permisos del jefe de pista", () => {
     it("lee la lista de gasolineras", async () => {
-      const res = await http().get("/api/v1/gasolineras").set("Authorization", `Bearer ${jefeToken}`);
+      const res = await http()
+        .get("/api/v1/gasolineras")
+        .set("Authorization", `Bearer ${jefeToken}`);
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it("lee una gasolinera por id", async () => {
-      const res = await http().get(`/api/v1/gasolineras/${gasBId}`).set("Authorization", `Bearer ${jefeToken}`);
+      const res = await http()
+        .get(`/api/v1/gasolineras/${gasBId}`)
+        .set("Authorization", `Bearer ${jefeToken}`);
       expect(res.status).toBe(200);
     });
 
@@ -298,7 +346,12 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       await http()
         .post("/api/v1/precios-combustible")
         .set("Authorization", `Bearer ${jefeToken}`)
-        .send({ gasolinera_id: gasBId, fecha: fechaGuatemala(), tipo_combustible: "diesel", precio_galon: "30.500" })
+        .send({
+          gasolinera_id: gasBId,
+          fecha: fechaGuatemala(),
+          tipo_combustible: "diesel",
+          precio_galon: "30.500",
+        })
         .expect(201);
       const res = await http()
         .get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`)
@@ -313,7 +366,12 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       await http()
         .post("/api/v1/precios-combustible")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ gasolinera_id: gasAId, fecha: fechaGuatemala(), tipo_combustible: "regular", precio_galon: "28.750" })
+        .send({
+          gasolinera_id: gasAId,
+          fecha: fechaGuatemala(),
+          tipo_combustible: "regular",
+          precio_galon: "28.750",
+        })
         .expect(201);
 
       // El supervisor pide precios de gasBId pero solo ve los de su gasolinera (gasAId)
@@ -327,7 +385,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("/hoy sin gasolinera_id para admin → 400", async () => {
-      const res = await http().get("/api/v1/precios-combustible/hoy").set("Authorization", `Bearer ${adminToken}`);
+      const res = await http()
+        .get("/api/v1/precios-combustible/hoy")
+        .set("Authorization", `Bearer ${adminToken}`);
       expect(res.status).toBe(400);
     });
   });
@@ -347,7 +407,11 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     afterAll(async () => {
-      await db.db.update(clientes).set({ activo: false }).where(eq(clientes.id, clienteId)).catch(() => undefined);
+      await db.db
+        .update(clientes)
+        .set({ activo: false })
+        .where(eq(clientes.id, clienteId))
+        .catch(() => undefined);
     });
 
     const auth = () => ({ Authorization: `Bearer ${clienteToken}` });
@@ -366,30 +430,68 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("lee precios por gasolinera", async () => {
-      const res = await http().get(`/api/v1/precios-combustible?gasolinera_id=${gasBId}`).set(auth());
+      const res = await http()
+        .get(`/api/v1/precios-combustible?gasolinera_id=${gasBId}`)
+        .set(auth());
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
     it("/hoy con gasolinera_id responde 200 y sin él 400", async () => {
-      const ok = await http().get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`).set(auth());
+      const ok = await http()
+        .get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`)
+        .set(auth());
       expect(ok.status).toBe(200);
-      const sin = await http().get("/api/v1/precios-combustible/hoy").set(auth());
+      const sin = await http()
+        .get("/api/v1/precios-combustible/hoy")
+        .set(auth());
       expect(sin.status).toBe(400);
     });
 
     it("sigue sin poder crear ni editar precios ni gasolineras", async () => {
-      const body = { gasolinera_id: gasBId, fecha: fechaGuatemala(), tipo_combustible: "regular", precio_galon: "29.000" };
-      expect((await http().post("/api/v1/precios-combustible").set(auth()).send(body)).status).toBe(403);
-      expect((await http().patch(`/api/v1/precios-combustible/${gasBId}`).set(auth()).send({ precio_galon: "1.000" })).status).toBe(403);
-      expect((await http().post("/api/v1/gasolineras").set(auth()).send({ nombre: "x", direccion: "y", ciudad: "z" })).status).toBe(403);
-      expect((await http().get(`/api/v1/gasolineras/${gasBId}/turnos`).set(auth())).status).toBe(403);
+      const body = {
+        gasolinera_id: gasBId,
+        fecha: fechaGuatemala(),
+        tipo_combustible: "regular",
+        precio_galon: "29.000",
+      };
+      expect(
+        (
+          await http()
+            .post("/api/v1/precios-combustible")
+            .set(auth())
+            .send(body)
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await http()
+            .patch(`/api/v1/precios-combustible/${gasBId}`)
+            .set(auth())
+            .send({ precio_galon: "1.000" })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await http()
+            .post("/api/v1/gasolineras")
+            .set(auth())
+            .send({ nombre: "x", direccion: "y", ciudad: "z" })
+        ).status,
+      ).toBe(403);
+      expect(
+        (await http().get(`/api/v1/gasolineras/${gasBId}/turnos`).set(auth()))
+          .status,
+      ).toBe(403);
     });
   });
 
   describe("Suscripciones push", () => {
     const endpoint = `https://push.example/${RUN_ID}`;
-    const body = { endpoint, keys: { p256dh: "clave-p256dh", auth: "clave-auth" } };
+    const body = {
+      endpoint,
+      keys: { p256dh: "clave-p256dh", auth: "clave-auth" },
+    };
 
     it("la clave pública VAPID es accesible sin login", async () => {
       const res = await http().get("/api/v1/push/vapid-public-key");
@@ -398,49 +500,79 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("el jefe de pista se suscribe → 201", async () => {
-      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send(body);
+      const res = await http()
+        .post("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${jefeToken}`)
+        .send(body);
       expect(res.status).toBe(201);
     });
 
     it("el mismo navegador suscrito por el admin reasigna la fila, no la duplica", async () => {
-      await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${adminToken}`).send(body).expect(201);
-      const filas = await db.db.select().from(suscripcionesPush).where(eq(suscripcionesPush.endpoint, endpoint));
+      await http()
+        .post("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send(body)
+        .expect(201);
+      const filas = await db.db
+        .select()
+        .from(suscripcionesPush)
+        .where(eq(suscripcionesPush.endpoint, endpoint));
       expect(filas).toHaveLength(1);
-      const [admin] = await db.db.select().from(usuarios).where(eq(usuarios.email, ADMIN_EMAIL));
+      const [admin] = await db.db
+        .select()
+        .from(usuarios)
+        .where(eq(usuarios.email, ADMIN_EMAIL));
       expect(filas[0].usuario_id).toBe(admin.id);
     });
 
     it("el jefe no puede borrar una suscripción que ya no es suya → 404", async () => {
-      const res = await http().delete("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send({ endpoint });
+      const res = await http()
+        .delete("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${jefeToken}`)
+        .send({ endpoint });
       expect(res.status).toBe(404);
     });
 
     it("el admin borra la suya → 200", async () => {
-      const res = await http().delete("/api/v1/push/suscripciones").set("Authorization", `Bearer ${adminToken}`).send({ endpoint });
+      const res = await http()
+        .delete("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ endpoint });
       expect(res.status).toBe(200);
     });
 
-    it.each([
-      ["supervisor", () => supervisorToken],
-    ])("%s no puede suscribirse → 403", async (_rol, token) => {
-      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${token()}`).send(body);
-      expect(res.status).toBe(403);
-    });
+    it.each([["supervisor", () => supervisorToken]])(
+      "%s no puede suscribirse → 403",
+      async (_rol, token) => {
+        const res = await http()
+          .post("/api/v1/push/suscripciones")
+          .set("Authorization", `Bearer ${token()}`)
+          .send(body);
+        expect(res.status).toBe(403);
+      },
+    );
 
     it("endpoint sin esquema → 400", async () => {
-      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`)
+      const res = await http()
+        .post("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${jefeToken}`)
         .send({ endpoint: "push.example.com/abc", keys: body.keys });
       expect(res.status).toBe(400);
     });
 
     it("expirationTime null (toJSON del navegador) se acepta → 201", async () => {
-      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`)
+      const res = await http()
+        .post("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${jefeToken}`)
         .send({ ...body, expirationTime: null });
       expect(res.status).toBe(201);
     });
 
     it("body sin keys → 400", async () => {
-      const res = await http().post("/api/v1/push/suscripciones").set("Authorization", `Bearer ${jefeToken}`).send({ endpoint });
+      const res = await http()
+        .post("/api/v1/push/suscripciones")
+        .set("Authorization", `Bearer ${jefeToken}`)
+        .send({ endpoint });
       expect(res.status).toBe(400);
     });
   });
@@ -450,7 +582,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     // Gasolinera propia para no depender del horario que dejaron los tests de turnos.
     let gasRId: string;
     const instante = (fechaGt: string, hhmmGt: string) =>
-      new Date(new Date(`${fechaGt}T${hhmmGt}:00Z`).getTime() + 6 * 3600 * 1000);
+      new Date(
+        new Date(`${fechaGt}T${hhmmGt}:00Z`).getTime() + 6 * 3600 * 1000,
+      );
 
     let turnosActivosPrevios: string[] = [];
 
@@ -459,13 +593,22 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       const res = await http()
         .post("/api/v1/gasolineras")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ nombre: `[F6-${RUN_ID}] Estación R`, direccion: "Km 1", ciudad: "Morales" });
+        .send({
+          nombre: `[F6-${RUN_ID}] Estación R`,
+          direccion: "Km 1",
+          ciudad: "Morales",
+        });
       gasRId = res.body.id;
       // Sólo esta gasolinera tiene recordatorio: aislamos de otras de la BD.
       const activos = await db.db
         .select({ id: turnosGasolinera.id })
         .from(turnosGasolinera)
-        .where(and(eq(turnosGasolinera.recordatorio_activo, true), ne(turnosGasolinera.gasolinera_id, gasRId)));
+        .where(
+          and(
+            eq(turnosGasolinera.recordatorio_activo, true),
+            ne(turnosGasolinera.gasolinera_id, gasRId),
+          ),
+        );
       turnosActivosPrevios = activos.map((t) => t.id);
       if (turnosActivosPrevios.length) {
         await db.db
@@ -487,7 +630,10 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           .set({ recordatorio_activo: true })
           .where(inArray(turnosGasolinera.id, turnosActivosPrevios));
       }
-      await db.db.update(gasolineras).set({ activo: false }).where(eq(gasolineras.id, gasRId));
+      await db.db
+        .update(gasolineras)
+        .set({ activo: false })
+        .where(eq(gasolineras.id, gasRId));
     });
 
     beforeEach(() => {
@@ -505,7 +651,10 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       await http()
         .post("/api/v1/push/suscripciones")
         .set("Authorization", `Bearer ${jefeToken}`)
-        .send({ endpoint: `https://push.example/jefe-${RUN_ID}`, keys: { p256dh: "p", auth: "a" } })
+        .send({
+          endpoint: `https://push.example/jefe-${RUN_ID}`,
+          keys: { p256dh: "p", auth: "a" },
+        })
         .expect(201);
 
       const ahora = instante("2030-01-11", "13:45");
@@ -513,17 +662,28 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       const segunda = await recordatorios.ejecutar(ahora);
 
       expect(primera.enviados).toEqual([
-        expect.objectContaining({ gasolinera_id: gasRId, turno: "tarde", fecha: "2030-01-11" }),
+        expect.objectContaining({
+          gasolinera_id: gasRId,
+          turno: "tarde",
+          fecha: "2030-01-11",
+        }),
       ]);
       expect(segunda.enviados).toHaveLength(0);
 
       const filas = await db.db
         .select()
         .from(recordatoriosTurno)
-        .where(and(eq(recordatoriosTurno.gasolinera_id, gasRId), eq(recordatoriosTurno.fecha, "2030-01-11")));
+        .where(
+          and(
+            eq(recordatoriosTurno.gasolinera_id, gasRId),
+            eq(recordatoriosTurno.fecha, "2030-01-11"),
+          ),
+        );
       expect(filas).toHaveLength(1);
 
-      const paraJefe = pushes.enviados.filter((p) => p.destino.endpoint === `https://push.example/jefe-${RUN_ID}`);
+      const paraJefe = pushes.enviados.filter(
+        (p) => p.destino.endpoint === `https://push.example/jefe-${RUN_ID}`,
+      );
       expect(paraJefe).toHaveLength(1);
       expect(paraJefe[0].mensaje.url).toBe("/jefe");
       expect(correos.enviados.length).toBe(filas[0].correos_enviados);
@@ -532,14 +692,21 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
     it("sin precios del día, el mensaje lo dice", async () => {
       await recordatorios.ejecutar(instante("2030-01-12", "13:45"));
-      expect(correos.enviados[0].texto).toContain("Todavía no hay precios cargados para hoy");
+      expect(correos.enviados[0].texto).toContain(
+        "Todavía no hay precios cargados para hoy",
+      );
     });
 
     it("con precios del día GT, el mensaje los incluye", async () => {
       await http()
         .post("/api/v1/precios-combustible")
         .set("Authorization", `Bearer ${adminToken}`)
-        .send({ gasolinera_id: gasRId, fecha: "2030-01-13", tipo_combustible: "super", precio_galon: "34.750" })
+        .send({
+          gasolinera_id: gasRId,
+          fecha: "2030-01-13",
+          tipo_combustible: "super",
+          precio_galon: "34.750",
+        })
         .expect(201);
       await recordatorios.ejecutar(instante("2030-01-13", "13:45"));
       expect(correos.enviados[0].texto).toContain("Súper: Q 34.750");
@@ -550,30 +717,61 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         http()
           .post("/api/v1/precios-combustible")
           .set("Authorization", `Bearer ${adminToken}`)
-          .send({ gasolinera_id: gasRId, fecha, tipo_combustible: tipo, precio_galon: precio })
+          .send({
+            gasolinera_id: gasRId,
+            fecha,
+            tipo_combustible: tipo,
+            precio_galon: precio,
+          })
           .expect(201);
       await poner("2030-01-15", "diesel", "31.250");
       await poner("2030-01-14", "regular", "29.000");
       await db.db
         .update(turnosGasolinera)
         .set({ hora_inicio: "00:15", hora_fin: "06:00" })
-        .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "manana")));
+        .where(
+          and(
+            eq(turnosGasolinera.gasolinera_id, gasRId),
+            eq(turnosGasolinera.turno, "manana"),
+          ),
+        );
       await db.db
         .update(turnosGasolinera)
         .set({ hora_inicio: "06:00", hora_fin: "00:15" })
-        .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "tarde")));
+        .where(
+          and(
+            eq(turnosGasolinera.gasolinera_id, gasRId),
+            eq(turnosGasolinera.turno, "tarde"),
+          ),
+        );
       try {
         const r = await recordatorios.ejecutar(instante("2030-01-14", "23:50"));
-        expect(r.enviados).toEqual([expect.objectContaining({ turno: "manana", fecha: "2030-01-15" })]);
+        expect(r.enviados).toEqual([
+          expect.objectContaining({ turno: "manana", fecha: "2030-01-15" }),
+        ]);
         expect(correos.enviados.length).toBeGreaterThan(0);
         expect(correos.enviados[0].texto).toContain("Diésel: Q 31.250");
         expect(correos.enviados[0].texto).not.toContain("Regular");
       } finally {
         // Restaurar horario por defecto aunque falle una aserción
-        await db.db.update(turnosGasolinera).set({ hora_inicio: "06:00", hora_fin: "14:00" })
-          .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "manana")));
-        await db.db.update(turnosGasolinera).set({ hora_inicio: "14:00", hora_fin: "22:00" })
-          .where(and(eq(turnosGasolinera.gasolinera_id, gasRId), eq(turnosGasolinera.turno, "tarde")));
+        await db.db
+          .update(turnosGasolinera)
+          .set({ hora_inicio: "06:00", hora_fin: "14:00" })
+          .where(
+            and(
+              eq(turnosGasolinera.gasolinera_id, gasRId),
+              eq(turnosGasolinera.turno, "manana"),
+            ),
+          );
+        await db.db
+          .update(turnosGasolinera)
+          .set({ hora_inicio: "14:00", hora_fin: "22:00" })
+          .where(
+            and(
+              eq(turnosGasolinera.gasolinera_id, gasRId),
+              eq(turnosGasolinera.turno, "tarde"),
+            ),
+          );
       }
     });
 
@@ -582,16 +780,24 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       const inactivo = await crearUsuario("jefe_pista", { activo: false });
       await recordatorios.ejecutar(instante("2030-01-16", "13:45"));
       expect(correos.enviados.length).toBeGreaterThan(0);
-      expect(correos.enviados.some((m) => m.para === inactivo.email)).toBe(false);
+      expect(correos.enviados.some((m) => m.para === inactivo.email)).toBe(
+        false,
+      );
     });
 
     it("una gasolinera bloqueada no recibe recordatorios", async () => {
-      await db.db.update(gasolineras).set({ bloqueado: true }).where(eq(gasolineras.id, gasRId));
+      await db.db
+        .update(gasolineras)
+        .set({ bloqueado: true })
+        .where(eq(gasolineras.id, gasRId));
       try {
         const r = await recordatorios.ejecutar(instante("2030-01-17", "13:45"));
         expect(r.enviados).toHaveLength(0);
       } finally {
-        await db.db.update(gasolineras).set({ bloqueado: false }).where(eq(gasolineras.id, gasRId));
+        await db.db
+          .update(gasolineras)
+          .set({ bloqueado: false })
+          .where(eq(gasolineras.id, gasRId));
       }
     });
 
@@ -604,7 +810,10 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .expect(201);
       pushes.expirados.add(endpoint);
       await recordatorios.ejecutar(instante("2030-01-18", "13:45"));
-      const filas = await db.db.select().from(suscripcionesPush).where(eq(suscripcionesPush.endpoint, endpoint));
+      const filas = await db.db
+        .select()
+        .from(suscripcionesPush)
+        .where(eq(suscripcionesPush.endpoint, endpoint));
       expect(filas).toHaveLength(0);
     });
   });
@@ -644,15 +853,25 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
 
     afterAll(async () => {
       for (const id of [clienteId, otroClienteId]) {
-        await db.db.update(clientes).set({ activo: false }).where(eq(clientes.id, id)).catch(() => undefined);
+        await db.db
+          .update(clientes)
+          .set({ activo: false })
+          .where(eq(clientes.id, id))
+          .catch(() => undefined);
       }
     });
 
     const patch = (id: string, token: string, body: object) =>
-      http().patch(`/api/v1/vehiculos/${id}/restricciones`).set("Authorization", `Bearer ${token}`).send(body);
+      http()
+        .patch(`/api/v1/vehiculos/${id}/restricciones`)
+        .set("Authorization", `Bearer ${token}`)
+        .send(body);
 
     it("el admin edita las restricciones de cualquier vehículo", async () => {
-      const res = await patch(vehAjenoId, adminToken, { bloqueado: true, limite_monto_dia: 500 });
+      const res = await patch(vehAjenoId, adminToken, {
+        bloqueado: true,
+        limite_monto_dia: 500,
+      });
       expect(res.status).toBe(200);
       expect(res.body.bloqueado).toBe(true);
       expect(Number(res.body.limite_monto_dia)).toBe(500);
@@ -668,7 +887,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         limite_volumen_mes: 120.5,
       });
       expect(res.status).toBe(200);
-      const get = await http().get(`/api/v1/vehiculos/${vehPropioId}`).set("Authorization", `Bearer ${clienteToken}`);
+      const get = await http()
+        .get(`/api/v1/vehiculos/${vehPropioId}`)
+        .set("Authorization", `Bearer ${clienteToken}`);
       expect(get.status).toBe(200);
       expect(get.body).toEqual(
         expect.objectContaining({
@@ -683,29 +904,44 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("null limpia un límite", async () => {
-      await patch(vehPropioId, clienteToken, { limite_monto_dia: 200 }).expect(200);
-      const res = await patch(vehPropioId, clienteToken, { limite_monto_dia: null, hora_inicio: null });
+      await patch(vehPropioId, clienteToken, { limite_monto_dia: 200 }).expect(
+        200,
+      );
+      const res = await patch(vehPropioId, clienteToken, {
+        limite_monto_dia: null,
+        hora_inicio: null,
+      });
       expect(res.status).toBe(200);
       expect(res.body.limite_monto_dia).toBeNull();
       expect(res.body.hora_inicio).toBeNull();
     });
 
     it("el cliente no toca un vehículo ajeno: 404 y no cambia", async () => {
-      const antes = await db.db.query.vehiculos.findFirst({ where: eq(vehiculos.id, vehAjenoId) });
+      const antes = await db.db.query.vehiculos.findFirst({
+        where: eq(vehiculos.id, vehAjenoId),
+      });
       const res = await patch(vehAjenoId, clienteToken, { bloqueado: false });
       expect(res.status).toBe(404);
       expect(res.body.message).toBe("Vehículo no encontrado");
-      const despues = await db.db.query.vehiculos.findFirst({ where: eq(vehiculos.id, vehAjenoId) });
+      const despues = await db.db.query.vehiculos.findFirst({
+        where: eq(vehiculos.id, vehAjenoId),
+      });
       expect(despues?.bloqueado).toBe(antes?.bloqueado);
     });
 
     it("un vehículo inexistente da 404", async () => {
-      const res = await patch("00000000-0000-4000-8000-000000000000", clienteToken, { bloqueado: true });
+      const res = await patch(
+        "00000000-0000-4000-8000-000000000000",
+        clienteToken,
+        { bloqueado: true },
+      );
       expect(res.status).toBe(404);
     });
 
     it("el supervisor recibe 403", async () => {
-      const res = await patch(vehPropioId, supervisorToken, { bloqueado: true });
+      const res = await patch(vehPropioId, supervisorToken, {
+        bloqueado: true,
+      });
       expect(res.status).toBe(403);
     });
 
@@ -715,7 +951,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("el cliente bloquea su vehículo (200) pero no lo desbloquea (403) y el admin sí (200)", async () => {
-      const bloquea = await patch(vehPropioId, clienteToken, { bloqueado: true });
+      const bloquea = await patch(vehPropioId, clienteToken, {
+        bloqueado: true,
+      });
       expect(bloquea.status).toBe(200);
       expect(bloquea.body.bloqueado).toBe(true);
 
@@ -724,8 +962,12 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         limite_monto_dia: 999,
       });
       expect(desbloquea.status).toBe(403);
-      expect(desbloquea.body.message).toBe("Sólo la estación puede desbloquear un vehículo.");
-      const tras = await http().get(`/api/v1/vehiculos/${vehPropioId}`).set("Authorization", `Bearer ${clienteToken}`);
+      expect(desbloquea.body.message).toBe(
+        "Sólo la estación puede desbloquear un vehículo.",
+      );
+      const tras = await http()
+        .get(`/api/v1/vehiculos/${vehPropioId}`)
+        .set("Authorization", `Bearer ${clienteToken}`);
       expect(tras.body.bloqueado).toBe(true);
       expect(Number(tras.body.limite_monto_dia ?? 0)).not.toBe(999);
 
@@ -748,7 +990,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("hora_inicio mal formada da 400", async () => {
-      const res = await patch(vehPropioId, clienteToken, { hora_inicio: "25:99" });
+      const res = await patch(vehPropioId, clienteToken, {
+        hora_inicio: "25:99",
+      });
       expect(res.status).toBe(400);
     });
 
@@ -786,10 +1030,15 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       });
 
       it("GET /vehiculos/:id de otro cliente da 404; el propio da 200", async () => {
-        const ajeno = await http().get(`/api/v1/vehiculos/${vehAjenoId}`).set(auth());
+        const ajeno = await http()
+          .get(`/api/v1/vehiculos/${vehAjenoId}`)
+          .set(auth());
         expect(ajeno.status).toBe(404);
         expect(ajeno.body.message).toBe("Vehículo no encontrado");
-        await http().get(`/api/v1/vehiculos/${vehPropioId}`).set(auth()).expect(200);
+        await http()
+          .get(`/api/v1/vehiculos/${vehPropioId}`)
+          .set(auth())
+          .expect(200);
       });
 
       it("el admin sigue viendo vehículos de cualquier cliente", async () => {
@@ -808,9 +1057,14 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       });
 
       it("GET /pilotos/:id de otro cliente da 404", async () => {
-        const ajeno = await http().get(`/api/v1/pilotos/${pilAjenoId}`).set(auth());
+        const ajeno = await http()
+          .get(`/api/v1/pilotos/${pilAjenoId}`)
+          .set(auth());
         expect(ajeno.status).toBe(404);
-        await http().get(`/api/v1/pilotos/${pilPropioId}`).set(auth()).expect(200);
+        await http()
+          .get(`/api/v1/pilotos/${pilPropioId}`)
+          .set(auth())
+          .expect(200);
       });
 
       it("GET /clientes sólo devuelve el propio", async () => {
@@ -820,15 +1074,25 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       });
 
       it("GET /clientes/:id de otro cliente da 404", async () => {
-        const ajeno = await http().get(`/api/v1/clientes/${otroClienteId}`).set(auth());
+        const ajeno = await http()
+          .get(`/api/v1/clientes/${otroClienteId}`)
+          .set(auth());
         expect(ajeno.status).toBe(404);
-        await http().get(`/api/v1/clientes/${clienteId}`).set(auth()).expect(200);
+        await http()
+          .get(`/api/v1/clientes/${clienteId}`)
+          .set(auth())
+          .expect(200);
       });
 
       it("consumo-hoy de un vehículo ajeno da 404", async () => {
-        const ajeno = await http().get(`/api/v1/despachos/vehiculo/${vehAjenoId}/consumo-hoy`).set(auth());
+        const ajeno = await http()
+          .get(`/api/v1/despachos/vehiculo/${vehAjenoId}/consumo-hoy`)
+          .set(auth());
         expect(ajeno.status).toBe(404);
-        await http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`).set(auth()).expect(200);
+        await http()
+          .get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`)
+          .set(auth())
+          .expect(200);
       });
 
       it("consumo-hoy de un vehículo propio ignora el cliente_id del query", async () => {
@@ -836,26 +1100,42 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         // la respuesta traería sus bloqueos y su límite. afterAll lo desactiva.
         await db.db
           .update(clientes)
-          .set({ bloqueado: true, credito_bloqueado: true, limite_monto_dia: "777.00" })
+          .set({
+            bloqueado: true,
+            credito_bloqueado: true,
+            limite_monto_dia: "777.00",
+          })
           .where(eq(clientes.id, otroClienteId));
         const [base, forzado] = await Promise.all([
-          http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`).set(auth()),
-          http().get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy?cliente_id=${otroClienteId}`).set(auth()),
+          http()
+            .get(`/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy`)
+            .set(auth()),
+          http()
+            .get(
+              `/api/v1/despachos/vehiculo/${vehPropioId}/consumo-hoy?cliente_id=${otroClienteId}`,
+            )
+            .set(auth()),
         ]);
         expect(forzado.status).toBe(200);
         expect(forzado.body).toEqual(base.body);
         expect(forzado.body.cliente_bloqueado).toBe(false);
         expect(forzado.body.cliente_credito_bloqueado).toBe(false);
-        expect(JSON.stringify(forzado.body.cliente_limites)).not.toContain("777");
+        expect(JSON.stringify(forzado.body.cliente_limites)).not.toContain(
+          "777",
+        );
       });
 
       it("un cliente sin empresa asignada recibe listas vacías de despachos", async () => {
         const u = await crearUsuario("cliente");
         const token = await loginToken(u.email!);
-        const res = await http().get("/api/v1/despachos").set("Authorization", `Bearer ${token}`);
+        const res = await http()
+          .get("/api/v1/despachos")
+          .set("Authorization", `Bearer ${token}`);
         expect(res.status).toBe(200);
         expect(res.body).toEqual({ data: [], total: 0, page: 1, limit: 20 });
-        const v = await http().get("/api/v1/ventas-insumos").set("Authorization", `Bearer ${token}`);
+        const v = await http()
+          .get("/api/v1/ventas-insumos")
+          .set("Authorization", `Bearer ${token}`);
         expect(v.status).toBe(200);
         expect(v.body).toEqual([]);
       });
@@ -863,20 +1143,30 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       it("reportes ignoran el cliente_id del query", async () => {
         const [propio, forzado] = await Promise.all([
           http().get("/api/v1/reportes/resumen").set(auth()),
-          http().get(`/api/v1/reportes/resumen?cliente_id=${otroClienteId}`).set(auth()),
+          http()
+            .get(`/api/v1/reportes/resumen?cliente_id=${otroClienteId}`)
+            .set(auth()),
         ]);
         expect(propio.status).toBe(200);
         expect(forzado.body).toEqual(propio.body);
-        for (const ruta of ["consumo-por-vehiculo", "consumo-por-piloto", "tendencia-mensual"]) {
+        for (const ruta of [
+          "consumo-por-vehiculo",
+          "consumo-por-piloto",
+          "tendencia-mensual",
+        ]) {
           const a = await http().get(`/api/v1/reportes/${ruta}`).set(auth());
-          const b = await http().get(`/api/v1/reportes/${ruta}?cliente_id=${otroClienteId}`).set(auth());
+          const b = await http()
+            .get(`/api/v1/reportes/${ruta}?cliente_id=${otroClienteId}`)
+            .set(auth());
           expect(b.status).toBe(200);
           expect(b.body).toEqual(a.body);
         }
       });
 
       it("rendimiento-vehiculo de un vehículo ajeno no devuelve filas", async () => {
-        const res = await http().get(`/api/v1/reportes/rendimiento-vehiculo/${vehAjenoId}`).set(auth());
+        const res = await http()
+          .get(`/api/v1/reportes/rendimiento-vehiculo/${vehAjenoId}`)
+          .set(auth());
         expect(res.status).toBe(200);
         expect(res.body).toEqual([]);
       });
@@ -925,7 +1215,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           const u = await crearUsuario("cliente");
           const token = await loginToken(u.email!);
           for (const ruta of rutas(clienteId)) {
-            const res = await http().get(ruta).set("Authorization", `Bearer ${token}`);
+            const res = await http()
+              .get(ruta)
+              .set("Authorization", `Bearer ${token}`);
             expect(res.status).toBe(404);
           }
         });
@@ -945,19 +1237,35 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
             .set(auth())
             .send({ cliente_id: clienteId, monto: "100" });
           expect(abono.status).toBe(403);
-          const cuadres = await http().get("/api/v1/saldos/cuadres").set(auth());
+          const cuadres = await http()
+            .get("/api/v1/saldos/cuadres")
+            .set(auth());
           expect(cuadres.status).toBe(403);
         });
       });
 
       describe("el cliente gestiona su flota y sus pilotos", () => {
         const post = (ruta: string, body: object, token = clienteToken) =>
-          http().post(`/api/v1/${ruta}`).set("Authorization", `Bearer ${token}`).send(body);
-        const patchGeneral = (ruta: string, id: string, body: object, token = clienteToken) =>
-          http().patch(`/api/v1/${ruta}/${id}`).set("Authorization", `Bearer ${token}`).send(body);
+          http()
+            .post(`/api/v1/${ruta}`)
+            .set("Authorization", `Bearer ${token}`)
+            .send(body);
+        const patchGeneral = (
+          ruta: string,
+          id: string,
+          body: object,
+          token = clienteToken,
+        ) =>
+          http()
+            .patch(`/api/v1/${ruta}/${id}`)
+            .set("Authorization", `Bearer ${token}`)
+            .send(body);
 
         it("crea un vehículo a su nombre aunque mande el cliente_id de otro", async () => {
-          const res = await post("vehiculos", { cliente_id: otroClienteId, placa: `NC${RUN_ID}` });
+          const res = await post("vehiculos", {
+            cliente_id: otroClienteId,
+            placa: `NC${RUN_ID}`,
+          });
           expect(res.status).toBe(201);
           expect(res.body.cliente_id).toBe(clienteId);
           const sin = await post("vehiculos", { placa: `NS${RUN_ID}` });
@@ -966,63 +1274,106 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         });
 
         it("crea un piloto a su nombre aunque mande el cliente_id de otro", async () => {
-          const res = await post("pilotos", { cliente_id: otroClienteId, nombre_completo: `Nuevo ${RUN_ID}` });
+          const res = await post("pilotos", {
+            cliente_id: otroClienteId,
+            nombre_completo: `Nuevo ${RUN_ID}`,
+          });
           expect(res.status).toBe(201);
           expect(res.body.cliente_id).toBe(clienteId);
         });
 
         it("el admin sin cliente_id recibe 400 al crear", async () => {
-          expect((await post("vehiculos", { placa: `AD${RUN_ID}` }, adminToken)).status).toBe(400);
-          expect((await post("pilotos", { nombre_completo: "X" }, adminToken)).status).toBe(400);
+          expect(
+            (await post("vehiculos", { placa: `AD${RUN_ID}` }, adminToken))
+              .status,
+          ).toBe(400);
+          expect(
+            (await post("pilotos", { nombre_completo: "X" }, adminToken))
+              .status,
+          ).toBe(400);
         });
 
         it("edita su vehículo (200) y uno ajeno da 404", async () => {
-          const ok = await patchGeneral("vehiculos", vehPropioId, { marca: "Hino" });
+          const ok = await patchGeneral("vehiculos", vehPropioId, {
+            marca: "Hino",
+          });
           expect(ok.status).toBe(200);
           expect(ok.body.marca).toBe("Hino");
-          const ajeno = await patchGeneral("vehiculos", vehAjenoId, { marca: "Hack" });
+          const ajeno = await patchGeneral("vehiculos", vehAjenoId, {
+            marca: "Hack",
+          });
           expect(ajeno.status).toBe(404);
           expect(ajeno.body.message).toBe("Vehículo no encontrado");
-          const [fila] = await db.db.select().from(vehiculos).where(eq(vehiculos.id, vehAjenoId));
+          const [fila] = await db.db
+            .select()
+            .from(vehiculos)
+            .where(eq(vehiculos.id, vehAjenoId));
           expect(fila.marca).not.toBe("Hack");
         });
 
         it("edita su piloto (200) y uno ajeno da 404", async () => {
-          const ok = await patchGeneral("pilotos", pilPropioId, { nombre_completo: "Renombrado" });
+          const ok = await patchGeneral("pilotos", pilPropioId, {
+            nombre_completo: "Renombrado",
+          });
           expect(ok.status).toBe(200);
           expect(ok.body.nombre_completo).toBe("Renombrado");
-          const ajeno = await patchGeneral("pilotos", pilAjenoId, { nombre_completo: "Hack" });
+          const ajeno = await patchGeneral("pilotos", pilAjenoId, {
+            nombre_completo: "Hack",
+          });
           expect(ajeno.status).toBe(404);
           expect(ajeno.body.message).toBe("Piloto no encontrado");
         });
 
         it("no puede mover un vehículo o piloto a otra empresa: 403", async () => {
-          const v = await patchGeneral("vehiculos", vehPropioId, { cliente_id: otroClienteId });
+          const v = await patchGeneral("vehiculos", vehPropioId, {
+            cliente_id: otroClienteId,
+          });
           expect(v.status).toBe(403);
-          expect(v.body.message).toBe("No puede asignar el vehículo a otra empresa");
-          const p = await patchGeneral("pilotos", pilPropioId, { cliente_id: otroClienteId });
+          expect(v.body.message).toBe(
+            "No puede asignar el vehículo a otra empresa",
+          );
+          const p = await patchGeneral("pilotos", pilPropioId, {
+            cliente_id: otroClienteId,
+          });
           expect(p.status).toBe(403);
-          expect(p.body.message).toBe("No puede asignar el piloto a otra empresa");
+          expect(p.body.message).toBe(
+            "No puede asignar el piloto a otra empresa",
+          );
         });
 
         it("bloquea pero no desbloquea por la ruta general", async () => {
-          const bloq = await patchGeneral("vehiculos", vehPropioId, { bloqueado: true });
+          const bloq = await patchGeneral("vehiculos", vehPropioId, {
+            bloqueado: true,
+          });
           expect(bloq.status).toBe(200);
           expect(bloq.body.bloqueado).toBe(true);
-          const desb = await patchGeneral("vehiculos", vehPropioId, { bloqueado: false });
+          const desb = await patchGeneral("vehiculos", vehPropioId, {
+            bloqueado: false,
+          });
           expect(desb.status).toBe(403);
-          expect(desb.body.message).toBe("Sólo la estación puede desbloquear un vehículo.");
-          const ajeno = await patchGeneral("vehiculos", vehAjenoId, { bloqueado: false });
+          expect(desb.body.message).toBe(
+            "Sólo la estación puede desbloquear un vehículo.",
+          );
+          const ajeno = await patchGeneral("vehiculos", vehAjenoId, {
+            bloqueado: false,
+          });
           expect(ajeno.status).toBe(404);
           // El admin sí desbloquea.
-          const admin = await patchGeneral("vehiculos", vehPropioId, { bloqueado: false }, adminToken);
+          const admin = await patchGeneral(
+            "vehiculos",
+            vehPropioId,
+            { bloqueado: false },
+            adminToken,
+          );
           expect(admin.status).toBe(200);
           expect(admin.body.bloqueado).toBe(false);
         });
 
         it("da de baja lo suyo y lo ajeno da 404", async () => {
           const v = await post("vehiculos", { placa: `BJ${RUN_ID}` });
-          const p = await post("pilotos", { nombre_completo: `Baja ${RUN_ID}` });
+          const p = await post("pilotos", {
+            nombre_completo: `Baja ${RUN_ID}`,
+          });
           const del = (ruta: string, id: string) =>
             http().delete(`/api/v1/${ruta}/${id}`).set(auth());
           const dv = await del("vehiculos", v.body.id);
@@ -1033,7 +1384,10 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           expect(dp.body.activo).toBe(false);
           expect((await del("vehiculos", vehAjenoId)).status).toBe(404);
           expect((await del("pilotos", pilAjenoId)).status).toBe(404);
-          const [fila] = await db.db.select().from(vehiculos).where(eq(vehiculos.id, vehAjenoId));
+          const [fila] = await db.db
+            .select()
+            .from(vehiculos)
+            .where(eq(vehiculos.id, vehAjenoId));
           expect(fila.activo).toBe(true);
         });
 
@@ -1117,22 +1471,51 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         it("un cliente sin empresa no crea, edita ni da de baja", async () => {
           const u = await crearUsuario("cliente");
           const token = await loginToken(u.email!);
-          expect((await post("vehiculos", { placa: `SE${RUN_ID}` }, token)).status).toBe(404);
-          expect((await post("pilotos", { nombre_completo: "X" }, token)).status).toBe(404);
-          expect((await patchGeneral("vehiculos", vehPropioId, { marca: "X" }, token)).status).toBe(404);
-          expect((await patchGeneral("pilotos", pilPropioId, { nombre_completo: "X" }, token)).status).toBe(404);
-          const del = await http().delete(`/api/v1/vehiculos/${vehPropioId}`).set("Authorization", `Bearer ${token}`);
+          expect(
+            (await post("vehiculos", { placa: `SE${RUN_ID}` }, token)).status,
+          ).toBe(404);
+          expect(
+            (await post("pilotos", { nombre_completo: "X" }, token)).status,
+          ).toBe(404);
+          expect(
+            (
+              await patchGeneral(
+                "vehiculos",
+                vehPropioId,
+                { marca: "X" },
+                token,
+              )
+            ).status,
+          ).toBe(404);
+          expect(
+            (
+              await patchGeneral(
+                "pilotos",
+                pilPropioId,
+                { nombre_completo: "X" },
+                token,
+              )
+            ).status,
+          ).toBe(404);
+          const del = await http()
+            .delete(`/api/v1/vehiculos/${vehPropioId}`)
+            .set("Authorization", `Bearer ${token}`);
           expect(del.status).toBe(404);
         });
 
         it("ultimo_kilometraje: null sin despachos y el máximo con ellos", async () => {
-          const [admin] = await db.db.select().from(usuarios).where(eq(usuarios.email, ADMIN_EMAIL));
+          const [admin] = await db.db
+            .select()
+            .from(usuarios)
+            .where(eq(usuarios.email, ADMIN_EMAIL));
           const nuevo = await post("vehiculos", { placa: `KM${RUN_ID}` });
           const id = nuevo.body.id as string;
           const antes = await http().get(`/api/v1/vehiculos/${id}`).set(auth());
           expect(antes.body.ultimo_kilometraje).toBeNull();
           const lista0 = await http().get("/api/v1/vehiculos").set(auth());
-          expect(lista0.body.find((v: any) => v.id === id).ultimo_kilometraje).toBeNull();
+          expect(
+            lista0.body.find((v: any) => v.id === id).ultimo_kilometraje,
+          ).toBeNull();
 
           const base = {
             gasolinera_id: gasAId,
@@ -1152,7 +1535,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           const uno = await http().get(`/api/v1/vehiculos/${id}`).set(auth());
           expect(uno.body.ultimo_kilometraje).toBe("250.500");
           const lista = await http().get("/api/v1/vehiculos").set(auth());
-          expect(lista.body.find((v: any) => v.id === id).ultimo_kilometraje).toBe("250.500");
+          expect(
+            lista.body.find((v: any) => v.id === id).ultimo_kilometraje,
+          ).toBe("250.500");
           const otro = lista.body.find((v: any) => v.id === vehPropioId);
           expect(otro).toHaveProperty("ultimo_kilometraje");
         });
