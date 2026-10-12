@@ -2511,6 +2511,36 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         const pares = [a.body.correlativo_cliente, b.body.correlativo_cliente];
         expect(pares.sort((x: number, y: number) => x - y)).toEqual([4, 5]);
       });
+
+      it("el estado de cuenta trae el correlativo de cada débito y null en el abono → 200", async () => {
+        const abono = await request(app.getHttpServer())
+          .post("/api/v1/saldos/abonos")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({
+            cliente_id: clienteCorrA,
+            gasolinera_id: estacionBId,
+            monto: "100.00",
+            descripcion: "Abono de prueba del correlativo",
+          });
+        expect(abono.status).toBe(201);
+
+        const res = await request(app.getHttpServer())
+          .get(`/api/v1/saldos/cliente/${clienteCorrA}/estado-cuenta`)
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(res.status).toBe(200);
+        const movs = res.body.movimientos as {
+          tipo: string;
+          correlativo_cliente: number | null;
+        }[];
+        const debitos = movs
+          .filter((m) => m.tipo === "debito")
+          .map((m) => m.correlativo_cliente)
+          .sort((x, y) => (x ?? 0) - (y ?? 0));
+        expect(debitos).toEqual([1, 2, 3, 4, 5]);
+        const creditos = movs.filter((m) => m.tipo === "credito");
+        expect(creditos).toHaveLength(1);
+        expect(creditos[0].correlativo_cliente).toBeNull();
+      });
     });
   });
 

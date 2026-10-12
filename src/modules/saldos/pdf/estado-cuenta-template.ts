@@ -10,6 +10,8 @@ export interface MovimientoEstadoCuenta {
   tipo: string;
   descripcion: string | null;
   monto: string;
+  // N° de vale del cliente; null en los movimientos que no son un despacho.
+  correlativo_cliente: number | null;
 }
 
 export interface EstadoCuentaData {
@@ -68,6 +70,7 @@ export function buildEstadoCuentaHtml(d: EstadoCuentaData): string {
       return `
       <tr>
         <td>${fecha(m.created_at)}</td>
+        <td class="corr">${esc(m.correlativo_cliente)}</td>
         <td>${esc(m.descripcion)}</td>
         <td class="num">${esCredito ? q(monto) : ""}</td>
         <td class="num">${esCredito ? "" : q(monto)}</td>
@@ -77,7 +80,7 @@ export function buildEstadoCuentaHtml(d: EstadoCuentaData): string {
     .join("");
 
   const sinMovimientos = `
-    <tr><td colspan="5" class="vacio">Sin movimientos en el período</td></tr>`;
+    <tr><td colspan="6" class="vacio">Sin movimientos en el período</td></tr>`;
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -140,6 +143,7 @@ export function buildEstadoCuentaHtml(d: EstadoCuentaData): string {
   td { padding: 6px 8px; border-bottom: 0.5px solid #e2e8f0; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .strong { font-weight: 700; }
+  .corr { font-variant-numeric: tabular-nums; }
   .vacio { text-align: center; color: #94a3b8; padding: 18px; }
   tfoot td { border-top: 0.5px solid #cbd5e1; font-weight: 700; }
   .pie {
@@ -177,6 +181,7 @@ export function buildEstadoCuentaHtml(d: EstadoCuentaData): string {
     <thead>
       <tr>
         <th style="width:70px">Fecha</th>
+        <th style="width:60px">N° cliente</th>
         <th>Descripción</th>
         <th class="num" style="width:80px">Abono</th>
         <th class="num" style="width:80px">Consumo</th>
@@ -186,7 +191,7 @@ export function buildEstadoCuentaHtml(d: EstadoCuentaData): string {
     <tbody>${filas || sinMovimientos}</tbody>
     <tfoot>
       <tr>
-        <td colspan="2">Totales del período</td>
+        <td colspan="3">Totales del período</td>
         <td class="num">Q ${q(d.total_abonos)}</td>
         <td class="num">Q ${q(d.total_debitos)}</td>
         <td class="num">Q ${q(d.saldo_final)}</td>

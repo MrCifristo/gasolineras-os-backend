@@ -8,6 +8,7 @@ const fila = (parcial: Record<string, unknown> = {}) => ({
   id: "d1",
   numero_vale: "100",
   serie_vale: "A",
+  correlativo_cliente: 7,
   despachado_at: new Date("2026-10-08T03:00:00Z"),
   turno: "tarde",
   bomba_numero: 1,
@@ -61,16 +62,26 @@ describe("DespachosExcelService", () => {
     );
     const ws = wb.getWorksheet("Despachos")!;
     expect(ws.getRow(4).getCell(1).value).toBe("100");
-    expect(ws.getRow(4).getCell(9).value).toBeNull();
-    expect(ws.getRow(4).getCell(12).value).toBeNull();
-    expect(ws.getRow(4).getCell(15).value).toBe("caneca diesel 5.000 gal");
+    expect(ws.getRow(4).getCell(10).value).toBeNull();
+    expect(ws.getRow(4).getCell(13).value).toBeNull();
+    expect(ws.getRow(4).getCell(16).value).toBe("caneca diesel 5.000 gal");
+  });
+
+  it("«N° Cliente» va justo después de «N° Vale» y muestra el correlativo", async () => {
+    const wb = await exportar([fila({ correlativo_cliente: 7 })]);
+    const ws = wb.getWorksheet("Despachos")!;
+    expect(ws.getRow(3).getCell(1).value).toBe("N° Vale");
+    expect(ws.getRow(3).getCell(2).value).toBe("N° Cliente");
+    expect(ws.getRow(4).getCell(2).value).toBe(7);
+    // La fila de totales no lleva nada en esa columna.
+    expect(ws.getRow(5).getCell(2).value).toBeNull();
   });
 
   it("fecha y hora salen en hora de Guatemala (03:00Z es día 7, 21 h)", async () => {
     const wb = await exportar([fila()]);
     const row = wb.getWorksheet("Despachos")!.getRow(4);
-    const fecha = row.getCell(3).value as Date;
-    const hora = row.getCell(4).value as Date;
+    const fecha = row.getCell(4).value as Date;
+    const hora = row.getCell(5).value as Date;
     expect(fecha.getUTCDate()).toBe(7);
     expect(hora.getUTCHours()).toBe(21);
   });
