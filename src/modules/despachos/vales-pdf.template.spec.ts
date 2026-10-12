@@ -106,6 +106,18 @@ describe("buildValesHtml", () => {
     expect(out).toMatch(/\.vale\s*{[^}]*break-inside:\s*avoid/);
   });
 
+  it("la última hoja no fuerza salto de página (sin hoja en blanco)", () => {
+    const out = html([vale()]);
+    // el pie es hermano de las hojas: :last-child jamás coincidiría con una <section>
+    expect(out).not.toContain(".hoja:last-child");
+    expect(out).toMatch(/\.hoja:last-of-type\s*{[^}]*break-after:\s*auto/);
+    // y es el único tipo <section> del body, así que la última hoja sí es last-of-type
+    expect(out.match(/<section\b/g)).toHaveLength(1);
+    expect(out.indexOf('class="pie"')).toBeGreaterThan(
+      out.lastIndexOf("</section>"),
+    );
+  });
+
   it("tolera vehículo y piloto nulos", () => {
     const out = html([vale({ vehiculo: null, piloto: null })]);
     expect(out).toContain("A-000123");
