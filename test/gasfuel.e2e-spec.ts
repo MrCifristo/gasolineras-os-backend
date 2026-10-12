@@ -90,8 +90,6 @@ describe("GasFuel OS — Suite E2E Completa", () => {
   let vehiculo2Id: string;
   let piloto1Id: string;
   let piloto2Id: string;
-  let precioRegularId: string;
-  let precioSuperiorId: string;
   let operarioId: string;
   let despacho1Id: string;
   let despacho2Id: string;
@@ -252,7 +250,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const found = res.body.find((g: any) => g.id === gasolineraId);
+      const found = res.body.find((g: { id: string }) => g.id === gasolineraId);
       expect(found).toBeDefined();
       expect(found.nombre).toContain("Gasolinera Central");
     });
@@ -420,7 +418,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const found = res.body.find((c: any) => c.id === cliente1Id);
+      const found = res.body.find((c: { id: string }) => c.id === cliente1Id);
       expect(found).toBeDefined();
     });
 
@@ -480,7 +478,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const ids = res.body.map((v: any) => v.id);
+      const ids = res.body.map((v: { id: string }) => v.id);
       expect(ids).toContain(vehiculo1Id);
       expect(ids).toContain(vehiculo2Id);
     });
@@ -553,9 +551,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body.vehiculos)).toBe(true);
-      expect(res.body.vehiculos.some((v: any) => v.id === vehiculo1Id)).toBe(
-        true,
-      );
+      expect(
+        res.body.vehiculos.some((v: { id: string }) => v.id === vehiculo1Id),
+      ).toBe(true);
     });
 
     it("detalle del cliente incluye sus vehículos y pilotos activos → 200", async () => {
@@ -574,7 +572,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.every((p: any) => p.activo === true)).toBe(true);
+      expect(
+        res.body.every((p: { activo: boolean }) => p.activo === true),
+      ).toBe(true);
     });
   });
 
@@ -598,7 +598,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(201);
       expect(res.body.tipo_combustible).toBe("diesel");
-      precioRegularId = res.body.id;
+      expect(typeof res.body.id).toBe("string");
     });
 
     it("admin registra precio de super hoy → 201", async () => {
@@ -614,7 +614,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(201);
       expect(res.body.tipo_combustible).toBe("super");
-      precioSuperiorId = res.body.id;
+      expect(typeof res.body.id).toBe("string");
     });
 
     it("supervisor consulta precio del día de su gasolinera → 200", async () => {
@@ -624,7 +624,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      const tipos = res.body.map((p: any) => p.tipo_combustible);
+      const tipos = res.body.map(
+        (p: { tipo_combustible: string }) => p.tipo_combustible,
+      );
       expect(tipos).toContain("diesel");
       expect(tipos).toContain("super");
     });
@@ -917,7 +919,10 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
       expect(res.body.data.length).toBeGreaterThan(0);
       expect(
-        res.body.data.every((d: any) => d.operario?.id === operarioId),
+        res.body.data.every(
+          (d: { operario: { id: string } | null }) =>
+            d.operario?.id === operarioId,
+        ),
       ).toBe(true);
     });
 
@@ -928,9 +933,11 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.data.length).toBe(2);
-      expect(res.body.data.every((d: any) => d.cliente_id === cliente1Id)).toBe(
-        true,
-      );
+      expect(
+        res.body.data.every(
+          (d: { cliente_id: string }) => d.cliente_id === cliente1Id,
+        ),
+      ).toBe(true);
     });
 
     it("filtra despachos por tipo_combustible=diesel → solo 1 resultado", async () => {
@@ -985,7 +992,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.data.length).toBeGreaterThan(0);
       expect(res.body.total).toBeGreaterThan(0);
       expect(
-        res.body.data.every((d: any) => d.gasolinera_id === gasolineraId),
+        res.body.data.every(
+          (d: { gasolinera_id: string }) => d.gasolinera_id === gasolineraId,
+        ),
       ).toBe(true);
     });
 
@@ -1024,7 +1033,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // Desglose por tipo (datos para gráfica de dona/pie)
       expect(Array.isArray(res.body.por_tipo_combustible)).toBe(true);
       const tipos = res.body.por_tipo_combustible.map(
-        (t: any) => t.tipo_combustible,
+        (t: { tipo_combustible: string }) => t.tipo_combustible,
       );
       expect(tipos).toContain("diesel");
       expect(tipos).toContain("super");
@@ -1032,7 +1041,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // Desglose por gasolinera (datos para gráfica de barras)
       expect(Array.isArray(res.body.por_gasolinera)).toBe(true);
       const gasolineraRow = res.body.por_gasolinera.find(
-        (g: any) => g.gasolinera_id === gasolineraId,
+        (g: { gasolinera_id: string }) => g.gasolinera_id === gasolineraId,
       );
       expect(gasolineraRow).toBeDefined();
     });
@@ -1090,7 +1099,8 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // Debe haber al menos el mes actual con los despachos de este test
       const [anioActual, mesActual] = fechaGuatemala().split("-").map(Number);
       const entradaHoy = res.body.find(
-        (m: any) => m.mes === mesActual && m.anio === anioActual,
+        (m: { mes: number; anio: number }) =>
+          m.mes === mesActual && m.anio === anioActual,
       );
       expect(entradaHoy).toBeDefined();
       expect(parseInt(entradaHoy.total_despachos)).toBeGreaterThanOrEqual(2);
@@ -1472,7 +1482,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(200);
       // Debe haber al menos un movimiento tipo credito
       const creditos = res.body.movimientos.filter(
-        (m: any) => m.tipo === "credito",
+        (m: { tipo: string }) => m.tipo === "credito",
       );
       expect(creditos.length).toBeGreaterThanOrEqual(1);
     });
@@ -1494,7 +1504,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      res.body.forEach((m: any) => expect(m.tipo).toBe("credito"));
+      res.body.forEach((m: { tipo: string }) => expect(m.tipo).toBe("credito"));
     });
 
     it("admin registra cuadre por cliente → 201", async () => {
@@ -1539,7 +1549,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      const ids = res.body.map((c: any) => c.id);
+      const ids = res.body.map((c: { id: string }) => c.id);
       expect(ids).toContain(saldosCuadreId);
     });
 
@@ -1549,7 +1559,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      res.body.forEach((c: any) => expect(c.tipo).toBe("cliente"));
+      res.body.forEach((c: { tipo: string }) => expect(c.tipo).toBe("cliente"));
     });
 
     it("abono con monto=0 → 400", async () => {
@@ -1964,7 +1974,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
 
       expect(res.status).toBe(200);
       const debitos = res.body.movimientos.filter(
-        (m: any) => m.tipo === "debito",
+        (m: { tipo: string }) => m.tipo === "debito",
       );
       expect(debitos).toHaveLength(1);
       expect(parseFloat(debitos[0].monto)).toBeCloseTo(700, 2);
@@ -2037,7 +2047,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .get(`/api/v1/despachos?cliente_id=${clienteMultiId}`)
         .set("Authorization", `Bearer ${adminToken}`);
       const soloContenedor = lista.body.data.find(
-        (d: any) => d.vehiculo_id === null,
+        (d: { vehiculo_id: string | null }) => d.vehiculo_id === null,
       );
       expect(soloContenedor).toBeDefined();
 
@@ -2282,7 +2292,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       const numeros = res.body.data
-        .map((d: any) => parseInt(d.numero_vale, 10))
+        .map((d: { numero_vale: string }) => parseInt(d.numero_vale, 10))
         .sort((a: number, b: number) => a - b);
       // Un vale = una fila header, así que el advisory lock no cambió: los
       // números siguen sin repetirse.
@@ -2436,8 +2446,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.status).toBe(200);
       // Va al mismo ledger que los despachos: el cliente ve combustible e
       // insumos en un solo documento.
-      const insumos = res.body.movimientos.filter((m: any) =>
-        (m.descripcion ?? "").startsWith("Insumos"),
+      const insumos = res.body.movimientos.filter(
+        (m: { descripcion: string | null }) =>
+          (m.descripcion ?? "").startsWith("Insumos"),
       );
       expect(insumos).toHaveLength(1);
       expect(parseFloat(res.body.total_debitos)).toBeCloseTo(PRECIO * 3, 2);
@@ -2528,7 +2539,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const ids = res.body.map((p: any) => p.id);
+      const ids = res.body.map((p: { id: string }) => p.id);
       expect(ids).toContain(productoEscasoId);
       // El primero tiene stock de sobra, no debe aparecer.
       expect(ids).not.toContain(productoId);
@@ -2566,7 +2577,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       const lista = await request(app.getHttpServer())
         .get("/api/v1/inventario/productos")
         .set("Authorization", `Bearer ${adminToken}`);
-      expect(lista.body.map((p: any) => p.id)).not.toContain(productoEscasoId);
+      expect(lista.body.map((p: { id: string }) => p.id)).not.toContain(
+        productoEscasoId,
+      );
     });
   });
 
@@ -2830,7 +2843,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const ids = res.body.map((p: any) => p.id);
+      const ids = res.body.map((p: { id: string }) => p.id);
       expect(ids).not.toContain(piloto2Id); // inactivo: no debe aparecer
       expect(ids).toContain(piloto1Id); // activo: sí debe aparecer
     });
@@ -2860,7 +2873,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const ids = res.body.map((v: any) => v.id);
+      const ids = res.body.map((v: { id: string }) => v.id);
       expect(ids).not.toContain(vehiculo2Id);
       expect(ids).toContain(vehiculo1Id);
     });
@@ -2888,7 +2901,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         .set("Authorization", `Bearer ${adminToken}`);
 
       expect(res.status).toBe(200);
-      const ids = res.body.map((c: any) => c.id);
+      const ids = res.body.map((c: { id: string }) => c.id);
       expect(ids).not.toContain(cliente1Id);
     });
 

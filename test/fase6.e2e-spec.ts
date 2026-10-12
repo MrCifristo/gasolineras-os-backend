@@ -357,7 +357,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .get(`/api/v1/precios-combustible/hoy?gasolinera_id=${gasBId}`)
         .set("Authorization", `Bearer ${jefeToken}`);
       expect(res.status).toBe(200);
-      expect(res.body.map((p: any) => p.tipo_combustible)).toContain("diesel");
+      expect(
+        res.body.map((p: { tipo_combustible: string }) => p.tipo_combustible),
+      ).toContain("diesel");
     });
 
     it("el supervisor sigue viendo sólo los precios de su gasolinera en /hoy", async () => {
@@ -380,8 +382,16 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         .set("Authorization", `Bearer ${supervisorToken}`);
       expect(res.status).toBe(200);
       expect(res.body.length).toBeGreaterThan(0);
-      expect(res.body.every((p: any) => p.gasolinera_id === gasAId)).toBe(true);
-      expect(res.body.some((p: any) => p.gasolinera_id === gasBId)).toBe(false);
+      expect(
+        res.body.every(
+          (p: { gasolinera_id: string }) => p.gasolinera_id === gasAId,
+        ),
+      ).toBe(true);
+      expect(
+        res.body.some(
+          (p: { gasolinera_id: string }) => p.gasolinera_id === gasBId,
+        ),
+      ).toBe(false);
     });
 
     it("/hoy sin gasolinera_id para admin → 400", async () => {
@@ -420,7 +430,7 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       const res = await http().get("/api/v1/gasolineras").set(auth());
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.some((g: any) => g.id === gasAId)).toBe(true);
+      expect(res.body.some((g: { id: string }) => g.id === gasAId)).toBe(true);
     });
 
     it("lee una gasolinera por id", async () => {
@@ -1025,7 +1035,9 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         for (const q of ["", `?cliente_id=${otroClienteId}`]) {
           const res = await http().get(`/api/v1/vehiculos${q}`).set(auth());
           expect(res.status).toBe(200);
-          expect(res.body.map((v: any) => v.id)).toEqual([vehPropioId]);
+          expect(res.body.map((v: { id: string }) => v.id)).toEqual([
+            vehPropioId,
+          ]);
         }
       });
 
@@ -1045,14 +1057,16 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
         const res = await http()
           .get(`/api/v1/vehiculos?cliente_id=${otroClienteId}`)
           .set("Authorization", `Bearer ${adminToken}`);
-        expect(res.body.map((v: any) => v.id)).toEqual([vehAjenoId]);
+        expect(res.body.map((v: { id: string }) => v.id)).toEqual([vehAjenoId]);
       });
 
       it("GET /pilotos sólo devuelve los propios", async () => {
         for (const q of ["", `?cliente_id=${otroClienteId}`]) {
           const res = await http().get(`/api/v1/pilotos${q}`).set(auth());
           expect(res.status).toBe(200);
-          expect(res.body.map((p: any) => p.id)).toEqual([pilPropioId]);
+          expect(res.body.map((p: { id: string }) => p.id)).toEqual([
+            pilPropioId,
+          ]);
         }
       });
 
@@ -1070,7 +1084,7 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       it("GET /clientes sólo devuelve el propio", async () => {
         const res = await http().get("/api/v1/clientes").set(auth());
         expect(res.status).toBe(200);
-        expect(res.body.map((c: any) => c.id)).toEqual([clienteId]);
+        expect(res.body.map((c: { id: string }) => c.id)).toEqual([clienteId]);
       });
 
       it("GET /clientes/:id de otro cliente da 404", async () => {
@@ -1514,7 +1528,10 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           expect(antes.body.ultimo_kilometraje).toBeNull();
           const lista0 = await http().get("/api/v1/vehiculos").set(auth());
           expect(
-            lista0.body.find((v: any) => v.id === id).ultimo_kilometraje,
+            lista0.body.find(
+              (v: { id: string; ultimo_kilometraje: string | null }) =>
+                v.id === id,
+            ).ultimo_kilometraje,
           ).toBeNull();
 
           const base = {
@@ -1536,9 +1553,14 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
           expect(uno.body.ultimo_kilometraje).toBe("250.500");
           const lista = await http().get("/api/v1/vehiculos").set(auth());
           expect(
-            lista.body.find((v: any) => v.id === id).ultimo_kilometraje,
+            lista.body.find(
+              (v: { id: string; ultimo_kilometraje: string | null }) =>
+                v.id === id,
+            ).ultimo_kilometraje,
           ).toBe("250.500");
-          const otro = lista.body.find((v: any) => v.id === vehPropioId);
+          const otro = lista.body.find(
+            (v: { id: string }) => v.id === vehPropioId,
+          );
           expect(otro).toHaveProperty("ultimo_kilometraje");
         });
       });

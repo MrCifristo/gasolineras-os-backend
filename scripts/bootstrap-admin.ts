@@ -33,13 +33,13 @@ function askPassword(question: string): Promise<string> {
   return new Promise((resolve) => {
     process.stdout.write(question);
     const stdin = process.stdin;
-    (stdin as any).setRawMode(true);
+    stdin.setRawMode(true);
     stdin.resume();
     let pw = "";
     const handler = (ch: Buffer) => {
       const c = ch.toString();
       if (c === "\n" || c === "\r") {
-        (stdin as any).setRawMode(false);
+        stdin.setRawMode(false);
         stdin.pause();
         stdin.removeListener("data", handler);
         process.stdout.write("\n");

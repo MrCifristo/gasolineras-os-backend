@@ -21,6 +21,14 @@ it before changing anything at the API seam.
 - **All queries go through `DbService.db`**, assigned in `onModuleInit`
   (undefined at construction — never touch it from a constructor). `DbModule`
   is `@Global()`, so feature modules do **not** import it.
+- **No `any`, anywhere** (`no-explicit-any` is an error; `pnpm lint:check`
+  must report 0 problems). The authenticated user comes from
+  `@UsuarioActual() usuario: UsuarioSesion` (`src/auth/usuario-actual.ts`),
+  never `@Request() req: any`. Postgres error codes go through
+  `codigoPg`/`esViolacionUnica` (`src/common/errores-pg.reglas.ts`): drizzle
+  wraps the driver error and the SQLSTATE sits in `cause`, so `e.code` alone
+  misses it. In `test/` only the `no-unsafe-*` rules are off (supertest's
+  `res.body` is `any`); type the callback parameters you read from it.
 - **Guards are opt-in per route, never global.** `@Auth(...roles)` = `AuthGuard`
   + `RolesGuard`; `RolesGuard` with no `@Roles` metadata returns `true`, so bare
   `@Auth()` means "any authenticated role". Role scoping (`operario` →
@@ -217,7 +225,9 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 
 ## Testing
 
-- Unit (`pnpm test`): 424 tests in 30 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 439 tests in 33 suites, no Postgres, about a second.
+  Test doubles without `any` live in `test/unit/dobles.ts` (`vacio()`,
+  `espiarPrivado`, `usuarioDePrueba`).
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
   plain rows (numerics as strings) and `ahora: Date`, never read the clock, the
   DB or `DbService`, and throw the same Nest exceptions with the exact Spanish

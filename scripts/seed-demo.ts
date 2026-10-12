@@ -19,7 +19,8 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { hash } from "@node-rs/argon2";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { PgTable } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { Pool } from "pg";
 import * as s from "../src/db/schema";
@@ -751,10 +752,12 @@ const BANCOS = [
 ];
 
 // ── Utilidades de BD ────────────────────────────────────────────────────
-async function insertarPorLotes(
-  db: any,
-  tabla: any,
-  filas: any[],
+type Fila<T extends PgTable> = T["$inferInsert"];
+
+async function insertarPorLotes<T extends PgTable>(
+  db: NodePgDatabase,
+  tabla: T,
+  filas: Fila<T>[],
   lote = 1000,
 ) {
   for (let i = 0; i < filas.length; i += lote) {
@@ -887,10 +890,10 @@ async function main() {
     }
     const vehiculos: VehRt[] = [];
     const clienteId: Record<string, string> = {};
-    const filasClientes: any[] = [];
-    const filasVeh: any[] = [];
-    const filasPil: any[] = [];
-    const filasPV: any[] = [];
+    const filasClientes: Fila<typeof s.clientes>[] = [];
+    const filasVeh: Fila<typeof s.vehiculos>[] = [];
+    const filasPil: Fila<typeof s.pilotos>[] = [];
+    const filasPV: Fila<typeof s.pilotosVehiculos>[] = [];
     for (const c of CLIENTES) {
       const id = randomUUID();
       clienteId[c.clave] = id;
@@ -1011,7 +1014,7 @@ async function main() {
     // ── Precios: uno por gasolinera, fecha y combustible ────────────────
     semilla(1);
     const precio: Record<string, { id: string; valor: number }> = {};
-    const filasPrecios: any[] = [];
+    const filasPrecios: Fila<typeof s.preciosCombustible>[] = [];
     for (const comb of COMBUSTIBLES) {
       const [ini, min, max] = RANGO_PRECIO[comb];
       let p = ini;
@@ -1190,9 +1193,11 @@ async function main() {
     }
     despachos.sort((a, b) => a.at.getTime() - b.at.getTime());
 
-    const filasDesp: any[] = [];
-    const filasDet: any[] = [];
-    const filasMov: any[] = [];
+    const filasDesp: Fila<typeof s.despachos>[] = [];
+    const filasDet: Fila<typeof s.despachoDetalles>[] = [];
+    // Siempre con created_at: el reparto de abonos de abajo agrupa por día.
+    const filasMov: (Fila<typeof s.movimientosSaldo> & { created_at: Date })[] =
+      [];
     const correlativo = { morales: 0, barrios: 0 };
     for (const x of despachos) {
       const v = x.veh;
@@ -1254,9 +1259,9 @@ async function main() {
     // ── Inventario y ventas de insumos ──────────────────────────────────
     semilla(2);
     const prods = PRODUCTOS.map((p) => ({ ...p, id: randomUUID(), stock: 0 }));
-    const filasKardex: any[] = [];
-    const filasVentas: any[] = [];
-    const filasVentaDet: any[] = [];
+    const filasKardex: Fila<typeof s.inventarioMovimientos>[] = [];
+    const filasVentas: Fila<typeof s.ventasInsumos>[] = [];
+    const filasVentaDet: Fila<typeof s.ventaInsumoDetalles>[] = [];
     const reposiciones = [0, 30, 60, 90];
     const correlativoInsumos = { morales: 0, barrios: 0 };
     for (let d = 0; d < DIAS_HISTORIA; d++) {
@@ -1368,10 +1373,10 @@ async function main() {
     // Cada abono cubre el consumo de su período (redondeado hacia arriba); el
     // último se ajusta para que el saldo final quede cerca del objetivo del
     // cliente (sano, bajo, negativo o en mora).
-    const filasSaldos: any[] = [];
+    const filasSaldos: Fila<typeof s.saldosCliente>[] = [];
     for (const c of CLIENTES) {
       const cid = clienteId[c.clave];
-      const debitosPorDia = new Array(DIAS_HISTORIA).fill(0);
+      const debitosPorDia = new Array<number>(DIAS_HISTORIA).fill(0);
       for (const m of filasMov) {
         if (m.cliente_id !== cid) continue;
         const fGt = new Date(m.created_at.getTime() - 6 * 3600_000)
@@ -1474,17 +1479,21 @@ async function main() {
     ]);
 
     // ── Resumen ─────────────────────────────────────────────────────────
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<{ tabla: string; n: number }>(
       TABLAS_APP.map(
         (t) => `SELECT '${t}' AS tabla, count(*)::int AS n FROM ${t}`,
       ).join(" UNION ALL "),
     );
-    const { rows: saldos } = await pool.query(
+    const { rows: saldos } = await pool.query<{
+      nombre: string;
+      saldo_actual: string;
+      credito_bloqueado: boolean;
+    }>(
       `SELECT c.nombre, s.saldo_actual, c.credito_bloqueado FROM saldos_cliente s JOIN clientes c ON c.id = s.cliente_id ORDER BY c.nombre`,
     );
     const {
       rows: [deHoy],
-    } = await pool.query(
+    } = await pool.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM despachos WHERE (despachado_at - INTERVAL '6 hours')::date = $1::date`,
       [hoy],
     );
@@ -1493,9 +1502,7 @@ async function main() {
       `\n✅ Base "${nombreBase}" sembrada en ${((Date.now() - t0) / 1000).toFixed(1)} s — hoy (GT) ${hoy}, historia desde ${inicio}.`,
     );
     console.log("\nFilas por tabla:");
-    for (const r of rows.sort((a: any, b: any) =>
-      a.tabla.localeCompare(b.tabla),
-    ))
+    for (const r of rows.sort((a, b) => a.tabla.localeCompare(b.tabla)))
       console.log(`  ${r.tabla.padEnd(24)} ${String(r.n).padStart(6)}`);
     console.log(`\nDespachos de hoy: ${deHoy.n}`);
     console.log("\nSaldos:");
