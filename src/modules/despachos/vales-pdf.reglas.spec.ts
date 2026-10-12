@@ -63,6 +63,41 @@ describe("nombreArchivoVales", () => {
   });
 });
 
+describe("nombreArchivoVales con entradas hostiles", () => {
+  const hostil = 'a"b;c\nd\r\né😀/..\\';
+  const seguroRe = /^[A-Za-z0-9._-]+$/;
+
+  it("cliente, desde y hasta hostiles: solo caracteres seguros", () => {
+    const n = nombreArchivoVales({
+      cliente: hostil,
+      desde: hostil,
+      hasta: hostil,
+    });
+    expect(n).toMatch(seguroRe);
+    expect(n).toBe("vales-a-b-c-d-e-inicio-a-hoy.pdf");
+  });
+
+  it("fecha con formato ISO se conserva; otra cosa se descarta", () => {
+    expect(
+      nombreArchivoVales({
+        cliente: null,
+        desde: "2026-10-01",
+        hasta: "2026-10-1x",
+      }),
+    ).toBe("vales-todos-2026-10-01-a-hoy.pdf");
+  });
+
+  it("serie y número hostiles: solo caracteres seguros", () => {
+    const n = nombreArchivoVales({
+      cliente: null,
+      unVale: { serie: hostil, numero: '1"\n;😀' },
+    });
+    expect(n).toMatch(seguroRe);
+    expect(n.startsWith("vale-")).toBe(true);
+    expect(n.endsWith(".pdf")).toBe(true);
+  });
+});
+
 describe("deACuatro", () => {
   it.each([
     [0, []],

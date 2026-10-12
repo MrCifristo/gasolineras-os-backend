@@ -26,15 +26,25 @@ function slug(texto: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+function seguro(texto: string): string {
+  return texto.replace(/[^A-Za-z0-9._-]/g, "_");
+}
+
 export function nombreArchivoVales(p: {
   cliente: string | null;
   desde?: string;
   hasta?: string;
   unVale?: { serie: string; numero: string };
 }): string {
-  if (p.unVale) return `vale-${p.unVale.serie}-${p.unVale.numero}.pdf`;
+  if (p.unVale) {
+    return `vale-${seguro(p.unVale.serie)}-${seguro(p.unVale.numero)}.pdf`;
+  }
   const cliente = p.cliente ? slug(p.cliente) : "todos";
-  return `vales-${cliente || "todos"}-${p.desde ?? "inicio"}-a-${p.hasta ?? "hoy"}.pdf`;
+  const desde = p.desde && FECHA_ISO.test(p.desde) ? p.desde : "inicio";
+  const hasta = p.hasta && FECHA_ISO.test(p.hasta) ? p.hasta : "hoy";
+  return `vales-${cliente || "todos"}-${desde}-a-${hasta}.pdf`;
 }
 
 export function deACuatro<T>(items: T[]): T[][] {
