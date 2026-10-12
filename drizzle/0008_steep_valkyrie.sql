@@ -1,0 +1,1 @@
+CREATE INDEX "despachos_vehiculo_idx" ON "despachos" USING btree ("vehiculo_id");

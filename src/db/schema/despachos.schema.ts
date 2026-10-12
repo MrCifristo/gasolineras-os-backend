@@ -5,6 +5,7 @@ import {
   integer,
   numeric,
   timestamp,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { gasolineras } from "./gasolineras.schema";
@@ -60,5 +61,8 @@ export const despachos = pgTable(
       t.serie_vale,
       t.numero_vale,
     ),
+    // Lo usan ultimo_kilometraje (subconsulta por vehículo en GET /vehiculos) y
+    // los límites por vehículo de cada despacho; sin él, ambos recorren la tabla.
+    index("despachos_vehiculo_idx").on(t.vehiculo_id),
   ],
 );
