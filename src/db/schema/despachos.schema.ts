@@ -42,6 +42,10 @@ export const despachos = pgTable(
     // real por renglón vive en `despacho_detalles`.
     precio_id: uuid("precio_id").references(() => preciosCombustible.id),
     numero_vale: varchar("numero_vale").notNull(),
+    // Número propio del vale dentro del cliente (1, 2, 3…), sin importar la
+    // estación ni la serie: el cliente concilia con él. Se asigna en `create`
+    // bajo un advisory lock por cliente.
+    correlativo_cliente: integer("correlativo_cliente").notNull(),
     serie_vale: varchar("serie_vale").notNull(),
     turno: varchar("turno").notNull(),
     bomba_numero: integer("bomba_numero"),
@@ -60,6 +64,10 @@ export const despachos = pgTable(
       t.gasolinera_id,
       t.serie_vale,
       t.numero_vale,
+    ),
+    uniqueIndex("despachos_cliente_correlativo_idx").on(
+      t.cliente_id,
+      t.correlativo_cliente,
     ),
     // Lo usan ultimo_kilometraje (subconsulta por vehículo en GET /vehiculos) y
     // los límites por vehículo de cada despacho; sin él, ambos recorren la tabla.

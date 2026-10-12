@@ -64,6 +64,13 @@
       "when": 1791841163861,
       "tag": "0008_steep_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791848508199,
+      "tag": "0009_sour_marauders",
+      "breakpoints": true
     }
   ]
 }

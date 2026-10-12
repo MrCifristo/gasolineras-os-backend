@@ -1199,9 +1199,14 @@ async function main() {
     const filasMov: (Fila<typeof s.movimientosSaldo> & { created_at: Date })[] =
       [];
     const correlativo = { morales: 0, barrios: 0 };
+    // El correlativo del cliente cruza estaciones: 1, 2, 3… en el orden de
+    // despachado_at (la lista ya va ordenada), como lo asigna create.
+    const correlativoCliente = new Map<string, number>();
     for (const x of despachos) {
       const v = x.veh;
       const numero = String(++correlativo[x.g]).padStart(6, "0");
+      const nCliente = (correlativoCliente.get(v.clienteId) ?? 0) + 1;
+      correlativoCliente.set(v.clienteId, nCliente);
       const serie = gas[x.g].serie;
       const rend = entre(CLASE[v.clase].rend[0], CLASE[v.clase].rend[1]);
       v.km += Math.round(x.renglones[0].galones * rend * entre(0.85, 1.1));
@@ -1218,6 +1223,7 @@ async function main() {
         precio_id: x.renglones[0].precioId,
         numero_vale: numero,
         serie_vale: serie,
+        correlativo_cliente: nCliente,
         turno: turnoDe(x.minuto),
         bomba_numero: elegir([1, 3]),
         kilometraje: n3(v.km),

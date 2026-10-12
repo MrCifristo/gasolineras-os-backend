@@ -9,7 +9,7 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { ThrottlerGuard } from "@nestjs/throttler";
-import { and, eq, inArray, like, ne } from "drizzle-orm";
+import { and, eq, inArray, like, max, ne } from "drizzle-orm";
 import * as dotenv from "dotenv";
 import request from "supertest";
 import { App } from "supertest/types";
@@ -1544,10 +1544,32 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
             galones: "1.000",
             monto_total: "10.000",
           };
+          // Insertados a mano: el correlativo del cliente se toma a
+          // continuación del último, como haría create.
+          const [{ ultimo }] = await db.db
+            .select({ ultimo: max(despachos.correlativo_cliente) })
+            .from(despachos)
+            .where(eq(despachos.cliente_id, clienteId));
+          const sig = (ultimo ?? 0) + 1;
           await db.db.insert(despachos).values([
-            { ...base, numero_vale: "000001", kilometraje: "100.000" },
-            { ...base, numero_vale: "000002", kilometraje: "250.500" },
-            { ...base, numero_vale: "000003", kilometraje: null },
+            {
+              ...base,
+              numero_vale: "000001",
+              correlativo_cliente: sig,
+              kilometraje: "100.000",
+            },
+            {
+              ...base,
+              numero_vale: "000002",
+              correlativo_cliente: sig + 1,
+              kilometraje: "250.500",
+            },
+            {
+              ...base,
+              numero_vale: "000003",
+              correlativo_cliente: sig + 2,
+              kilometraje: null,
+            },
           ]);
           const uno = await http().get(`/api/v1/vehiculos/${id}`).set(auth());
           expect(uno.body.ultimo_kilometraje).toBe("250.500");
