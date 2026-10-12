@@ -130,6 +130,10 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   are TOCTOU-racy by design.
 - There is **no insufficient-funds check** — balances go negative on purpose,
   and an e2e test asserts it.
+- **Only the supervisor creates dispatches and supply sales** (the voucher is
+  issued from the user's own station; the admin has none). The route lets the
+  admin through `@Auth` on purpose so the service answers with an explicit 403
+  ("Solo supervisores…") instead of the guard's "Permisos insuficientes".
 - Dispatch create takes `monto` (quetzales); the server derives `galones` from
   its own price. `serie_vale` comes from `gasolineras.serie_vale_actual`, not
   the client.
@@ -248,7 +252,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 271 tests in 3 suites — `gasfuel` 175, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 273 tests in 3 suites — `gasfuel` 177, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

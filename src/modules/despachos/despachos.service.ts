@@ -250,9 +250,11 @@ export class DespachosService {
   }
 
   async create(dto: CreateDespachoDto, user: Usuario) {
+    // Sólo el supervisor: el vale sale de la gasolinera del usuario, y el
+    // admin no tiene una (antes pasaba el rol y caía en un 404 opaco).
     exigirRol(
       user.rol,
-      ["supervisor", "admin"],
+      ["supervisor"],
       "Solo supervisores pueden crear despachos",
     );
 

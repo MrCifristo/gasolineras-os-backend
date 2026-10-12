@@ -305,6 +305,7 @@ Ya **no** responde un arreglo. Ahora:
 
 - Cada fila de `GET /despachos` y `GET /despachos/:id` (dentro del objeto de respuesta, junto a `despacho`, `vehiculo`, `piloto`, …) incluyen `operario: { id, nombre } | null`. Es `null` en los vales anteriores a la Fase 1, que no tenían operario.
 - El Excel de despachos tiene una columna "Operario".
+- **Sólo el supervisor crea despachos y vende insumos** (2026-10-12). El vale sale de la gasolinera del usuario y el admin no tiene una: antes pasaba el rol y recibía un 404 "Gasolinera no encontrada". Ahora `POST /despachos` y `POST /ventas-insumos` le responden 403 `"Solo supervisores pueden crear despachos"` / `"Solo supervisores pueden vender insumos"`; el resto de roles sigue con el 403 del guard.
 - `POST /despachos` valida `operario_id`: debe existir, estar activo y ser de la **misma gasolinera** del despacho. Si no, 400 `"El operario no pertenece a esta gasolinera o está inactivo."`.
 
 ### `despachador` en el detalle (2026-10-07)

@@ -32,6 +32,8 @@ export class VentasInsumosController {
   }
 
   @Post()
+  // El admin pasa el guard a propósito: el servicio le responde 403 con un
+  // mensaje explícito ("Solo supervisores…") en vez de "Permisos insuficientes".
   @Auth("admin", "supervisor")
   @ApiOperation({
     summary:

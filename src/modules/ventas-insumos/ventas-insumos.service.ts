@@ -121,9 +121,11 @@ export class VentasInsumosService {
    * de vale es propia, no la de combustible.
    */
   async create(dto: CreateVentaInsumoDto, user: UsuarioSesion) {
+    // Sólo el supervisor, por lo mismo que en despachos: la venta sale de su
+    // gasolinera y el admin no tiene una.
     exigirRol(
       user.rol,
-      ["supervisor", "admin"],
+      ["supervisor"],
       "Solo supervisores pueden vender insumos",
     );
 

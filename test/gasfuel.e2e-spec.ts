@@ -2650,6 +2650,38 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         productoEscasoId,
       );
     });
+
+    it("el admin no vende insumos: 403 con el mensaje explícito", async () => {
+      // El admin no tiene gasolinera: antes pasaba el rol y caía en un 404
+      // "Gasolinera no encontrada" que no explicaba nada.
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/ventas-insumos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          forma_pago: "efectivo",
+          operario_id: operarioId,
+          bomba_numero: 1,
+          detalles: [{ producto_id: productoId, cantidad: 1 }],
+        });
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Solo supervisores pueden vender insumos");
+    });
+
+    it("el admin no crea despachos: 403 con el mensaje explícito", async () => {
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/despachos")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          cliente_id: cliente1Id,
+          operario_id: operarioId,
+          turno: "manana",
+          detalles: [
+            { renglon: "caneca", tipo_combustible: "diesel", monto: "10.000" },
+          ],
+        });
+      expect(res.status).toBe(403);
+      expect(res.body.message).toBe("Solo supervisores pueden crear despachos");
+    });
   });
 
   // ════════════════════════════════════════════════════════════════════════
