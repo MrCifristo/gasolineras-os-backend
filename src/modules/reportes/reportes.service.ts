@@ -83,10 +83,28 @@ export class ReportesService {
       .where(where)
       .groupBy(despachos.gasolinera_id);
 
+    // Primer día de Guatemala con despachos para el mismo cliente/estación,
+    // sin el rango de fechas. El portal oculta el "vs per. ant." si el
+    // periodo anterior empieza antes: con historia incompleta el % se infla.
+    // ::text porque node-postgres convierte un `date` a Date en hora local.
+    const sinRango = this.buildConditions({
+      cliente_id: filters.cliente_id,
+      gasolinera_id: filters.gasolinera_id,
+    });
+    const [{ primer_despacho }] = await this.db.db
+      .select({
+        primer_despacho: sql<
+          string | null
+        >`min(${fechaGtSql(despachos.despachado_at)})::text`,
+      })
+      .from(despachos)
+      .where(sinRango.length ? and(...sinRango) : undefined);
+
     return {
       totales,
       por_tipo_combustible: porTipo,
       por_gasolinera: porGasolinera,
+      primer_despacho,
     };
   }
 

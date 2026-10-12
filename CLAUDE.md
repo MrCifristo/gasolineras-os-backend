@@ -248,7 +248,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 270 tests in 3 suites — `gasfuel` 174, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 271 tests in 3 suites — `gasfuel` 175, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

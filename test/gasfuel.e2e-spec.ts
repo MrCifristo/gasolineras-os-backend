@@ -2285,6 +2285,31 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(fueraDeRango.body).toEqual([]);
     });
 
+    it("resumen trae primer_despacho del cliente, sin importar el rango → 200", async () => {
+      // El portal oculta el "vs per. ant." si el periodo anterior empieza
+      // antes de este día: comparar contra historia incompleta infla el %.
+      const manana = sumarDias(fechaGuatemala(), 1);
+      const res = await request(app.getHttpServer())
+        .get(
+          `/api/v1/reportes/resumen?cliente_id=${clienteMultiId}&fecha_desde=${manana}&fecha_hasta=${manana}`,
+        )
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Number(res.body.totales.total_despachos)).toBe(0);
+      expect(res.body.primer_despacho).toBe(fechaGuatemala());
+
+      const sinHistoria = await request(app.getHttpServer())
+        .post("/api/v1/clientes")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Cliente sin despachos") });
+      expect(sinHistoria.status).toBe(201);
+      const vacio = await request(app.getHttpServer())
+        .get(`/api/v1/reportes/resumen?cliente_id=${sinHistoria.body.id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(vacio.status).toBe(200);
+      expect(vacio.body.primer_despacho).toBeNull();
+    });
+
     it("la numeración de vale sigue siendo monótona con vales multi-renglón", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/despachos?gasolinera_id=${gasolineraId}&limit=100`)
