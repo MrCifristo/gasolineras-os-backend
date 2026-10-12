@@ -197,7 +197,7 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
       expect(res.body.hora_inicio).toBe("06:00");
     });
 
-    it.each([
+    it.each<[Record<string, unknown>, string]>([
       [{ hora_inicio: "6:00" }, "formato"],
       [{ hora_inicio: "25:00" }, "formato"],
       [{ hora_inicio: "14:00", hora_fin: "14:00" }, "igual"],
@@ -691,11 +691,11 @@ describe("Fase 6 — turnos, recordatorios y push", () => {
     });
 
     it("el cliente no toca un vehículo ajeno: 404 y no cambia", async () => {
-      const antes = await db.db.query.vehiculos.findFirst({ where: (v, { eq }) => eq(v.id, vehAjenoId) });
+      const antes = await db.db.query.vehiculos.findFirst({ where: eq(vehiculos.id, vehAjenoId) });
       const res = await patch(vehAjenoId, clienteToken, { bloqueado: false });
       expect(res.status).toBe(404);
       expect(res.body.message).toBe("Vehículo no encontrado");
-      const despues = await db.db.query.vehiculos.findFirst({ where: (v, { eq }) => eq(v.id, vehAjenoId) });
+      const despues = await db.db.query.vehiculos.findFirst({ where: eq(vehiculos.id, vehAjenoId) });
       expect(despues?.bloqueado).toBe(antes?.bloqueado);
     });
 

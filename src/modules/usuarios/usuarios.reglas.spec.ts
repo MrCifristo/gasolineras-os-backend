@@ -123,7 +123,8 @@ describe("normalizarCambios", () => {
   });
 
   it("sin email no agrega la clave", () => {
-    const r = normalizarCambios({ nombre: "Ana" });
+    const cambios: { nombre: string; email?: string } = { nombre: "Ana" };
+    const r = normalizarCambios(cambios);
     expect(r).toEqual({ nombre: "Ana" });
     expect("email" in r).toBe(false);
     expect("telefono" in r).toBe(false);
