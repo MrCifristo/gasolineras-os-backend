@@ -151,7 +151,7 @@ const CSS = `
     display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
     gap: 0.15in; break-after: page; page-break-after: always; overflow: hidden;
   }
-  .hoja:last-child { break-after: auto; page-break-after: auto; }
+  .hoja:last-of-type { break-after: auto; page-break-after: auto; }
   .vale {
     break-inside: avoid; page-break-inside: avoid; overflow: hidden;
     border: 0.5px solid #000; padding: 0.1in 0.12in; min-height: 0;
