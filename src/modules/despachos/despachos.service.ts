@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { and, eq, getTableColumns, sql, type SQL } from "drizzle-orm";
-import { fechaGuatemala, fechaGtSql } from "../../common/hora-guatemala";
+import { and, eq, getTableColumns, sql } from "drizzle-orm";
+import { fechaGuatemala } from "../../common/hora-guatemala";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
@@ -54,21 +54,14 @@ import {
 } from "./despachos.reglas";
 import { StorageService, StorageObject } from "../../storage/storage.service";
 import { esViolacionUnica } from "../../common/errores-pg.reglas";
+import {
+  condicionesDespachos,
+  type DespachoFilters,
+} from "./despachos.condiciones";
+
+export type { DespachoFilters };
 
 type Usuario = typeof usuarios.$inferSelect;
-
-export interface DespachoFilters {
-  gasolinera_id?: string;
-  cliente_id?: string;
-  vehiculo_id?: string;
-  piloto_id?: string;
-  fecha_desde?: string;
-  fecha_hasta?: string;
-  turno?: string;
-  tipo_combustible?: string;
-  page?: number;
-  limit?: number;
-}
 
 @Injectable()
 export class DespachosService {
@@ -101,48 +94,8 @@ export class DespachosService {
   async findAll(filters: DespachoFilters, user: Usuario) {
     const { page = 1, limit = 20, ...rest } = filters;
     const offset = (page - 1) * limit;
-    const conditions: SQL[] = [];
-
-    // Fail-closed: un cliente sin empresa o un supervisor sin estación no ven nada.
-    if (user.rol === "supervisor") {
-      if (!user.gasolinera_id) return { data: [], total: 0, page, limit };
-      conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
-    }
-    if (user.rol === "cliente") {
-      if (!user.cliente_id) return { data: [], total: 0, page, limit };
-      conditions.push(eq(despachos.cliente_id, user.cliente_id));
-    }
-
-    if (rest.gasolinera_id)
-      conditions.push(eq(despachos.gasolinera_id, rest.gasolinera_id));
-    if (rest.cliente_id)
-      conditions.push(eq(despachos.cliente_id, rest.cliente_id));
-    if (rest.vehiculo_id)
-      conditions.push(eq(despachos.vehiculo_id, rest.vehiculo_id));
-    if (rest.piloto_id)
-      conditions.push(eq(despachos.piloto_id, rest.piloto_id));
-    if (rest.turno) conditions.push(eq(despachos.turno, rest.turno));
-    if (rest.tipo_combustible) {
-      // Se busca en los renglones, no en el precio del header: en un vale mixto
-      // el header sólo refleja el renglón principal, así que filtrar por él
-      // perdería los vales donde ese combustible fue a una caneca.
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM despacho_detalles dd
-          WHERE dd.despacho_id = ${despachos.id}
-            AND dd.tipo_combustible = ${rest.tipo_combustible}
-        )`,
-      );
-    }
-    // Comparar por DATE para evitar problemas de zona horaria con TIMESTAMP
-    if (rest.fecha_desde)
-      conditions.push(
-        sql`${fechaGtSql(despachos.despachado_at)} >= ${rest.fecha_desde}::date`,
-      );
-    if (rest.fecha_hasta)
-      conditions.push(
-        sql`${fechaGtSql(despachos.despachado_at)} <= ${rest.fecha_hasta}::date`,
-      );
+    const conditions = condicionesDespachos(rest, user);
+    if (!conditions) return { data: [], total: 0, page, limit };
 
     const where = conditions.length ? and(...conditions) : undefined;
     const [data, [{ total }]] = await Promise.all([

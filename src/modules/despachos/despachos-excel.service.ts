@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import ExcelJS from "exceljs";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
@@ -12,8 +12,10 @@ import {
   clientes,
   preciosCombustible,
 } from "../../db/schema";
-import { DespachoFilters } from "./despachos.service";
-import { fechaGtSql } from "../../common/hora-guatemala";
+import {
+  condicionesDespachos,
+  type DespachoFilters,
+} from "./despachos.condiciones";
 import type { UsuarioSesion } from "../../auth/usuario-actual";
 
 // Corporate Blue palette
@@ -36,46 +38,8 @@ export class DespachosExcelService {
   }
 
   private async fetchRows(filters: DespachoFilters, user: UsuarioSesion) {
-    const conditions: SQL[] = [];
-
-    // Fail-closed: un cliente sin empresa o un supervisor sin estación no ven nada.
-    if (user.rol === "supervisor") {
-      if (!user.gasolinera_id) return [];
-      conditions.push(eq(despachos.gasolinera_id, user.gasolinera_id));
-    }
-    if (user.rol === "cliente") {
-      if (!user.cliente_id) return [];
-      conditions.push(eq(despachos.cliente_id, user.cliente_id));
-    }
-
-    if (filters.gasolinera_id)
-      conditions.push(eq(despachos.gasolinera_id, filters.gasolinera_id));
-    if (filters.cliente_id)
-      conditions.push(eq(despachos.cliente_id, filters.cliente_id));
-    if (filters.vehiculo_id)
-      conditions.push(eq(despachos.vehiculo_id, filters.vehiculo_id));
-    if (filters.piloto_id)
-      conditions.push(eq(despachos.piloto_id, filters.piloto_id));
-    if (filters.turno) conditions.push(eq(despachos.turno, filters.turno));
-    if (filters.tipo_combustible) {
-      // Igual que en findAll: se busca en los renglones. El precio del header
-      // sólo refleja el renglón principal del vale.
-      conditions.push(
-        sql`EXISTS (
-          SELECT 1 FROM despacho_detalles dd
-          WHERE dd.despacho_id = ${despachos.id}
-            AND dd.tipo_combustible = ${filters.tipo_combustible}
-        )`,
-      );
-    }
-    if (filters.fecha_desde)
-      conditions.push(
-        sql`${fechaGtSql(despachos.despachado_at)} >= ${filters.fecha_desde}::date`,
-      );
-    if (filters.fecha_hasta)
-      conditions.push(
-        sql`${fechaGtSql(despachos.despachado_at)} <= ${filters.fecha_hasta}::date`,
-      );
+    const conditions = condicionesDespachos(filters, user);
+    if (!conditions) return [];
 
     return (
       this.db.db
