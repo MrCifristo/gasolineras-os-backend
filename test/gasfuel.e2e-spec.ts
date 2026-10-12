@@ -2195,6 +2195,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       piloto_id?: string;
       total_monto: string;
       total_despachos: number;
+      ultimo_despacho: string;
     }
     interface FilaMes {
       anio: number;
@@ -2265,6 +2266,13 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(pilotosRanking[0].piloto_id).toBe(pilotoMultiId);
       expect(parseFloat(pilotosRanking[0].total_monto)).toBeCloseTo(300, 2);
       expect(Number(pilotosRanking[0].total_despachos)).toBe(1);
+
+      // La ficha del cliente muestra la última carga de cada uno.
+      for (const fila of [vehiculosRanking[0], pilotosRanking[0]]) {
+        const instante = new Date(fila.ultimo_despacho);
+        expect(Number.isNaN(instante.getTime())).toBe(false);
+        expect(fechaGuatemala(instante)).toBe(fechaGuatemala());
+      }
     });
 
     it("tendencia mensual respeta el rango de fechas → 200", async () => {

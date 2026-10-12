@@ -4,6 +4,7 @@ import {
   count,
   countDistinct,
   eq,
+  max,
   gte,
   sql,
   sum,
@@ -132,6 +133,8 @@ export class ReportesService {
         total_galones: sum(despachoDetalles.galones),
         total_monto: sum(despachoDetalles.monto),
         total_despachos: countDistinct(despachos.id),
+        // Última carga (la ficha del cliente en el admin la muestra).
+        ultimo_despacho: max(despachos.despachado_at),
       })
       .from(despachoDetalles)
       .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
@@ -155,6 +158,8 @@ export class ReportesService {
         total_galones: sum(despachoDetalles.galones),
         total_monto: sum(despachoDetalles.monto),
         total_despachos: countDistinct(despachos.id),
+        // Última carga (la ficha del cliente en el admin la muestra).
+        ultimo_despacho: max(despachos.despachado_at),
       })
       .from(despachoDetalles)
       .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
