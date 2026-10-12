@@ -76,6 +76,11 @@ amount; the header keeps `monto_total`/`galones` as the **sum**.
   and a vehicle past its monthly cap would dispatch again unblocked.
 - One voucher is still **one header row**, so the advisory-lock numbering is
   unchanged.
+- **Reports follow the same split** (`reportes.service.ts`): totals and
+  per-station sums use the header; the per-fuel breakdown groups
+  `despacho_detalles`; the vehicle and pilot rankings count only
+  `renglon = 'vehiculo'`. `tendencia-mensual` honours `fecha_desde`/`fecha_hasta`
+  (12 months when absent).
 - `POST /despachos` still accepts the old single-line shape
   (`tipo_combustible` + `monto` at the root) and normalizes it to one `vehiculo`
   line. Sending both shapes is a 400.
@@ -231,7 +236,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 262 tests in 3 suites — `gasfuel` 166, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 269 tests in 3 suites — `gasfuel` 173, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

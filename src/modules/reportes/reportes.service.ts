@@ -1,11 +1,20 @@
 import { Injectable } from "@nestjs/common";
-import { and, count, eq, gte, sql, sum } from "drizzle-orm";
+import {
+  and,
+  count,
+  countDistinct,
+  eq,
+  gte,
+  sql,
+  sum,
+  type SQL,
+} from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   despachos,
+  despachoDetalles,
   vehiculos,
   pilotos,
-  preciosCombustible,
 } from "../../db/schema";
 import { fechaGtSql } from "../../common/hora-guatemala";
 
@@ -20,8 +29,8 @@ export interface ReporteFilters {
 export class ReportesService {
   constructor(private db: DbService) {}
 
-  private buildConditions(filters: ReporteFilters) {
-    const conds: any[] = [];
+  private buildConditions(filters: ReporteFilters): SQL[] {
+    const conds: SQL[] = [];
     if (filters.cliente_id)
       conds.push(eq(despachos.cliente_id, filters.cliente_id));
     if (filters.gasolinera_id)
@@ -50,25 +59,25 @@ export class ReportesService {
       .from(despachos)
       .where(where);
 
+    // Por renglón y no por el precio_id del header: un vale mixto lleva un
+    // combustible por renglón, y uno sólo de contenedores no tiene precio_id.
     const porTipo = await this.db.db
       .select({
-        tipo_combustible: preciosCombustible.tipo_combustible,
-        total_galones: sum(despachos.galones),
-        total_monto: sum(despachos.monto_total),
+        tipo_combustible: despachoDetalles.tipo_combustible,
+        total_galones: sum(despachoDetalles.galones),
+        total_monto: sum(despachoDetalles.monto),
       })
-      .from(despachos)
-      .innerJoin(
-        preciosCombustible,
-        eq(despachos.precio_id, preciosCombustible.id),
-      )
+      .from(despachoDetalles)
+      .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
       .where(where)
-      .groupBy(preciosCombustible.tipo_combustible);
+      .groupBy(despachoDetalles.tipo_combustible);
 
     const porGasolinera = await this.db.db
       .select({
         gasolinera_id: despachos.gasolinera_id,
         total_galones: sum(despachos.galones),
         total_monto: sum(despachos.monto_total),
+        total_despachos: count(despachos.id),
       })
       .from(despachos)
       .where(where)
@@ -81,55 +90,68 @@ export class ReportesService {
     };
   }
 
-  async consumoPorVehiculo(filters: ReporteFilters) {
-    const conds = this.buildConditions(filters);
-    const where = conds.length ? and(...conds) : undefined;
+  /**
+   * Al vehículo y a su piloto les toca sólo el renglón `vehiculo`, igual que
+   * en los límites: las canecas y toneles del mismo vale cuentan en los
+   * totales del resumen, no en el ranking.
+   */
+  private soloRenglonVehiculo(filters: ReporteFilters): SQL | undefined {
+    return and(
+      ...this.buildConditions(filters),
+      eq(despachoDetalles.renglon, "vehiculo"),
+    );
+  }
 
+  async consumoPorVehiculo(filters: ReporteFilters) {
     return this.db.db
       .select({
         vehiculo_id: despachos.vehiculo_id,
         placa: vehiculos.placa,
         marca: vehiculos.marca,
         modelo: vehiculos.modelo,
-        total_galones: sum(despachos.galones),
-        total_monto: sum(despachos.monto_total),
-        total_despachos: count(despachos.id),
+        total_galones: sum(despachoDetalles.galones),
+        total_monto: sum(despachoDetalles.monto),
+        total_despachos: countDistinct(despachos.id),
       })
-      .from(despachos)
+      .from(despachoDetalles)
+      .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
       .innerJoin(vehiculos, eq(despachos.vehiculo_id, vehiculos.id))
-      .where(where)
+      .where(this.soloRenglonVehiculo(filters))
       .groupBy(
         despachos.vehiculo_id,
         vehiculos.placa,
         vehiculos.marca,
         vehiculos.modelo,
       )
-      .orderBy(sql`sum(${despachos.galones}) DESC`);
+      .orderBy(sql`sum(${despachoDetalles.galones}) DESC`);
   }
 
   async consumoPorPiloto(filters: ReporteFilters) {
-    const conds = this.buildConditions(filters);
-    const where = conds.length ? and(...conds) : undefined;
-
     return this.db.db
       .select({
         piloto_id: despachos.piloto_id,
         nombre_completo: pilotos.nombre_completo,
         codigo: pilotos.codigo,
-        total_galones: sum(despachos.galones),
-        total_monto: sum(despachos.monto_total),
-        total_despachos: count(despachos.id),
+        total_galones: sum(despachoDetalles.galones),
+        total_monto: sum(despachoDetalles.monto),
+        total_despachos: countDistinct(despachos.id),
       })
-      .from(despachos)
+      .from(despachoDetalles)
+      .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
       .innerJoin(pilotos, eq(despachos.piloto_id, pilotos.id))
-      .where(where)
+      .where(this.soloRenglonVehiculo(filters))
       .groupBy(despachos.piloto_id, pilotos.nombre_completo, pilotos.codigo)
-      .orderBy(sql`sum(${despachos.galones}) DESC`);
+      .orderBy(sql`sum(${despachoDetalles.galones}) DESC`);
   }
 
   async tendenciaMensual(filters: ReporteFilters) {
     const conds = this.buildConditions(filters);
-    conds.push(gte(despachos.despachado_at, sql`NOW() - INTERVAL '12 months'`));
+    // Sigue el rango pedido (las pestañas de 1/3/6/12 meses del portal); sin
+    // rango, los últimos 12 meses.
+    if (!filters.fecha_desde && !filters.fecha_hasta)
+      conds.push(
+        gte(despachos.despachado_at, sql`NOW() - INTERVAL '12 months'`),
+      );
     const where = and(...conds);
     // Agrupa por mes de Guatemala (UTC-6), no por mes UTC.
     const fechaGt = fechaGtSql(despachos.despachado_at);

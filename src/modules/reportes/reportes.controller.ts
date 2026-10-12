@@ -142,18 +142,26 @@ export class ReportesController {
 
   @Get("tendencia-mensual")
   @Auth("admin", "cliente")
-  @ApiOperation({ summary: "Consumo agrupado por mes (últimos 12 meses)" })
+  @ApiOperation({
+    summary: "Consumo agrupado por mes (el rango pedido; sin él, 12 meses)",
+  })
   @ApiQuery({ name: "cliente_id", required: false })
   @ApiQuery({ name: "gasolinera_id", required: false })
+  @ApiQuery({ name: "fecha_desde", required: false })
+  @ApiQuery({ name: "fecha_hasta", required: false })
   tendenciaMensual(
     @Query("cliente_id") clienteId?: string,
     @Query("gasolinera_id") gasolineraId?: string,
+    @Query("fecha_desde") fechaDesde?: string,
+    @Query("fecha_hasta") fechaHasta?: string,
     @Request() req?: any,
   ) {
     return this.service.tendenciaMensual(
       this.acotar(req?.user, {
         cliente_id: clienteId,
         gasolinera_id: gasolineraId,
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
       }),
     );
   }

@@ -2118,6 +2118,113 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       },
     );
 
+    // Este cliente tiene dos vales: el mixto (vehículo diesel 300 + caneca
+    // super 400) y el sólo-contenedores (tonel diesel 1000 + caneca diesel 200).
+    // Los reportes deben repartir cada renglón por su combustible y cargarle
+    // al vehículo y al piloto sólo su renglón, como hacen los límites.
+    interface FilaTipo {
+      tipo_combustible: string;
+      total_galones: string;
+      total_monto: string;
+    }
+    interface FilaGasolinera {
+      gasolinera_id: string;
+      total_monto: string;
+      total_despachos: number;
+    }
+    interface FilaConsumo {
+      vehiculo_id?: string;
+      piloto_id?: string;
+      total_monto: string;
+      total_despachos: number;
+    }
+    interface FilaMes {
+      anio: number;
+      mes: number;
+      total_monto: string;
+      total_despachos: number;
+    }
+
+    it("resumen: el desglose por combustible sale de los renglones → 200", async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/reportes/resumen?cliente_id=${clienteMultiId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(parseFloat(res.body.totales.total_monto)).toBeCloseTo(1900, 2);
+      expect(Number(res.body.totales.total_despachos)).toBe(2);
+
+      const porTipo = res.body.por_tipo_combustible as FilaTipo[];
+      const monto = (tipo: string) =>
+        parseFloat(porTipo.find((t) => t.tipo_combustible === tipo)?.total_monto ?? "0");
+      // Con el precio del header, el mixto iba entero a diesel y el
+      // sólo-contenedores (precio_id nulo) desaparecía del desglose.
+      expect(monto("diesel")).toBeCloseTo(1500, 2);
+      expect(monto("super")).toBeCloseTo(400, 2);
+      const galonesPorTipo = porTipo.reduce(
+        (s, t) => s + parseFloat(t.total_galones),
+        0,
+      );
+      // Tolerancia de 0.001 gal por renglón: el header redondea la suma, y
+      // cada renglón se redondea por separado.
+      expect(
+        Math.abs(galonesPorTipo - parseFloat(res.body.totales.total_galones)),
+      ).toBeLessThanOrEqual(0.004 + 1e-9);
+
+      const porGasolinera = res.body.por_gasolinera as FilaGasolinera[];
+      const fila = porGasolinera.find((g) => g.gasolinera_id === gasolineraId);
+      expect(parseFloat(fila?.total_monto ?? "0")).toBeCloseTo(1900, 2);
+      expect(Number(fila?.total_despachos)).toBe(2);
+    });
+
+    it("consumo por vehículo y por piloto cuentan sólo el renglón del vehículo → 200", async () => {
+      const veh = await request(app.getHttpServer())
+        .get(`/api/v1/reportes/consumo-por-vehiculo?cliente_id=${clienteMultiId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(veh.status).toBe(200);
+      const vehiculosRanking = veh.body as FilaConsumo[];
+      expect(vehiculosRanking).toHaveLength(1);
+      expect(vehiculosRanking[0].vehiculo_id).toBe(vehiculoMultiId);
+      expect(parseFloat(vehiculosRanking[0].total_monto)).toBeCloseTo(300, 2);
+      expect(Number(vehiculosRanking[0].total_despachos)).toBe(1);
+
+      const pil = await request(app.getHttpServer())
+        .get(`/api/v1/reportes/consumo-por-piloto?cliente_id=${clienteMultiId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(pil.status).toBe(200);
+      const pilotosRanking = pil.body as FilaConsumo[];
+      expect(pilotosRanking).toHaveLength(1);
+      expect(pilotosRanking[0].piloto_id).toBe(pilotoMultiId);
+      expect(parseFloat(pilotosRanking[0].total_monto)).toBeCloseTo(300, 2);
+      expect(Number(pilotosRanking[0].total_despachos)).toBe(1);
+    });
+
+    it("tendencia mensual respeta el rango de fechas → 200", async () => {
+      const hoy = fechaGuatemala();
+      const enRango = await request(app.getHttpServer())
+        .get(
+          `/api/v1/reportes/tendencia-mensual?cliente_id=${clienteMultiId}&fecha_desde=${hoy}&fecha_hasta=${hoy}`,
+        )
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(enRango.status).toBe(200);
+      const meses = enRango.body as FilaMes[];
+      expect(meses).toHaveLength(1);
+      const [anio, mes] = hoy.split("-").map(Number);
+      expect(meses[0].anio).toBe(anio);
+      expect(meses[0].mes).toBe(mes);
+      expect(parseFloat(meses[0].total_monto)).toBeCloseTo(1900, 2);
+      expect(Number(meses[0].total_despachos)).toBe(2);
+
+      const manana = sumarDias(hoy, 1);
+      const fueraDeRango = await request(app.getHttpServer())
+        .get(
+          `/api/v1/reportes/tendencia-mensual?cliente_id=${clienteMultiId}&fecha_desde=${manana}&fecha_hasta=${manana}`,
+        )
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(fueraDeRango.status).toBe(200);
+      expect(fueraDeRango.body).toEqual([]);
+    });
+
     it("la numeración de vale sigue siendo monótona con vales multi-renglón", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/despachos?gasolinera_id=${gasolineraId}&limit=100`)
