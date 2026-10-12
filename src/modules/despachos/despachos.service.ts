@@ -53,7 +53,10 @@ import {
   valorizarRenglon,
 } from "./despachos.reglas";
 import { StorageService, StorageObject } from "../../storage/storage.service";
-import { esViolacionUnica } from "../../common/errores-pg.reglas";
+import {
+  esViolacionUnica,
+  restriccionPg,
+} from "../../common/errores-pg.reglas";
 import {
   condicionesDespachos,
   type DespachoFilters,
@@ -378,6 +381,21 @@ export class DespachosService {
 
       const numeroVale = String(nextVal).padStart(6, "0");
 
+      // Correlativo del cliente: su propio 1, 2, 3… a través de todas las
+      // estaciones. El lock de arriba no basta (sólo serializa una
+      // estación+serie): dos estaciones despachando al mismo cliente leerían el
+      // mismo MAX. Va DESPUÉS del de estación, siempre en ese orden, para que
+      // dos transacciones nunca se esperen en ciclo (deadlock).
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext('CLIENTE:' || ${dto.cliente_id}))`,
+      );
+      const [{ siguiente }] = await tx
+        .select({
+          siguiente: sql<number>`COALESCE(MAX(${despachos.correlativo_cliente}), 0)::int + 1`,
+        })
+        .from(despachos)
+        .where(eq(despachos.cliente_id, dto.cliente_id));
+
       let despacho: typeof despachos.$inferSelect;
       try {
         [despacho] = await tx
@@ -394,6 +412,7 @@ export class DespachosService {
             precio_id: (renglonesVehiculo[0] ?? renglones[0]).precioRow.id,
             numero_vale: numeroVale,
             serie_vale: serieVale,
+            correlativo_cliente: siguiente,
             turno: dto.turno,
             bomba_numero: dto.bomba_numero,
             kilometraje: dto.kilometraje,
@@ -404,6 +423,11 @@ export class DespachosService {
           .returning();
       } catch (e) {
         if (esViolacionUnica(e)) {
+          if (restriccionPg(e) === "despachos_cliente_correlativo_idx") {
+            throw new ConflictException(
+              "El correlativo del cliente ya existe; intenta de nuevo",
+            );
+          }
           throw new ConflictException(
             `El vale ${serieVale}-${numeroVale} ya existe para esta gasolinera`,
           );

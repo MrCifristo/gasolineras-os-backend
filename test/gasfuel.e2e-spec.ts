@@ -164,6 +164,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
     try {
       for (const email of [
         `supervisor.${RUN_ID}@gasfuel-e2e.test`,
+        `supervisor.b.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.propio.${RUN_ID}@gasfuel-e2e.test`,
         `cliente.ajeno.${RUN_ID}@gasfuel-e2e.test`,
@@ -2366,6 +2367,150 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         "0.070",
       ]);
       expect(res.body.galones).toBe("0.210");
+    });
+
+    // Al final del bloque 17: clientes propios, no mueve los conteos de arriba.
+    describe("Correlativo por cliente", () => {
+      let estacionBId: string;
+      let supervisorBToken: string;
+      let operarioBId: string;
+      let clienteCorrA: string;
+      let clienteCorrB: string;
+      const emailSupervisorB = `supervisor.b.${RUN_ID}@gasfuel-e2e.test`;
+
+      // Un vale sólo de caneca: no necesita vehículo ni piloto.
+      const despachar = (token: string, operario: string, cliente: string) =>
+        request(app.getHttpServer())
+          .post("/api/v1/despachos")
+          .set("Authorization", `Bearer ${token}`)
+          .send({
+            cliente_id: cliente,
+            operario_id: operario,
+            turno: "manana",
+            detalles: [
+              {
+                renglon: "caneca",
+                tipo_combustible: "diesel",
+                monto: "50.000",
+              },
+            ],
+          });
+
+      it("prepara una segunda estación con supervisor, operario y precio → 201", async () => {
+        const est = await request(app.getHttpServer())
+          .post("/api/v1/gasolineras")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({
+            nombre: tag("Estación B correlativo"),
+            direccion: "Km 5",
+            ciudad: "Morales",
+          });
+        expect(est.status).toBe(201);
+        estacionBId = est.body.id;
+
+        const sup = await request(app.getHttpServer())
+          .post("/api/v1/usuarios")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({
+            nombre: tag("Supervisor B"),
+            email: emailSupervisorB,
+            password: TEST_PASSWORD,
+            rol: "supervisor",
+            gasolinera_id: estacionBId,
+          });
+        expect(sup.status).toBe(201);
+
+        const login = await request(app.getHttpServer())
+          .post("/api/v1/auth/login")
+          .send({ identificador: emailSupervisorB, password: TEST_PASSWORD });
+        expect(login.status).toBe(200);
+        supervisorBToken = login.body.access_token;
+
+        const op = await request(app.getHttpServer())
+          .post("/api/v1/operarios")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({ gasolinera_id: estacionBId, nombre: tag("Operario B") });
+        expect(op.status).toBe(201);
+        operarioBId = op.body.id;
+
+        const precio = await request(app.getHttpServer())
+          .post("/api/v1/precios-combustible")
+          .set("Authorization", `Bearer ${adminToken}`)
+          .send({
+            gasolinera_id: estacionBId,
+            fecha: fechaGuatemala(),
+            tipo_combustible: "diesel",
+            precio_galon: "28.500",
+          });
+        expect(precio.status).toBe(201);
+
+        for (const nombre of [
+          "Cliente Correlativo A",
+          "Cliente Correlativo B",
+        ]) {
+          const cli = await request(app.getHttpServer())
+            .post("/api/v1/clientes")
+            .set("Authorization", `Bearer ${adminToken}`)
+            .send({ nombre: tag(nombre) });
+          expect(cli.status).toBe(201);
+          if (nombre.endsWith("A")) clienteCorrA = cli.body.id;
+          else clienteCorrB = cli.body.id;
+        }
+      });
+
+      it("numera los vales de cada cliente 1, 2, 3 aunque cambie la estación → 201", async () => {
+        const correlativos: number[] = [];
+        for (const [token, operario] of [
+          [supervisorToken, operarioId],
+          [supervisorBToken, operarioBId],
+          [supervisorToken, operarioId],
+        ]) {
+          const res = await despachar(token, operario, clienteCorrA);
+          expect(res.status).toBe(201);
+          correlativos.push(res.body.correlativo_cliente);
+        }
+        expect(correlativos).toEqual([1, 2, 3]);
+
+        const otro = await despachar(
+          supervisorBToken,
+          operarioBId,
+          clienteCorrB,
+        );
+        expect(otro.status).toBe(201);
+        expect(otro.body.correlativo_cliente).toBe(1);
+      });
+
+      it("GET /despachos y GET /despachos/:id traen correlativo_cliente → 200", async () => {
+        const lista = await request(app.getHttpServer())
+          .get(`/api/v1/despachos?cliente_id=${clienteCorrA}`)
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(lista.status).toBe(200);
+        const filas = lista.body.data as {
+          id: string;
+          correlativo_cliente: number;
+        }[];
+        // El listado sale del más reciente al más viejo.
+        expect(filas.map((d) => d.correlativo_cliente)).toEqual([3, 2, 1]);
+
+        const detalle = await request(app.getHttpServer())
+          .get(`/api/v1/despachos/${filas[0].id}`)
+          .set("Authorization", `Bearer ${adminToken}`);
+        expect(detalle.status).toBe(200);
+        expect(detalle.body.despacho.correlativo_cliente).toBe(3);
+      });
+
+      it("dos vales simultáneos del mismo cliente en estaciones distintas no repiten correlativo → 201", async () => {
+        // El lock de estación+serie no los serializa: son estaciones distintas.
+        // Sólo el lock por cliente evita que ambos lean el mismo MAX.
+        const [a, b] = await Promise.all([
+          despachar(supervisorToken, operarioId, clienteCorrA),
+          despachar(supervisorBToken, operarioBId, clienteCorrA),
+        ]);
+        expect(a.status).toBe(201);
+        expect(b.status).toBe(201);
+        const pares = [a.body.correlativo_cliente, b.body.correlativo_cliente];
+        expect(pares.sort((x: number, y: number) => x - y)).toEqual([4, 5]);
+      });
     });
   });
 

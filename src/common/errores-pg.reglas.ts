@@ -16,3 +16,15 @@ export const VIOLACION_UNICA = "23505";
 export function esViolacionUnica(error: unknown): boolean {
   return codigoPg(error) === VIOLACION_UNICA;
 }
+
+/**
+ * Nombre de la restricción (índice único, FK…) que violó un error de Postgres,
+ * con el mismo desenvoltorio que `codigoPg`: drizzle deja el original en
+ * `cause`. Sirve para distinguir qué índice único produjo un 23505.
+ */
+export function restriccionPg(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const e = error as { constraint?: unknown; cause?: unknown };
+  if (typeof e.constraint === "string") return e.constraint;
+  return restriccionPg(e.cause);
+}
