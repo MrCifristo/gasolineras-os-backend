@@ -2183,6 +2183,7 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       tipo_combustible: string;
       total_galones: string;
       total_monto: string;
+      total_despachos: number;
     }
     interface FilaGasolinera {
       gasolinera_id: string;
@@ -2220,6 +2221,13 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       // sólo-contenedores (precio_id nulo) desaparecía del desglose.
       expect(monto("diesel")).toBeCloseTo(1500, 2);
       expect(monto("super")).toBeCloseTo(400, 2);
+      // Vales que llevan cada combustible: el mixto cuenta en los dos.
+      const vales = (tipo: string) =>
+        Number(
+          porTipo.find((t) => t.tipo_combustible === tipo)?.total_despachos,
+        );
+      expect(vales("diesel")).toBe(2);
+      expect(vales("super")).toBe(1);
       const galonesPorTipo = porTipo.reduce(
         (s, t) => s + parseFloat(t.total_galones),
         0,

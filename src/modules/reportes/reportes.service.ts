@@ -66,6 +66,8 @@ export class ReportesService {
         tipo_combustible: despachoDetalles.tipo_combustible,
         total_galones: sum(despachoDetalles.galones),
         total_monto: sum(despachoDetalles.monto),
+        // Vales que llevan ese combustible: un vale mixto cuenta en cada uno.
+        total_despachos: countDistinct(despachos.id),
       })
       .from(despachoDetalles)
       .innerJoin(despachos, eq(despachoDetalles.despacho_id, despachos.id))
