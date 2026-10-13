@@ -92,10 +92,14 @@ export function exigirIdentificadorResultante(
   }
 }
 
-/** El cliente corporativo recibe el enlace para elegir su propia contraseña. */
-export function debeEnviarEnlaceDeAlta(u: {
+/**
+ * Todo usuario nuevo con correo recibe la bienvenida con el enlace para elegir
+ * su contraseña, sea del rol que sea. Sin correo (sólo teléfono) no hay a
+ * dónde mandarla: el admin le entrega la contraseña generada.
+ */
+export function debeEnviarBienvenida(u: {
   rol: string;
   email: string | null;
 }): boolean {
-  return u.rol === "cliente" && !!u.email;
+  return !!u.email;
 }

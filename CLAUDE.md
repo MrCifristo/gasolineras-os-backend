@@ -46,6 +46,17 @@ it before changing anything at the API seam.
   when their env is missing — `R2_*`, and `RESEND_API_KEY` + `MAIL_FROM`. A
   password reset that silently sends no mail is worse than a backend that
   refuses to start.
+- **Welcome email for every new user with an email** (any role, since
+  2026-10-13): "Bienvenido a EstacionFlow" with a `/reset` link valid 72 h
+  (`PasswordResetService.enviarBienvenida`; recovery links stay at 60 min).
+  Fire-and-forget from `UsuariosService.create`. `ResendMailService` logs every
+  accepted send with Resend's id, so "the email never arrived" can be traced
+  in Resend's dashboard; a rejection logs status and body.
+- **Vehicle types are an admin catalogue** (`tipos_vehiculo`, module
+  `tipos-vehiculo`, migration 0011): any role reads, admin writes. It only
+  feeds the form's list — `vehiculos.tipo_vehiculo` stays free text with no FK.
+  Renaming a type renames the vehicles that have it (same transaction);
+  deactivating only hides it.
 - **Password plaintext leaves the server exactly once.** `POST /usuarios` and
   `POST /usuarios/:id/reset-password` (`modo: "generar"`) return
   `password_temporal` in the response body and never persist it.
@@ -294,7 +305,7 @@ client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
 
 ## Testing
 
-- Unit (`pnpm test`): 520 tests in 38 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 531 tests in 39 suites, no Postgres, about a second.
   Test doubles without `any` live in `test/unit/dobles.ts` (`vacio()`,
   `espiarPrivado`, `usuarioDePrueba`).
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
@@ -315,7 +326,7 @@ client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 298 tests in 3 suites — `gasfuel` 202, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 308 tests in 3 suites — `gasfuel` 212, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

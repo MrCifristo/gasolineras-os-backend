@@ -3,7 +3,7 @@ import { BadRequestException } from "@nestjs/common";
 import { esperarError } from "../../../test/unit/esperar-error";
 import {
   clienteIdResultante,
-  debeEnviarEnlaceDeAlta,
+  debeEnviarBienvenida,
   exigirEmpresaSiEsCliente,
   exigirNoRegistrado,
   exigirIdentificadorResultante,
@@ -172,21 +172,16 @@ describe("clienteIdResultante", () => {
   });
 });
 
-describe("debeEnviarEnlaceDeAlta", () => {
-  it("un cliente con correo recibe el enlace", () => {
-    expect(debeEnviarEnlaceDeAlta({ rol: "cliente", email: "a@x.com" })).toBe(
-      true,
-    );
-  });
+describe("debeEnviarBienvenida", () => {
+  it.each(["cliente", "supervisor", "jefe_pista", "admin"])(
+    "un %s con correo recibe la bienvenida",
+    (rol) => {
+      expect(debeEnviarBienvenida({ rol, email: "a@x.com" })).toBe(true);
+    },
+  );
 
-  it("un cliente sin correo no", () => {
-    expect(debeEnviarEnlaceDeAlta({ rol: "cliente", email: null })).toBe(false);
-  });
-
-  it("un admin no", () => {
-    expect(debeEnviarEnlaceDeAlta({ rol: "admin", email: "a@x.com" })).toBe(
-      false,
-    );
+  it("sin correo (sólo teléfono) no", () => {
+    expect(debeEnviarBienvenida({ rol: "cliente", email: null })).toBe(false);
   });
 });
 

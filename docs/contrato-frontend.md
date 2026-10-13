@@ -61,7 +61,7 @@ El backend es una **API bearer pura** y JWT estándar. El navegador la consume *
 
 Ese texto plano **no se persiste y no vuelve a estar disponible**: es la única oportunidad de mostrarlo o descargarlo. `password_hash` nunca sale en ninguna respuesta.
 
-Al crear un usuario con `rol: "cliente"` **y** correo, el backend le manda automáticamente el enlace de recuperación para que elija su propia contraseña. El envío es *fire-and-forget*: si el proveedor falla, el alta igual devuelve 201 (el usuario ya existe y su `password_temporal` sirve).
+Al crear un usuario **con correo, de cualquier rol** (desde 2026-10-13; antes sólo `cliente`), el backend le manda la **bienvenida**: asunto "Bienvenido a EstacionFlow", su rol, su usuario y un enlace `/reset?token=` que vence en **72 horas** (el de recuperación sigue en 60 minutos). El envío es *fire-and-forget*: si el proveedor falla, el alta igual devuelve 201 (el usuario ya existe y su `password_temporal` sirve). Cada correo aceptado por Resend queda en el log del backend con su id (`Correo "<asunto>" aceptado por Resend para <correo> (id <id>)`).
 
 **Recuperación (público, sin token de sesión).**
 
@@ -108,6 +108,8 @@ Ambos son `boolean` en `clientes` y se editan por `POST`/`PATCH /clientes`. `GET
 > Consecuencia para el frontend: **`movimientos_saldo.gasolinera_id` ahora puede venir `null`**. Toda tabla o agrupación por estación tiene que contemplarlo (mostrar "—", no romper).
 
 `saldo_inicial` **no se acepta en `PATCH /clientes/:id`** — devuelve 400. Una apertura no se reescribe; para corregir el saldo se registra un abono, que deja rastro en el ledger.
+
+**Tipos de vehículo (2026-10-13).** Catálogo `tipos_vehiculo` (`{ id, nombre, activo }`) que alimenta la lista del formulario de vehículos. `GET /tipos-vehiculo` (cualquier rol; sólo activos, ordenados por `lower(nombre)`), `POST` y `PATCH /tipos-vehiculo/:id` (`{ nombre }`, admin; espacios normalizados; nombre repetido entre activos sin mayúsculas → 409 `Ya existe el tipo de vehículo "<nombre>"`; vacío → 400) y `DELETE /tipos-vehiculo/:id` (admin; soft delete; inexistente o ya desactivado → 404). `vehiculos.tipo_vehiculo` **sigue siendo texto** y no se valida contra el catálogo: **renombrar** un tipo renombra también a los vehículos que lo tienen (misma transacción); **desactivarlo** sólo lo saca de la lista. La migración 0011 siembra los tipos que el formulario tenía fijos, `Motocicleta` y los que ya usaban los vehículos.
 
 **NIT único y reactivación (2026-10-13).**
 - El NIT es único **sin distinguir mayúsculas ni guiones** (`6935124-K` = `6935124k`), **contando los clientes desactivados**. `"CF"` (consumidor final) y la ausencia de NIT pueden repetirse. Se guarda en mayúsculas (`trim` + `toUpperCase`). Índice `clientes_nit_unico` (migración 0010).

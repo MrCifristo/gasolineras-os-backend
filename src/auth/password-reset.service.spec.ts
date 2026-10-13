@@ -81,6 +81,56 @@ describe("PasswordResetService", () => {
     });
   });
 
+  describe("enviarBienvenida", () => {
+    it("manda la bienvenida con el rol, el usuario y un enlace de 72 horas", async () => {
+      const { s, emitir } = crear({ FRONTEND_URL: "https://app.test" });
+      await s.enviarBienvenida({
+        id: "u1",
+        email: "ana@x.com",
+        nombre: "Ana",
+        rol: "supervisor",
+      });
+
+      expect(emitir).toHaveBeenCalledWith("u1", 72 * 60);
+      const correo = enviar.mock.calls[0][0] as CorreoEnviado & {
+        asunto: string;
+      };
+      expect(correo.para).toBe("ana@x.com");
+      expect(correo.asunto).toBe("Bienvenido a EstacionFlow");
+      expect(correo.texto).toContain("como Supervisor");
+      expect(correo.texto).toContain("Tu usuario es ana@x.com");
+      expect(correo.texto).toContain("https://app.test/reset?token=tok-123");
+      expect(correo.texto).toContain("vence en 72 horas");
+      expect(correo.texto).toContain("https://app.test/recuperar");
+    });
+
+    it("un rol desconocido se muestra tal cual y el nombre va escapado en el HTML", async () => {
+      const { s } = crear();
+      await s.enviarBienvenida({
+        id: "u1",
+        email: "a@x.com",
+        nombre: "<b>Ana</b>",
+        rol: "otro",
+      });
+      const correo = enviar.mock.calls[0][0];
+      expect(correo.texto).toContain("como otro");
+      expect(correo.html).toContain("&lt;b&gt;Ana&lt;/b&gt;");
+      expect(correo.html).not.toContain("<b>Ana</b>");
+    });
+
+    it("sin correo: no emite token ni envía", async () => {
+      const { s, emitir } = crear();
+      await s.enviarBienvenida({
+        id: "u1",
+        email: null,
+        nombre: "Ana",
+        rol: "cliente",
+      });
+      expect(emitir).not.toHaveBeenCalled();
+      expect(enviar).not.toHaveBeenCalled();
+    });
+  });
+
   describe("solicitar", () => {
     const preparar = (fila: unknown) => {
       const { s } = crear();

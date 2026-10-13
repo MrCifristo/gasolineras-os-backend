@@ -27,6 +27,19 @@ export interface DestinatarioReset {
 /** Corto a propósito: es un enlace de recuperación, no una sesión. */
 const TTL_MINUTOS = 60;
 
+/**
+ * La bienvenida dura más: el usuario nuevo no la está esperando y puede
+ * abrirla al día siguiente. Si vence, pide otra desde "¿Olvidaste?".
+ */
+const TTL_BIENVENIDA_HORAS = 72;
+
+const ROL_LEGIBLE: Record<string, string> = {
+  admin: "Administrador",
+  supervisor: "Supervisor",
+  cliente: "Cliente",
+  jefe_pista: "Jefe de pista",
+};
+
 @Injectable()
 export class PasswordResetService {
   private readonly logger = new Logger("PasswordReset");
@@ -54,7 +67,10 @@ export class PasswordResetService {
    * correo. Invalida los tokens vivos anteriores del usuario: si no, cada
    * solicitud dejaría otro enlace válido suelto en otra bandeja de entrada.
    */
-  async emitirToken(usuarioId: string): Promise<string> {
+  async emitirToken(
+    usuarioId: string,
+    ttlMinutos: number = TTL_MINUTOS,
+  ): Promise<string> {
     const plano = randomBytes(32).toString("base64url");
     const ahora = new Date();
 
@@ -71,7 +87,7 @@ export class PasswordResetService {
     await this.db.db.insert(tokensReset).values({
       usuario_id: usuarioId,
       token_hash: this.hashear(plano),
-      expira_at: new Date(ahora.getTime() + TTL_MINUTOS * 60_000),
+      expira_at: new Date(ahora.getTime() + ttlMinutos * 60_000),
     });
 
     return plano;
@@ -86,8 +102,7 @@ export class PasswordResetService {
     }
 
     const token = await this.emitirToken(usuario.id);
-    const base = this.config.get<string>("FRONTEND_URL") ?? "";
-    const enlace = `${base.replace(/\/$/, "")}/reset?token=${token}`;
+    const enlace = `${this.baseFrontend()}/reset?token=${token}`;
 
     await this.mail.enviar({
       para: usuario.email,
@@ -103,6 +118,46 @@ export class PasswordResetService {
         `<p><a href="${escaparHtml(enlace)}">Restablecer mi contraseña</a></p>` +
         `<p>El enlace vence en ${TTL_MINUTOS} minutos y sirve una sola vez.</p>` +
         `<p>Si no pediste esto, ignorá el correo: tu contraseña sigue igual.</p>`,
+    });
+  }
+
+  private baseFrontend(): string {
+    return (this.config.get<string>("FRONTEND_URL") ?? "").replace(/\/$/, "");
+  }
+
+  /**
+   * Correo de alta: le da la bienvenida, le dice con qué usuario entra y le
+   * manda el enlace para elegir su contraseña (72 horas). Sin correo no hace
+   * nada: el admin le entrega la contraseña generada.
+   */
+  async enviarBienvenida(
+    usuario: DestinatarioReset & { rol: string },
+  ): Promise<void> {
+    if (!usuario.email) return;
+
+    const token = await this.emitirToken(usuario.id, TTL_BIENVENIDA_HORAS * 60);
+    const base = this.baseFrontend();
+    const enlace = `${base}/reset?token=${token}`;
+    const recuperar = `${base}/recuperar`;
+    const rol = ROL_LEGIBLE[usuario.rol] ?? usuario.rol;
+
+    await this.mail.enviar({
+      para: usuario.email,
+      asunto: "Bienvenido a EstacionFlow",
+      texto:
+        `Hola ${usuario.nombre}:\n\n` +
+        `Se creó tu cuenta en EstacionFlow, de Gasolinera La Estación, como ${rol}.\n` +
+        `Tu usuario es ${usuario.email}.\n\n` +
+        `Para entrar, elegí tu contraseña acá:\n${enlace}\n\n` +
+        `El enlace vence en ${TTL_BIENVENIDA_HORAS} horas y sirve una sola vez. ` +
+        `Si vence, pedí otro en ${recuperar}.\n`,
+      html:
+        `<p>Hola ${escaparHtml(usuario.nombre)}:</p>` +
+        `<p>Se creó tu cuenta en EstacionFlow, de Gasolinera La Estación, como ${escaparHtml(rol)}.<br>` +
+        `Tu usuario es <strong>${escaparHtml(usuario.email)}</strong>.</p>` +
+        `<p><a href="${escaparHtml(enlace)}">Elegir mi contraseña</a></p>` +
+        `<p>El enlace vence en ${TTL_BIENVENIDA_HORAS} horas y sirve una sola vez. ` +
+        `Si vence, pedí otro en <a href="${escaparHtml(recuperar)}">${escaparHtml(recuperar)}</a>.</p>`,
     });
   }
 

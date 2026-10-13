@@ -71,5 +71,16 @@ export class ResendMailService extends MailService implements OnModuleInit {
       );
       throw new InternalServerErrorException("No se pudo enviar el correo");
     }
+
+    // Que Resend lo aceptó no garantiza que llegue (spam, rebote), pero con el
+    // id se lo busca en su panel; sin esta línea un envío exitoso no deja rastro.
+    const cuerpo: unknown = await respuesta.json().catch(() => null);
+    const id =
+      cuerpo && typeof cuerpo === "object" && "id" in cuerpo
+        ? String(cuerpo.id)
+        : "?";
+    this.logger.log(
+      `Correo "${mensaje.asunto}" aceptado por Resend para ${mensaje.para} (id ${id})`,
+    );
   }
 }

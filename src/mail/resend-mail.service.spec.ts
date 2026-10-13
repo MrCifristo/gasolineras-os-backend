@@ -58,6 +58,32 @@ describe("ResendMailService", () => {
     });
   });
 
+  it("un envío aceptado queda en el log con el id de Resend", async () => {
+    jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue(new Response('{"id":"re-123"}', { status: 200 }));
+    const log = jest.spyOn(Logger.prototype, "log").mockImplementation();
+
+    await armar().enviar(MENSAJE);
+
+    expect(log).toHaveBeenCalledWith(
+      'Correo "Hola" aceptado por Resend para cliente@ejemplo.gt (id re-123)',
+    );
+  });
+
+  it("si la respuesta no trae id, el log lo dice en vez de fallar", async () => {
+    jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue(new Response("no-json", { status: 200 }));
+    const log = jest.spyOn(Logger.prototype, "log").mockImplementation();
+
+    await expect(armar().enviar(MENSAJE)).resolves.toBeUndefined();
+
+    expect(log).toHaveBeenCalledWith(
+      'Correo "Hola" aceptado por Resend para cliente@ejemplo.gt (id ?)',
+    );
+  });
+
   it("un fallo de red responde 500 «No se pudo enviar el correo»", async () => {
     jest.spyOn(global, "fetch").mockRejectedValue(new Error("ECONNRESET"));
     await esperarRechazo(

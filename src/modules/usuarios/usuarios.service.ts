@@ -11,7 +11,7 @@ import { UpdateUsuarioDto } from "./dto/update-usuario.dto";
 import {
   clienteIdResultante,
   exigirIdentificadorResultante,
-  debeEnviarEnlaceDeAlta,
+  debeEnviarBienvenida,
   exigirEmpresaSiEsCliente,
   exigirNoRegistrado,
   identificadoresDeAlta,
@@ -100,15 +100,15 @@ export class UsuariosService {
       })
       .returning(CAMPOS_PUBLICOS);
 
-    // El cliente corporativo recibe el enlace para elegir su propia contraseña.
+    // Bienvenida con el enlace para elegir su propia contraseña.
     // Fire-and-forget: que el proveedor de correo falle no puede tumbar el alta
     // del usuario, que ya está creado y con credenciales utilizables.
-    if (debeEnviarEnlaceDeAlta(row)) {
+    if (debeEnviarBienvenida(row)) {
       this.reset
-        .enviarEnlace(row)
+        .enviarBienvenida(row)
         .catch((e: Error) =>
           this.logger.error(
-            `No se pudo enviar el enlace de alta a ${row.email}`,
+            `No se pudo enviar la bienvenida a ${row.email}`,
             e,
           ),
         );

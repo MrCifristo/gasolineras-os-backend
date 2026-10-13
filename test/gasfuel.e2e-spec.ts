@@ -3125,6 +3125,34 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       await new Promise((r) => setTimeout(r, 50));
       expect(correos.enviados).toHaveLength(1);
       expect(correos.enviados[0].para).toBe(email);
+      expect(correos.enviados[0].asunto).toBe("Bienvenido a EstacionFlow");
+    });
+
+    it("la bienvenida llega a cualquier rol con correo, no sólo al cliente", async () => {
+      correos.limpiar();
+      const email = `alta.jefe.${RUN_ID}@gasfuel-e2e.test`;
+
+      const res = await request(app.getHttpServer())
+        .post("/api/v1/usuarios")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ nombre: tag("Jefe Con Alta"), email, rol: "jefe_pista" });
+
+      expect(res.status).toBe(201);
+      await new Promise((r) => setTimeout(r, 50));
+      const correo = correos.ultimoPara(email);
+      expect(correo?.asunto).toBe("Bienvenido a EstacionFlow");
+      expect(correo?.texto).toContain("como Jefe de pista");
+
+      // El enlace de bienvenida sirve para elegir la contraseña.
+      const token = tokenDelUltimoCorreo(email);
+      const reset = await request(app.getHttpServer())
+        .post("/api/v1/auth/password/reset")
+        .send({ token, password: "Bienvenida#2026" });
+      expect(reset.status).toBe(204);
+      const login = await request(app.getHttpServer())
+        .post("/api/v1/auth/login")
+        .send({ identificador: email, password: "Bienvenida#2026" });
+      expect(login.status).toBe(200);
     });
 
     it("quitarle la empresa a un usuario cliente → 400", async () => {
