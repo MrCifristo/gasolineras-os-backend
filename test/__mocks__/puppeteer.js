@@ -14,7 +14,9 @@ function crearPagina() {
     jsHabilitado: true,
     interceptacionActiva: false,
     eventos: [],
+    manejadores: {},
     html: null,
+    opcionesPdf: null,
   };
 
   paginas.push(estado);
@@ -26,13 +28,17 @@ function crearPagina() {
     setRequestInterception: jest.fn(async (valor) => {
       estado.interceptacionActiva = valor;
     }),
-    on: jest.fn((evento) => {
+    on: jest.fn((evento, manejador) => {
       estado.eventos.push(evento);
+      estado.manejadores[evento] = manejador;
     }),
     setContent: jest.fn(async (html) => {
       estado.html = html;
     }),
-    pdf: jest.fn(async () => Buffer.from("%PDF-1.4\n% mock de puppeteer\n")),
+    pdf: jest.fn(async (opciones) => {
+      estado.opcionesPdf = opciones;
+      return Buffer.from("%PDF-1.4\n% mock de puppeteer\n");
+    }),
     close: jest.fn(async () => undefined),
   };
 }
