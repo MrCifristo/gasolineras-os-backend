@@ -48,6 +48,9 @@ const RENGLON_TAG: Record<string, string> = {
   tonel: "TONELES · ",
 };
 
+/** Hasta cuántos renglones caben en un vale sin compactar la tabla. */
+const RENGLONES_TAMANO_NORMAL = 6;
+
 const PREFIJO_FIRMA = "data:image/png;base64,";
 const FIRMA_VALIDA = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/;
 
@@ -109,7 +112,11 @@ function valeHtml(v: ValePdf): string {
   const lugar = [v.gasolinera.nombre, v.gasolinera.ciudad]
     .filter(Boolean)
     .join(" · ");
-  return `<article class="vale">
+  // Más de 6 renglones no caben a tamaño normal en un cuarto de hoja: el
+  // overflow del vale se comería el pie (despachado por, operario y firma).
+  const clase =
+    v.renglones.length > RENGLONES_TAMANO_NORMAL ? "vale compacto" : "vale";
+  return `<article class="${clase}">
     <header>
       <div class="lugar">${esc(lugar)}</div>
       <div class="ident"><span class="mono vnum">${esc(v.serie_vale)}-${esc(v.numero_vale)}</span>
@@ -167,7 +174,11 @@ const CSS = `
   table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
   th, td { padding: 1.5px 3px; text-align: left; border-bottom: 0.5px solid #000; }
   th.n, td.n { text-align: right; }
+  /* Galones, precio y montos en una línea; la etiqueta del combustible sí se parte. */
+  td.n { white-space: nowrap; }
   tfoot td { font-weight: 700; border-bottom: none; }
+  .vale.compacto table { font-size: 7.5pt; line-height: 1.1; }
+  .vale.compacto th, .vale.compacto td { padding: 0.5px 3px; }
   footer { display: flex; justify-content: space-between; align-items: flex-end; gap: 6px; margin-top: auto; font-size: 8pt; }
   .firma-caja { width: 1.6in; height: 0.55in; border-bottom: 0.5px solid #000; display: flex; align-items: flex-end; justify-content: center; }
   .firma { max-width: 100%; max-height: 0.55in; object-fit: contain; }

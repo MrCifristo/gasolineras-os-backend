@@ -122,4 +122,40 @@ describe("buildValesHtml", () => {
     const out = html([vale({ vehiculo: null, piloto: null })]);
     expect(out).toContain("A-000123");
   });
+
+  it("las celdas numéricas no se parten en dos líneas", () => {
+    expect(html([vale()])).toMatch(/td\.n\s*\{[^}]*white-space:\s*nowrap/);
+  });
+
+  describe("vales con muchos renglones", () => {
+    const conRenglones = (n: number) =>
+      vale({
+        renglones: Array.from({ length: n }, () => ({
+          renglon: "tonel",
+          tipo_combustible: "regular",
+          galones: "1.000",
+          precio_galon: "30.000",
+          monto: "30.00",
+        })),
+      });
+
+    it.each([1, 6])("%i renglones: tamaño normal", (n) => {
+      const out = html([conRenglones(n)]);
+      expect(out).toContain('<article class="vale">');
+      expect(out).not.toContain('<article class="vale compacto">');
+    });
+
+    it.each([7, 10])(
+      "%i renglones: tabla compacta para que quepa el pie",
+      (n) => {
+        expect(html([conRenglones(n)])).toContain(
+          '<article class="vale compacto">',
+        );
+      },
+    );
+
+    it("la clase compacta achica la tabla", () => {
+      expect(html([vale()])).toMatch(/\.vale\.compacto table\s*\{/);
+    });
+  });
 });
