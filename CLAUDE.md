@@ -134,12 +134,62 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   issued from the user's own station; the admin has none). The route lets the
   admin through `@Auth` on purpose so the service answers with an explicit 403
   ("Solo supervisores…") instead of the guard's "Permisos insuficientes".
+- **Per-client correlative (`despachos.correlativo_cliente`, migration 0009).**
+  Each client numbers its own vouchers 1, 2, 3… across **all** stations (the
+  station `numero_vale` is per station+series). Right after the station lock the
+  transaction takes a second one,
+  `pg_advisory_xact_lock(hashtext('CLIENTE:' || cliente_id))`, then reads
+  `MAX(correlativo_cliente) + 1` for that client. Always station lock first, client
+  lock second, so two transactions never wait on each other in a cycle; the
+  station lock alone does **not** serialize two stations dispatching for the same
+  client. The unique index `despachos_cliente_correlativo_idx`
+  (`cliente_id, correlativo_cliente`) is the safety net: a 23505 on that index
+  (read from the pg `constraint`, directly or in `cause`) is a 409 "El correlativo
+  del cliente ya existe; intenta de nuevo"; any other 23505 keeps the vale message.
+  The migration backfills history ordered by `despachado_at`. Deploy window:
+  between the pre-deploy migration and the new version's healthcheck the old
+  create inserts without the column (NOT NULL → 500 at the pump); deploy outside
+  dispatch hours. Movements expose it as `correlativo_cliente` (leftJoin to
+  `despachos`; `null` for payments, opening balance and reconciliations) in the
+  account statement, its PDF and the despachos Excel.
 - Dispatch create takes `monto` (quetzales); the server derives `galones` from
   its own price. `serie_vale` comes from `gasolineras.serie_vale_actual`, not
   the client.
 - All time math hardcodes **UTC-6** for Guatemala (`ahoraGuatemala()` /
   `diaYMinutoGuatemala()`, plus
   `- INTERVAL '6 hours'` in raw SQL). No DST, no `AT TIME ZONE`.
+
+## Voucher PDFs (`GET /despachos/vales/pdf`)
+
+Digital copy of vouchers for accounting: letter paper, **4 per sheet**, ordered by
+client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
+
+- **Filters = the listing's** (`condicionesDespachos` in
+  `src/modules/despachos/despachos.condiciones.ts`, shared by `findAll`, the Excel
+  and the PDF so scoping can't drift) plus `ids` (comma-separated UUIDs, ANDed with
+  the filters; `parsearIds`). Scope is the listing's: a `cliente` only gets its own,
+  a supervisor only its station; an out-of-scope id is silently omitted, and if
+  nothing is left the answer is the generic 404 "No hay vales con esos filtros"
+  (never reveals existence). A `cliente` without `cliente_id` is 403 "Cliente sin
+  empresa asignada".
+- **Cap: 500 per PDF** (`MAX_VALES_POR_PDF`, rule `exigirTopeVales`): 400
+  "Son N vales; acota el período o los filtros (máximo 500 por PDF).". Over ~400
+  `ids` in a GET the URL exceeds Node's header limit and answers 431 before the
+  service; the frontend must not send more than ~400.
+- Pure rules in `vales-pdf.reglas.ts` (`deACuatro`, file name, cap);
+  the HTML in `vales-pdf.template.ts`. Template: letter, 4 per page; vouchers with
+  more than 6 lines get a compact class so a 10-line voucher (the DTO maximum)
+  still fits with footer and signature. A missing or unreadable signature prints
+  "Firma no disponible" and the batch continues. All data goes through
+  `escapar-html`. The footer says **"Copia digital — generada el <fecha y hora
+  GT>"** and never ORIGINAL.
+- `Content-Disposition` is `vales-<cliente|todos>-<desde|inicio>-a-<hasta|hoy>.pdf`
+  (sanitized to safe chars) or `vale-<serie>-<numero>.pdf` for a single id. `main.ts`
+  lists it in CORS `exposedHeaders`; without that the browser cannot read the name.
+- **`src/common/render-pdf.ts`** is the one place that launches Chrome. The three
+  PDFs (account statement, reports, vouchers) go through `renderizarPdf`, with a
+  global semaphore: **at most 2 renders at a time**, so concurrent 500-voucher
+  batches can't exhaust the Railway container's memory.
 
 ## Shifts, reminders and push (Fase 6)
 
@@ -231,7 +281,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
 
 ## Testing
 
-- Unit (`pnpm test`): 441 tests in 33 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 508 tests in 37 suites, no Postgres, about a second.
   Test doubles without `any` live in `test/unit/dobles.ts` (`vacio()`,
   `espiarPrivado`, `usuarioDePrueba`).
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
@@ -252,7 +302,7 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 273 tests in 3 suites — `gasfuel` 177, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 289 tests in 3 suites — `gasfuel` 193, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).
