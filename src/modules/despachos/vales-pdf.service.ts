@@ -206,29 +206,39 @@ export class ValesPdfService {
         .leftJoin(operarios, eq(despachos.operario_id, operarios.id))
         .leftJoin(usuarios, eq(despachos.despachador_id, usuarios.id))
         .where(where)
-        .orderBy(asc(despachos.cliente_id), asc(despachos.correlativo_cliente))
+        .orderBy(
+          asc(clientes.nombre),
+          asc(despachos.cliente_id),
+          asc(despachos.correlativo_cliente),
+        )
     );
   }
 
   /** Todos los renglones del lote en una consulta, con el precio de cada uno. */
   private leerRenglones(despachoIds: string[]) {
-    return this.db.db
-      .select({
-        despacho_id: despachoDetalles.despacho_id,
-        renglon: despachoDetalles.renglon,
-        tipo_combustible: despachoDetalles.tipo_combustible,
-        galones: despachoDetalles.galones,
-        monto: despachoDetalles.monto,
-        // despacho_detalles guarda el precio_id, no el precio.
-        precio_galon: preciosCombustible.precio_galon,
-      })
-      .from(despachoDetalles)
-      .leftJoin(
-        preciosCombustible,
-        eq(despachoDetalles.precio_id, preciosCombustible.id),
-      )
-      .where(inArray(despachoDetalles.despacho_id, despachoIds))
-      .orderBy(asc(despachoDetalles.renglon));
+    return (
+      this.db.db
+        .select({
+          despacho_id: despachoDetalles.despacho_id,
+          renglon: despachoDetalles.renglon,
+          tipo_combustible: despachoDetalles.tipo_combustible,
+          galones: despachoDetalles.galones,
+          monto: despachoDetalles.monto,
+          // despacho_detalles guarda el precio_id, no el precio.
+          precio_galon: preciosCombustible.precio_galon,
+        })
+        .from(despachoDetalles)
+        .leftJoin(
+          preciosCombustible,
+          eq(despachoDetalles.precio_id, preciosCombustible.id),
+        )
+        .where(inArray(despachoDetalles.despacho_id, despachoIds))
+        // Vehículo, canecas, toneles; el id desempata dentro del mismo tipo.
+        .orderBy(
+          sql`CASE ${despachoDetalles.renglon} WHEN 'vehiculo' THEN 0 WHEN 'caneca' THEN 1 ELSE 2 END`,
+          asc(despachoDetalles.id),
+        )
+    );
   }
 
   /**

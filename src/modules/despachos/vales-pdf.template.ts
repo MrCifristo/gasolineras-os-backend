@@ -125,7 +125,7 @@ function valeHtml(v: ValePdf): string {
     <div class="meta">${esc(fechaHora(v.despachado_at))} · Bomba ${esc(v.bomba_numero)} · Turno ${turno}</div>
     <div class="datos">
       <div><b>Cliente:</b> ${esc(v.cliente.nombre)}${v.cliente.nit ? ` · NIT ${esc(v.cliente.nit)}` : ""}</div>
-      <div><b>Vehículo:</b> ${veh}${v.kilometraje != null ? ` · Km ${num(v.kilometraje, 0)}` : ""}</div>
+      <div><b>Vehículo:</b> ${veh} · Km ${num(v.kilometraje, 0)}</div>
       <div><b>Piloto:</b> ${esc(v.piloto?.nombre_completo)}</div>
     </div>
     <table>

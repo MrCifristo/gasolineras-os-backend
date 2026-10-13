@@ -118,6 +118,11 @@ describe("buildValesHtml", () => {
     );
   });
 
+  it("sin kilometraje imprime «Km —»", () => {
+    expect(html([vale({ kilometraje: null })])).toContain("Km —");
+    expect(html([vale({ kilometraje: "1500" })])).toContain("Km 1,500");
+  });
+
   it("tolera vehículo y piloto nulos", () => {
     const out = html([vale({ vehiculo: null, piloto: null })]);
     expect(out).toContain("A-000123");
