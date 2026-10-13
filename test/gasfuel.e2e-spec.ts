@@ -3526,4 +3526,168 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(propio.body.nit).toBe(`B${RUN_ID}K`);
     });
   });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 20 — Catálogo de tipos de vehículo
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("20. Tipos de vehículo", () => {
+    const http = () => request(app.getHttpServer());
+    const admin = () => ({ Authorization: `Bearer ${adminToken}` });
+    const nombreTipo = `Tipo E2E ${RUN_ID}`;
+    let tipoId: string;
+    let clienteId: string;
+    let vehiculoId: string;
+
+    afterAll(async () => {
+      await http().delete(`/api/v1/clientes/${clienteId}`).set(admin());
+      await http().delete(`/api/v1/tipos-vehiculo/${tipoId}`).set(admin());
+    });
+
+    it("la migración siembra Motocicleta y la lista sale por nombre", async () => {
+      const res = await http().get("/api/v1/tipos-vehiculo").set(admin());
+
+      expect(res.status).toBe(200);
+      const nombres = (res.body as { nombre: string }[]).map((t) => t.nombre);
+      expect(nombres).toContain("Motocicleta");
+      expect(nombres).toContain("Camión Cisterna");
+      const claves = nombres.map((n) => n.toLowerCase());
+      expect(claves).toEqual([...claves].sort());
+    });
+
+    it("supervisor y cliente leen la lista → 200", async () => {
+      for (const token of [supervisorToken, clienteUserToken]) {
+        const res = await http()
+          .get("/api/v1/tipos-vehiculo")
+          .set("Authorization", `Bearer ${token}`);
+        expect(res.status).toBe(200);
+      }
+    });
+
+    it("sólo el admin escribe → 403 al supervisor y al cliente", async () => {
+      for (const token of [supervisorToken, clienteUserToken]) {
+        const res = await http()
+          .post("/api/v1/tipos-vehiculo")
+          .set("Authorization", `Bearer ${token}`)
+          .send({ nombre: "No autorizado" });
+        expect(res.status).toBe(403);
+      }
+    });
+
+    it("admin crea un tipo (espacios normalizados) → 201", async () => {
+      const res = await http()
+        .post("/api/v1/tipos-vehiculo")
+        .set(admin())
+        .send({ nombre: `  Tipo   E2E ${RUN_ID} ` });
+
+      expect(res.status).toBe(201);
+      expect(res.body.nombre).toBe(nombreTipo);
+      expect(res.body.activo).toBe(true);
+      tipoId = (res.body as { id: string }).id;
+    });
+
+    it("el mismo nombre en otras mayúsculas → 409", async () => {
+      const res = await http()
+        .post("/api/v1/tipos-vehiculo")
+        .set(admin())
+        .send({ nombre: nombreTipo.toUpperCase() });
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        `Ya existe el tipo de vehículo "${nombreTipo.toUpperCase()}"`,
+      );
+    });
+
+    it("nombre vacío → 400; campo extra → 400", async () => {
+      const vacio = await http()
+        .post("/api/v1/tipos-vehiculo")
+        .set(admin())
+        .send({ nombre: "   " });
+      expect(vacio.status).toBe(400);
+      expect(vacio.body.message).toBe(
+        "El nombre del tipo de vehículo es obligatorio",
+      );
+
+      const extra = await http()
+        .post("/api/v1/tipos-vehiculo")
+        .set(admin())
+        .send({ nombre: "Otro", activo: true });
+      expect(extra.status).toBe(400);
+    });
+
+    it("renombrar el tipo renombra a los vehículos que lo tienen", async () => {
+      const cliente = await http()
+        .post("/api/v1/clientes")
+        .set(admin())
+        .send({ nombre: tag("Cliente tipos de vehículo") });
+      clienteId = (cliente.body as { id: string }).id;
+      const vehiculo = await http()
+        .post("/api/v1/vehiculos")
+        .set(admin())
+        .send({
+          cliente_id: clienteId,
+          placa: `TV-${RUN_ID}`,
+          tipo_vehiculo: nombreTipo,
+        });
+      expect(vehiculo.status).toBe(201);
+      vehiculoId = (vehiculo.body as { id: string }).id;
+
+      const res = await http()
+        .patch(`/api/v1/tipos-vehiculo/${tipoId}`)
+        .set(admin())
+        .send({ nombre: `${nombreTipo} renombrado` });
+      expect(res.status).toBe(200);
+      expect(res.body.nombre).toBe(`${nombreTipo} renombrado`);
+
+      const detalle = await http()
+        .get(`/api/v1/vehiculos/${vehiculoId}`)
+        .set(admin());
+      expect(detalle.body.tipo_vehiculo).toBe(`${nombreTipo} renombrado`);
+    });
+
+    it("renombrar a un nombre ajeno → 409; id inexistente → 404", async () => {
+      const ajeno = await http()
+        .patch(`/api/v1/tipos-vehiculo/${tipoId}`)
+        .set(admin())
+        .send({ nombre: "motocicleta" });
+      expect(ajeno.status).toBe(409);
+
+      const inexistente = await http()
+        .patch("/api/v1/tipos-vehiculo/00000000-0000-4000-8000-000000000000")
+        .set(admin())
+        .send({ nombre: "Lo que sea" });
+      expect(inexistente.status).toBe(404);
+      expect(inexistente.body.message).toBe("Tipo de vehículo no encontrado");
+    });
+
+    it("desactivar lo saca de la lista, el vehículo conserva su tipo y el nombre se puede volver a crear", async () => {
+      const res = await http()
+        .delete(`/api/v1/tipos-vehiculo/${tipoId}`)
+        .set(admin());
+      expect(res.status).toBe(200);
+      expect(res.body.activo).toBe(false);
+
+      const lista = await http().get("/api/v1/tipos-vehiculo").set(admin());
+      expect((lista.body as { id: string }[]).map((t) => t.id)).not.toContain(
+        tipoId,
+      );
+
+      const detalle = await http()
+        .get(`/api/v1/vehiculos/${vehiculoId}`)
+        .set(admin());
+      expect(detalle.body.tipo_vehiculo).toBe(`${nombreTipo} renombrado`);
+
+      const otraVez = await http()
+        .delete(`/api/v1/tipos-vehiculo/${tipoId}`)
+        .set(admin());
+      expect(otraVez.status).toBe(404);
+
+      const recreado = await http()
+        .post("/api/v1/tipos-vehiculo")
+        .set(admin())
+        .send({ nombre: `${nombreTipo} renombrado` });
+      expect(recreado.status).toBe(201);
+      tipoId = (recreado.body as { id: string }).id;
+    });
+  });
 });

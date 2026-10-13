@@ -11,6 +11,7 @@ import { ClientesModule } from "./modules/clientes/clientes.module";
 import { VehiculosModule } from "./modules/vehiculos/vehiculos.module";
 import { PilotosModule } from "./modules/pilotos/pilotos.module";
 import { OperariosModule } from "./modules/operarios/operarios.module";
+import { TiposVehiculoModule } from "./modules/tipos-vehiculo/tipos-vehiculo.module";
 import { PreciosCombustibleModule } from "./modules/precios-combustible/precios-combustible.module";
 import { DespachosModule } from "./modules/despachos/despachos.module";
 import { ReportesModule } from "./modules/reportes/reportes.module";
@@ -37,6 +38,7 @@ import { SaludModule } from "./salud/salud.module";
     VehiculosModule,
     PilotosModule,
     OperariosModule,
+    TiposVehiculoModule,
     PreciosCombustibleModule,
     DespachosModule,
     ReportesModule,
