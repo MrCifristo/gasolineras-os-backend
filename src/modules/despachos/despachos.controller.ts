@@ -21,6 +21,8 @@ import { DespachosExcelService } from "./despachos-excel.service";
 import { DespachosService } from "./despachos.service";
 import { CreateDespachoDto } from "./dto/create-despacho.dto";
 import { UpdateDespachoDto } from "./dto/update-despacho.dto";
+import { parsearIds } from "./vales-pdf.reglas";
+import { ValesPdfService } from "./vales-pdf.service";
 import { UsuarioActual, type UsuarioSesion } from "../../auth/usuario-actual";
 
 /** page/limit: entero >= 1 (limit <= 100 por clamp); basura -> 400. */
@@ -42,6 +44,7 @@ export class DespachosController {
   constructor(
     private readonly service: DespachosService,
     private readonly excelService: DespachosExcelService,
+    private readonly valesPdfService: ValesPdfService,
   ) {}
 
   @Get()
@@ -143,6 +146,67 @@ export class DespachosController {
       "Content-Length": buf.length,
     });
     res.end(buf);
+  }
+
+  // Antes de @Get(":id"): si no, "vales" se tomaría como un id.
+  @Get("vales/pdf")
+  @Auth("admin", "supervisor", "cliente")
+  @ApiOperation({
+    summary:
+      "Vales en PDF (carta, 4 por hoja) con los filtros del listado o por ids",
+  })
+  @ApiQuery({ name: "gasolinera_id", required: false })
+  @ApiQuery({ name: "cliente_id", required: false })
+  @ApiQuery({ name: "vehiculo_id", required: false })
+  @ApiQuery({ name: "piloto_id", required: false })
+  @ApiQuery({ name: "fecha_desde", required: false, example: "2026-01-01" })
+  @ApiQuery({ name: "fecha_hasta", required: false, example: "2026-12-31" })
+  @ApiQuery({ name: "turno", required: false, enum: ["manana", "tarde"] })
+  @ApiQuery({
+    name: "tipo_combustible",
+    required: false,
+    enum: ["diesel", "super", "regular", "gas_lp"],
+  })
+  @ApiQuery({
+    name: "ids",
+    required: false,
+    description: "UUID de despachos separados por comas",
+  })
+  async valesPdf(
+    @UsuarioActual() usuario: UsuarioSesion,
+    @Res() res: Response,
+    @Query("gasolinera_id") gasolineraId?: string,
+    @Query("cliente_id") clienteId?: string,
+    @Query("vehiculo_id") vehiculoId?: string,
+    @Query("piloto_id") pilotoId?: string,
+    @Query("fecha_desde") fechaDesde?: string,
+    @Query("fecha_hasta") fechaHasta?: string,
+    @Query("turno") turno?: string,
+    @Query("tipo_combustible") tipoCombustible?: string,
+    @Query("ids") ids?: string,
+  ) {
+    const { pdf, nombre } = await this.valesPdfService.generar(
+      {
+        gasolinera_id: gasolineraId,
+        cliente_id: clienteId,
+        vehiculo_id: vehiculoId,
+        piloto_id: pilotoId,
+        fecha_desde: fechaDesde,
+        fecha_hasta: fechaHasta,
+        turno,
+        tipo_combustible: tipoCombustible,
+      },
+      parsearIds(ids),
+      usuario,
+    );
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${nombre}"`,
+      "Content-Length": pdf.length,
+      // Lleva firmas y datos del cliente: que no lo guarde ningún proxy.
+      "Cache-Control": "private, max-age=0, no-store",
+    });
+    res.end(pdf);
   }
 
   @Get("vehiculo/:vehiculoId/consumo-hoy")

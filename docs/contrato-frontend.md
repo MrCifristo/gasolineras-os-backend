@@ -183,6 +183,20 @@ Un vale sigue siendo **una fila header**, así que la numeración por advisory l
 - `resumen.primer_despacho` es el primer día de Guatemala (`"YYYY-MM-DD"`, o `null` sin despachos) con despachos del mismo cliente/estación, **sin** el rango de fechas. El portal oculta el "vs per. ant." si el periodo anterior empieza antes de ese día (decisión del 2026-10-12: comparar contra historia incompleta infla el porcentaje).
 - `tendencia-mensual` acepta `fecha_desde`/`fecha_hasta` y agrupa por mes de Guatemala dentro de ese rango; sin rango, los últimos 12 meses.
 
+### Vales en PDF: `GET /api/v1/despachos/vales/pdf` (2026-10-12)
+
+Copia digital de los vales para el archivo contable y la conciliación: **hoja carta, 4 vales por hoja**, ordenados por cliente y, dentro de cada cliente, por `correlativo_cliente` ascendente. Roles `admin`, `supervisor` y `cliente`. Generado con Chrome en el servidor, como el estado de cuenta.
+
+- **Filtros (query):** los mismos de `GET /despachos` — `gasolinera_id`, `cliente_id`, `vehiculo_id`, `piloto_id`, `fecha_desde`/`fecha_hasta` (días de Guatemala, `YYYY-MM-DD`), `turno`, `tipo_combustible` — y además **`ids`**: UUID de despachos separados por comas, para uno o varios vales concretos (se combinan con los filtros; los repetidos cuentan una vez). `page`/`limit` no aplican. Un `ids` que no sea una lista de UUID → **400** `"ids debe ser una lista de UUID separados por comas"`.
+- **Alcance:** exactamente el del listado. El cliente sólo recibe lo suyo (un `cliente_id` ajeno en el query no amplía nada: el resultado queda vacío); el supervisor, sólo su estación. Un id fuera de alcance **no aparece**, sin revelar que existe: si se piden propios y ajenos, salen sólo los propios; si no queda ninguno, el 404 genérico.
+- **Tope: 500 vales por PDF.** Con más → **400** `"Son N vales; acota el período o los filtros (máximo 500 por PDF)."` (N es el conteo real; con más de 500 `ids` distintos, N es la cantidad de ids). El frontend puede avisar antes con el `total` del listado, pero manda el 400 del backend: su mensaje debe mostrarse.
+- **Sin vales** (filtro vacío, todo fuera de alcance o un supervisor sin estación) → **404** `"No hay vales con esos filtros"`.
+- **Cliente sin empresa** → **403** `"Cliente sin empresa asignada"`, igual que en reportes.
+- **Respuesta:** `200`, `Content-Type: application/pdf`, `Cache-Control: private, max-age=0, no-store` y `Content-Disposition: attachment; filename="…"`:
+  - `vales-<cliente>-<desde>-a-<hasta>.pdf`: `<cliente>` es el nombre del cliente en minúsculas sin acentos ni signos (`transportes-del-atlantico-s-a`) si todos los vales son de uno, o `todos` si hay varios; `<desde>`/`<hasta>` son `fecha_desde`/`fecha_hasta`, o `inicio`/`hoy` si faltan.
+  - Con `ids` de **un solo** vale: `vale-<serie>-<numero>.pdf` (p. ej. `vale-A-006249.pdf`).
+- **Cada vale** trae estación y ciudad, N° de vale de la estación, **«N° cliente»**, fecha y hora de Guatemala, turno, bomba, cliente y NIT, vehículo y km, piloto, cada renglón (combustible, galones, precio por galón, subtotal), total, «Despachado por», operario y la firma. Una firma que falta o no se puede leer muestra **«Firma no disponible»** y el lote sigue (a diferencia de la reimpresión de la bomba, que no imprime sin firma). El pie de cada hoja dice **«Copia digital — generada el <fecha y hora GT>»**; nunca dice ORIGINAL.
+
 ---
 
 ## 1e. Inventario de insumos y sus ventas
@@ -375,6 +389,7 @@ Para el rol `cliente` el servidor ignora cualquier `cliente_id` del query (o lo 
 |---|---|---|
 | `GET /despachos` | sólo los suyos | `{ data: [], total: 0, … }` |
 | `GET /despachos/export/xlsx` | sólo los suyos | Excel vacío |
+| `GET /despachos/vales/pdf` | sólo los suyos (filtros e `ids`); ajeno no aparece; nada → 404 | 403 `"Cliente sin empresa asignada"` |
 | `GET /despachos/:id` | propio; ajeno → 404 | 403 |
 | `GET /despachos/:id/firma` | propio; ajeno → 404 | 403 |
 | `GET /despachos/vehiculo/:id/consumo-hoy` | vehículo propio; ajeno → 404 | 404 |

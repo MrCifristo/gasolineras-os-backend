@@ -41,6 +41,7 @@ const puppeteerMock = puppeteerReal as unknown as {
     jsHabilitado: boolean;
     interceptacionActiva: boolean;
     eventos: string[];
+    html: string | null;
   }[];
   __limpiarPaginas: () => void;
 };
@@ -2540,6 +2541,175 @@ describe("GasFuel OS — Suite E2E Completa", () => {
         const creditos = movs.filter((m) => m.tipo === "credito");
         expect(creditos).toHaveLength(1);
         expect(creditos[0].correlativo_cliente).toBeNull();
+      });
+
+      // Puppeteer va mockeado: se afirma sobre el HTML que recibió el renderer
+      // (qué vales entraron y en qué orden), no sobre el PDF dibujado.
+      describe("Vales en PDF", () => {
+        let tokenClienteA: string;
+        let valesA: {
+          id: string;
+          correlativo_cliente: number;
+          gasolinera_id: string;
+        }[];
+        let valeBId: string;
+
+        const pedirPdf = (token: string, query: string) => {
+          puppeteerMock.__limpiarPaginas();
+          return request(app.getHttpServer())
+            .get(`/api/v1/despachos/vales/pdf${query}`)
+            .set("Authorization", `Bearer ${token}`)
+            .buffer()
+            .parse((res, cb) => {
+              const trozos: Buffer[] = [];
+              res.on("data", (c: Buffer) => trozos.push(c));
+              res.on("end", () => cb(null, Buffer.concat(trozos)));
+            });
+        };
+        const htmlEnviado = () => puppeteerMock.__paginas[0]?.html ?? "";
+        const correlativosEnviados = () =>
+          [...htmlEnviado().matchAll(/N° cliente (\d+)/g)].map((m) =>
+            Number(m[1]),
+          );
+        const mensaje = (body: Buffer) =>
+          (JSON.parse(body.toString()) as { message: string }).message;
+
+        it("prepara un usuario del cliente A y los ids de los vales → 200", async () => {
+          tokenClienteA = await tokenDeClienteLigado(clienteCorrA, "vales-a");
+          const a = await request(app.getHttpServer())
+            .get(`/api/v1/despachos?cliente_id=${clienteCorrA}`)
+            .set("Authorization", `Bearer ${adminToken}`);
+          valesA = a.body.data;
+          expect(valesA).toHaveLength(5);
+          const b = await request(app.getHttpServer())
+            .get(`/api/v1/despachos?cliente_id=${clienteCorrB}`)
+            .set("Authorization", `Bearer ${adminToken}`);
+          expect(b.body.data).toHaveLength(1);
+          valeBId = b.body.data[0].id;
+        });
+
+        it("el cliente baja sus vales en orden de N° cliente → 200 application/pdf", async () => {
+          const res = await pedirPdf(tokenClienteA, "");
+          expect(res.status).toBe(200);
+          expect(res.headers["content-type"]).toContain("application/pdf");
+          expect(res.headers["content-disposition"]).toBe(
+            `attachment; filename="vales-e2e-${RUN_ID}-cliente-correlativo-a-inicio-a-hoy.pdf"`,
+          );
+          expect((res.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
+          expect(correlativosEnviados()).toEqual([1, 2, 3, 4, 5]);
+          const [pagina] = puppeteerMock.__paginas;
+          expect(pagina.jsHabilitado).toBe(false);
+          expect(pagina.interceptacionActiva).toBe(true);
+        });
+
+        it("el cliente con el cliente_id de otro en el query → 404", async () => {
+          const res = await pedirPdf(
+            tokenClienteA,
+            `?cliente_id=${clienteCorrB}`,
+          );
+          expect(res.status).toBe(404);
+          expect(mensaje(res.body as Buffer)).toBe(
+            "No hay vales con esos filtros",
+          );
+        });
+
+        it("el cliente que pide por ids un vale de otro cliente → 404", async () => {
+          const res = await pedirPdf(tokenClienteA, `?ids=${valeBId}`);
+          expect(res.status).toBe(404);
+          expect(mensaje(res.body as Buffer)).toBe(
+            "No hay vales con esos filtros",
+          );
+          expect(puppeteerMock.__paginas).toHaveLength(0);
+        });
+
+        it("con ids propios y ajenos sólo salen los propios → 200", async () => {
+          const res = await pedirPdf(
+            tokenClienteA,
+            `?ids=${valesA[0].id},${valeBId}`,
+          );
+          expect(res.status).toBe(200);
+          expect(correlativosEnviados()).toEqual([
+            valesA[0].correlativo_cliente,
+          ]);
+          expect(htmlEnviado()).not.toContain(tag("Cliente Correlativo B"));
+        });
+
+        it("con un solo id el archivo se llama vale-<serie>-<numero> → 200", async () => {
+          const detalle = await request(app.getHttpServer())
+            .get(`/api/v1/despachos/${valesA[0].id}`)
+            .set("Authorization", `Bearer ${adminToken}`);
+          const { serie_vale, numero_vale } = detalle.body.despacho as {
+            serie_vale: string;
+            numero_vale: string;
+          };
+          const res = await pedirPdf(tokenClienteA, `?ids=${valesA[0].id}`);
+          expect(res.status).toBe(200);
+          expect(res.headers["content-disposition"]).toBe(
+            `attachment; filename="vale-${serie_vale}-${numero_vale}.pdf"`,
+          );
+        });
+
+        it("un filtro sin resultados → 404 con el mensaje", async () => {
+          const res = await pedirPdf(
+            tokenClienteA,
+            "?fecha_desde=2000-01-01&fecha_hasta=2000-01-31",
+          );
+          expect(res.status).toBe(404);
+          expect(mensaje(res.body as Buffer)).toBe(
+            "No hay vales con esos filtros",
+          );
+        });
+
+        it("ids inválido → 400", async () => {
+          const res = await pedirPdf(tokenClienteA, "?ids=no-es-un-uuid");
+          expect(res.status).toBe(400);
+          expect(mensaje(res.body as Buffer)).toBe(
+            "ids debe ser una lista de UUID separados por comas",
+          );
+        });
+
+        it("el supervisor de otra estación sólo ve los vales de la suya → 200 y 404", async () => {
+          const deB = valesA
+            .filter((v) => v.gasolinera_id === estacionBId)
+            .map((v) => v.correlativo_cliente)
+            .sort((x, y) => x - y);
+          expect(deB).toHaveLength(2);
+
+          const lote = await pedirPdf(
+            supervisorBToken,
+            `?cliente_id=${clienteCorrA}`,
+          );
+          expect(lote.status).toBe(200);
+          expect(correlativosEnviados()).toEqual(deB);
+
+          const ajeno = valesA.find((v) => v.gasolinera_id !== estacionBId);
+          const res = await pedirPdf(supervisorBToken, `?ids=${ajeno?.id}`);
+          expect(res.status).toBe(404);
+        });
+
+        it("el admin ve los vales de los dos clientes, cada uno en su orden → 200", async () => {
+          const res = await pedirPdf(
+            adminToken,
+            `?ids=${[...valesA.map((v) => v.id), valeBId].join(",")}`,
+          );
+          expect(res.status).toBe(200);
+          expect(res.headers["content-disposition"]).toBe(
+            'attachment; filename="vales-todos-inicio-a-hoy.pdf"',
+          );
+          // Por cliente y, dentro de cada uno, por N° cliente.
+          expect([
+            [1, 2, 3, 4, 5, 1],
+            [1, 1, 2, 3, 4, 5],
+          ]).toContainEqual(correlativosEnviados());
+        });
+
+        it("un cliente sin empresa → 403 como en reportes", async () => {
+          const res = await pedirPdf(clienteUserToken, "");
+          expect(res.status).toBe(403);
+          expect(mensaje(res.body as Buffer)).toBe(
+            "Cliente sin empresa asignada",
+          );
+        });
       });
     });
   });

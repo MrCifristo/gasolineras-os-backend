@@ -11,7 +11,7 @@ export interface ValePdf {
   correlativo_cliente: number;
   despachado_at: Date | string;
   turno: string;
-  bomba_numero: number;
+  bomba_numero: number | null;
   gasolinera: { nombre: string; ciudad: string | null };
   cliente: { nombre: string; nit: string | null };
   vehiculo: {

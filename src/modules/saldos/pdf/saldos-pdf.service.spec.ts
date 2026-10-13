@@ -9,6 +9,7 @@ type PuppeteerMock = {
     interceptacionActiva: boolean;
     eventos: string[];
     html: string | null;
+    opcionesPdf: unknown;
   }[];
   __limpiarPaginas: () => void;
 };
@@ -57,5 +58,14 @@ describe("SaldosPdfService", () => {
   ])("el período %j se rotula «%s»", async (query, rotulo) => {
     await armar().generarEstadoCuenta("c1", query);
     expect(paginas[0].html).toContain(rotulo);
+  });
+
+  it("sale en A4 sin márgenes y con fondos (opciones de siempre)", async () => {
+    await armar().generarEstadoCuenta("c1", {});
+    expect(paginas[0].opcionesPdf).toEqual({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+    });
   });
 });

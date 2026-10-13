@@ -13,6 +13,7 @@ type PuppeteerMock = {
     interceptacionActiva: boolean;
     eventos: string[];
     html: string | null;
+    opcionesPdf: unknown;
   }[];
   __limpiarPaginas: () => void;
 };
@@ -96,5 +97,14 @@ describe("ReportesPdfService.generarPdf", () => {
     const pdf = await s.generarPdf({}, { rol: "admin" });
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     expect(paginas[0].html).toContain("Todos los períodos");
+  });
+
+  it("sale en A4 sin márgenes y con fondos (opciones de siempre)", async () => {
+    await armar().s.generarPdf({}, { rol: "admin" });
+    expect(paginas[0].opcionesPdf).toEqual({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+    });
   });
 });

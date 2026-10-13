@@ -1,5 +1,4 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
-import puppeteer from "puppeteer";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import { DbService } from "../../../db/db.service";
 import {
@@ -12,7 +11,7 @@ import { ReportesService, ReporteFilters } from "../reportes.service";
 import { GenerarPdfDto } from "./reportes-pdf.dto";
 import { buildPdfHtml, PdfTemplateData } from "./html-template";
 import { fechaGtSql } from "../../../common/hora-guatemala";
-import { opcionesChrome } from "../../../common/chrome";
+import { renderizarPdf } from "../../../common/render-pdf";
 
 @Injectable()
 export class ReportesPdfService {
@@ -79,7 +78,7 @@ export class ReportesPdfService {
     };
 
     const html = buildPdfHtml(templateData);
-    return this.renderPdf(html);
+    return renderizarPdf(html, "A4");
   }
 
   private async fetchDespachos(filtros: ReporteFilters) {
@@ -132,41 +131,5 @@ export class ReportesPdfService {
     if (filtros.fecha_desde) return `Desde ${filtros.fecha_desde}`;
     if (filtros.fecha_hasta) return `Hasta ${filtros.fecha_hasta}`;
     return "Todos los períodos";
-  }
-
-  private async renderPdf(html: string): Promise<Buffer> {
-    // Sandbox activo salvo CHROME_SIN_SANDBOX=true: ver common/chrome.ts.
-    const browser = await puppeteer.launch(opcionesChrome());
-    try {
-      const page = await browser.newPage();
-
-      // El reporte es HTML+CSS estático: no necesita JS. Desactivarlo anula
-      // toda la clase de inyección vía atributos del template.
-      await page.setJavaScriptEnabled(false);
-
-      // El template es autocontenido (sin fuentes, CDN ni scripts remotos),
-      // así que sólo data: es legítimo. Bloquear el resto corta exfiltración
-      // y SSRF aunque algo se cuele en el HTML.
-      await page.setRequestInterception(true);
-      page.on("request", (req) => {
-        const url = req.url();
-        // about: es el documento base que abre setContent; data: son las
-        // gráficas embebidas. Todo lo demás es salida a la red y no debería existir.
-        if (url.startsWith("data:") || url.startsWith("about:")) {
-          return void req.continue();
-        }
-        void req.abort();
-      });
-
-      await page.setContent(html, { waitUntil: "load" });
-      const pdf = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: { top: "0", right: "0", bottom: "0", left: "0" },
-      });
-      return Buffer.from(pdf);
-    } finally {
-      await browser.close();
-    }
   }
 }
