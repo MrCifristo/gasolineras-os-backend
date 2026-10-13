@@ -56,7 +56,12 @@ it before changing anything at the API seam.
   `forbidNonWhitelisted`, so unknown body keys **400** rather than being stripped
   (e2e bootstraps must replicate this pipe config).
 - Soft delete (`activo`) and blocking (`bloqueado`) are separate concepts;
-  `DELETE` routes update, never remove. **`credito_bloqueado` is a third,
+  `DELETE` routes update, never remove. A deactivated client vanishes from
+  every read; `PATCH /clientes/:id/reactivar` and `GET /clientes/inactivos`
+  (admin) bring it back. **The NIT is unique** case- and hyphen-insensitive,
+  inactive clients included, `"CF"` exempt (`clientes_nit_unico`, migration
+  0010; `claveNit` in `clientes.reglas.ts` must match the index expression);
+  a duplicate is a 409 naming the owner. **`credito_bloqueado` is a third,
   distinct thing**: it stops dispatches but leaves the account queryable and
   abonable. Don't collapse it into `bloqueado`.
 - **`movimientos_saldo.gasolinera_id` is nullable.** The opening-balance movement
@@ -289,7 +294,7 @@ client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
 
 ## Testing
 
-- Unit (`pnpm test`): 509 tests in 37 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 520 tests in 38 suites, no Postgres, about a second.
   Test doubles without `any` live in `test/unit/dobles.ts` (`vacio()`,
   `espiarPrivado`, `usuarioDePrueba`).
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
@@ -310,7 +315,7 @@ client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 290 tests in 3 suites — `gasfuel` 194, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 298 tests in 3 suites — `gasfuel` 202, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

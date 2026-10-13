@@ -109,6 +109,12 @@ Ambos son `boolean` en `clientes` y se editan por `POST`/`PATCH /clientes`. `GET
 
 `saldo_inicial` **no se acepta en `PATCH /clientes/:id`** — devuelve 400. Una apertura no se reescribe; para corregir el saldo se registra un abono, que deja rastro en el ledger.
 
+**NIT único y reactivación (2026-10-13).**
+- El NIT es único **sin distinguir mayúsculas ni guiones** (`6935124-K` = `6935124k`), **contando los clientes desactivados**. `"CF"` (consumidor final) y la ausencia de NIT pueden repetirse. Se guarda en mayúsculas (`trim` + `toUpperCase`). Índice `clientes_nit_unico` (migración 0010).
+- `POST /clientes` y `PATCH /clientes/:id` con un NIT ajeno → **409**. Si el dueño está activo: *"Ya existe un cliente con el NIT <nit> (<nombre>)."*; si está desactivado: *"El NIT <nit> es de <nombre>, que está desactivado. Reactívalo desde la lista de clientes."* Cambiar el NIT propio (otra forma de escribirlo) es 200.
+- `activo` **no se acepta** en `POST`/`PATCH /clientes` (400, `forbidNonWhitelisted`). La baja es `DELETE /clientes/:id`; la vuelta es **`PATCH /clientes/:id/reactivar`** (`admin`; sin body; 200 con el cliente, `activo: true`; id inexistente 404 "Cliente no encontrado", id no UUID 400). Vuelve con su flota, saldo e historial, que la baja nunca borró.
+- **`GET /clientes/inactivos`** (`admin`): los desactivados, por nombre. `GET /clientes` y `/clientes/:id` siguen devolviendo sólo activos.
+
 **Estado de cuenta.** `GET /api/v1/saldos/cliente/:id/estado-cuenta?fecha_desde&fecha_hasta`, `@Auth("admin")`:
 
 ```jsonc

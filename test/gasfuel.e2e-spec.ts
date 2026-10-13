@@ -3384,4 +3384,146 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.activo).toBe(false);
     });
   });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // BLOQUE 19 — NIT único y reactivación de clientes
+  // (corre después del 12, que dejó desactivado a cliente1)
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("19. NIT único y reactivación de clientes", () => {
+    const http = () => request(app.getHttpServer());
+    const admin = () => ({ Authorization: `Bearer ${adminToken}` });
+    const nombre1 = tag("Transportes Guatemala SA");
+    const creados: string[] = [];
+
+    afterAll(async () => {
+      // Deja desactivados a los que este bloque creó o reactivó.
+      for (const id of [cliente1Id, ...creados])
+        await http().delete(`/api/v1/clientes/${id}`).set(admin());
+    });
+
+    it("el NIT de un cliente desactivado (sin guion) → 409 que pide reactivarlo", async () => {
+      const res = await http()
+        .post("/api/v1/clientes")
+        .set(admin())
+        .send({ nombre: tag("Duplicado"), nit: `${RUN_ID}7` });
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        `El NIT ${RUN_ID}7 es de ${nombre1}, que está desactivado. Reactívalo desde la lista de clientes.`,
+      );
+    });
+
+    it("admin lista los desactivados → incluye a cliente1", async () => {
+      const res = await http().get("/api/v1/clientes/inactivos").set(admin());
+
+      expect(res.status).toBe(200);
+      const ids = (res.body as { id: string }[]).map((c) => c.id);
+      expect(ids).toContain(cliente1Id);
+    });
+
+    it("supervisor y cliente no listan desactivados → 403", async () => {
+      for (const token of [supervisorToken, clienteUserToken]) {
+        const res = await http()
+          .get("/api/v1/clientes/inactivos")
+          .set("Authorization", `Bearer ${token}`);
+        expect(res.status).toBe(403);
+      }
+    });
+
+    it("supervisor no reactiva → 403; id inexistente → 404; id inválido → 400", async () => {
+      const sup = await http()
+        .patch(`/api/v1/clientes/${cliente1Id}/reactivar`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+      expect(sup.status).toBe(403);
+
+      const inexistente = await http()
+        .patch(
+          "/api/v1/clientes/00000000-0000-4000-8000-000000000000/reactivar",
+        )
+        .set(admin());
+      expect(inexistente.status).toBe(404);
+      expect(inexistente.body.message).toBe("Cliente no encontrado");
+
+      const invalido = await http()
+        .patch("/api/v1/clientes/no-es-uuid/reactivar")
+        .set(admin());
+      expect(invalido.status).toBe(400);
+    });
+
+    it("admin reactiva a cliente1 → vuelve al listado y sale de desactivados", async () => {
+      const res = await http()
+        .patch(`/api/v1/clientes/${cliente1Id}/reactivar`)
+        .set(admin());
+      expect(res.status).toBe(200);
+      expect(res.body.activo).toBe(true);
+
+      const detalle = await http()
+        .get(`/api/v1/clientes/${cliente1Id}`)
+        .set(admin());
+      expect(detalle.status).toBe(200);
+
+      const lista = await http().get("/api/v1/clientes").set(admin());
+      expect((lista.body as { id: string }[]).map((c) => c.id)).toContain(
+        cliente1Id,
+      );
+
+      const inactivos = await http()
+        .get("/api/v1/clientes/inactivos")
+        .set(admin());
+      expect(
+        (inactivos.body as { id: string }[]).map((c) => c.id),
+      ).not.toContain(cliente1Id);
+    });
+
+    it("el NIT de un cliente activo, en minúsculas → 409 que lo nombra", async () => {
+      const res = await http()
+        .post("/api/v1/clientes")
+        .set(admin())
+        .send({ nombre: tag("Duplicado"), nit: `${RUN_ID}-7` });
+
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        `Ya existe un cliente con el NIT ${RUN_ID}-7 (${nombre1}).`,
+      );
+    });
+
+    it("CF puede repetirse → 201 dos veces", async () => {
+      for (const n of ["CF A", "CF B"]) {
+        const res = await http()
+          .post("/api/v1/clientes")
+          .set(admin())
+          .send({ nombre: tag(n), nit: "CF" });
+        expect(res.status).toBe(201);
+        creados.push((res.body as { id: string }).id);
+      }
+    });
+
+    it("el NIT se guarda en mayúsculas; editar a uno ajeno → 409, al propio → 200", async () => {
+      const alta = await http()
+        .post("/api/v1/clientes")
+        .set(admin())
+        .send({ nombre: tag("NIT con K"), nit: `B${RUN_ID}-k` });
+      expect(alta.status).toBe(201);
+      expect(alta.body.nit).toBe(`B${RUN_ID}-K`);
+      const id = (alta.body as { id: string }).id;
+      creados.push(id);
+
+      const ajeno = await http()
+        .patch(`/api/v1/clientes/${id}`)
+        .set(admin())
+        .send({ nit: `${RUN_ID}-7` });
+      expect(ajeno.status).toBe(409);
+      expect(ajeno.body.message).toBe(
+        `Ya existe un cliente con el NIT ${RUN_ID}-7 (${nombre1}).`,
+      );
+
+      const propio = await http()
+        .patch(`/api/v1/clientes/${id}`)
+        .set(admin())
+        .send({ nit: `b${RUN_ID}k` });
+      expect(propio.status).toBe(200);
+      expect(propio.body.nit).toBe(`B${RUN_ID}K`);
+    });
+  });
 });

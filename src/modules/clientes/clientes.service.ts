@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { DbService } from "../../db/db.service";
 import {
   clientes,
@@ -11,6 +11,12 @@ import {
 import { CreateClienteDto } from "./dto/create-cliente.dto";
 import { UpdateClienteDto } from "./dto/update-cliente.dto";
 import { decimalesATexto } from "../../common/decimales";
+import {
+  claveNit,
+  errorPorNitDuplicado,
+  errorPorNitDuplicadoPg,
+  normalizarNit,
+} from "./clientes.reglas";
 
 @Injectable()
 export class ClientesService {
@@ -73,12 +79,45 @@ export class ClientesService {
     return { ...cliente, vehiculos: clienteVehiculos, pilotos: clientePilotos };
   }
 
+  /**
+   * 409 si el NIT ya es de otro cliente, activo o desactivado (ver
+   * `claveNit`). El índice `clientes_nit_unico` cubre la carrera entre dos
+   * altas; esta consulta existe para poder nombrar al cliente que ya lo tiene.
+   */
+  private async exigirNitLibre(nit: string, excluirId?: string) {
+    const clave = claveNit(nit);
+    if (!clave) return;
+    const condiciones = [
+      sql`upper(replace(${clientes.nit}, '-', '')) = ${clave}`,
+    ];
+    if (excluirId) condiciones.push(ne(clientes.id, excluirId));
+    const [existente] = await this.db.db
+      .select({ nombre: clientes.nombre, activo: clientes.activo })
+      .from(clientes)
+      .where(and(...condiciones))
+      .limit(1);
+    if (existente) throw errorPorNitDuplicado(nit, existente);
+  }
+
   async create(dto: CreateClienteDto) {
     // saldo_inicial no es una columna de `clientes`: hay que sacarlo antes del
     // insert o rompería, porque coerceDecimales vuelca el dto entero.
-    const { saldo_inicial, ...datos } = dto;
+    const { saldo_inicial, ...resto } = dto;
+    const datos = { ...resto, nit: normalizarNit(resto.nit) };
     const apertura = saldo_inicial ?? 0;
+    if (datos.nit) await this.exigirNitLibre(datos.nit);
 
+    try {
+      return await this.crearConSaldo(datos, apertura);
+    } catch (e) {
+      throw errorPorNitDuplicadoPg(e);
+    }
+  }
+
+  private crearConSaldo(
+    datos: Omit<CreateClienteDto, "saldo_inicial">,
+    apertura: number,
+  ) {
     return this.db.db.transaction(async (tx) => {
       const [cliente] = await tx
         .insert(clientes)
@@ -109,12 +148,18 @@ export class ClientesService {
 
   async update(id: string, dto: UpdateClienteDto) {
     await this.findOne(id);
-    const [row] = await this.db.db
-      .update(clientes)
-      .set(this.coerceDecimales(dto))
-      .where(eq(clientes.id, id))
-      .returning();
-    return row;
+    if (dto.nit !== undefined) dto = { ...dto, nit: normalizarNit(dto.nit) };
+    if (dto.nit) await this.exigirNitLibre(dto.nit, id);
+    try {
+      const [row] = await this.db.db
+        .update(clientes)
+        .set(this.coerceDecimales(dto))
+        .where(eq(clientes.id, id))
+        .returning();
+      return row;
+    } catch (e) {
+      throw errorPorNitDuplicadoPg(e);
+    }
   }
 
   async remove(id: string) {
@@ -124,6 +169,29 @@ export class ClientesService {
       .set({ activo: false })
       .where(eq(clientes.id, id))
       .returning();
+    return row;
+  }
+
+  /** Clientes desactivados, para poder reactivarlos (sólo admin). */
+  findInactivos() {
+    return this.db.db
+      .select()
+      .from(clientes)
+      .where(eq(clientes.activo, false))
+      .orderBy(asc(clientes.nombre));
+  }
+
+  /**
+   * Deshace `remove`: vuelve a listarse con sus vehículos, pilotos, saldo e
+   * historial, que nunca se borraron. Reactivar uno activo no cambia nada.
+   */
+  async reactivar(id: string) {
+    const [row] = await this.db.db
+      .update(clientes)
+      .set({ activo: true })
+      .where(eq(clientes.id, id))
+      .returning();
+    if (!row) throw new NotFoundException("Cliente no encontrado");
     return row;
   }
 }

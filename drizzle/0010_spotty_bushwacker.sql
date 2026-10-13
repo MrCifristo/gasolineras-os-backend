@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "clientes_nit_unico" ON "clientes" USING btree (upper(replace("nit", '-', ''))) WHERE "clientes"."nit" IS NOT NULL AND upper(replace("clientes"."nit", '-', '')) NOT IN ('', 'CF');

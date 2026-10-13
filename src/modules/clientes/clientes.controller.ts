@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from "@nestjs/common";
@@ -27,6 +28,14 @@ export class ClientesController {
     return this.service.findAll(usuario);
   }
 
+  // Antes de `:id`, o Nest lo tomaría como un id.
+  @Get("inactivos")
+  @Auth("admin")
+  @ApiOperation({ summary: "Listar clientes desactivados" })
+  findInactivos() {
+    return this.service.findInactivos();
+  }
+
   @Get(":id")
   @Auth("admin", "supervisor", "cliente")
   @ApiOperation({ summary: "Obtener cliente con sus vehículos y pilotos" })
@@ -46,6 +55,13 @@ export class ClientesController {
   @ApiOperation({ summary: "Editar cliente" })
   update(@Param("id") id: string, @Body() dto: UpdateClienteDto) {
     return this.service.update(id, dto);
+  }
+
+  @Patch(":id/reactivar")
+  @Auth("admin")
+  @ApiOperation({ summary: "Reactivar un cliente desactivado" })
+  reactivar(@Param("id", ParseUUIDPipe) id: string) {
+    return this.service.reactivar(id);
   }
 
   @Delete(":id")
