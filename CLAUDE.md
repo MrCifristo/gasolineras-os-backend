@@ -146,10 +146,18 @@ debit, and decrements `saldos_cliente`. Things that surprise people:
   (`cliente_id, correlativo_cliente`) is the safety net: a 23505 on that index
   (read from the pg `constraint`, directly or in `cause`) is a 409 "El correlativo
   del cliente ya existe; intenta de nuevo"; any other 23505 keeps the vale message.
-  The migration backfills history ordered by `despachado_at`. Deploy window:
-  between the pre-deploy migration and the new version's healthcheck the old
-  create inserts without the column (NOT NULL → 500 at the pump); deploy outside
-  dispatch hours. Movements expose it as `correlativo_cliente` (leftJoin to
+  The migration backfills history ordered by `despachado_at`. **Deploy window
+  and rollback:** between the pre-deploy migration and the new version's
+  healthcheck the old create inserts without the column (NOT NULL, 23502 → 500 on
+  every `POST /despachos`), so the pump cannot dispatch. Order: deploy outside
+  dispatch hours; backend first, until healthy and with `correlativo_cliente` in
+  `GET /despachos`; only then the frontend. **Rolling the backend back to a
+  version before 0009 has the same effect** and leaves the pump stuck until
+  `ALTER TABLE despachos ALTER COLUMN correlativo_cliente DROP NOT NULL` is run.
+  Rolling forward again, fill the correlatives of the despachos created in the
+  meantime (same `ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY despachado_at)`
+  as the migration, continuing from the client's `MAX`) and restore `SET NOT NULL`.
+  Movements expose it as `correlativo_cliente` (leftJoin to
   `despachos`; `null` for payments, opening balance and reconciliations) in the
   account statement, its PDF and the despachos Excel.
 - Dispatch create takes `monto` (quetzales); the server derives `galones` from
@@ -281,7 +289,7 @@ client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
 
 ## Testing
 
-- Unit (`pnpm test`): 508 tests in 37 suites, no Postgres, about a second.
+- Unit (`pnpm test`): 509 tests in 37 suites, no Postgres, about a second.
   Test doubles without `any` live in `test/unit/dobles.ts` (`vacio()`,
   `espiarPrivado`, `usuarioDePrueba`).
 - **Business rules live in `<modulo>.reglas.ts`** — pure functions that receive
@@ -302,7 +310,7 @@ client then `correlativo_cliente`. Roles `admin`, `supervisor`, `cliente`.
   `docs/superpowers/specs/2026-10-07-pruebas-unitarias-backend-design.md`,
   `## Hallazgos`). No test is named `HALLAZGO` any more; if a new suspected bug
   is pinned that way, `grep -rn HALLAZGO src` lists it.
-- E2E (`pnpm test:e2e`): 289 tests in 3 suites — `gasfuel` 193, `auth-rotacion` 8,
+- E2E (`pnpm test:e2e`): 290 tests in 3 suites — `gasfuel` 194, `auth-rotacion` 8,
   `fase6` 88. Needs live Postgres and a migrated DB; run with
   `DATABASE_URL` on the command line if port 5432 is taken by another project.
 - Jest 30 filter: `pnpm test --testPathPatterns=<pattern>` (without `--`).

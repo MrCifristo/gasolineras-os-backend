@@ -1969,6 +1969,32 @@ describe("GasFuel OS — Suite E2E Completa", () => {
       expect(res.body.detalles).toHaveLength(2);
     });
 
+    it("el PDF del vale mixto lista el renglón del vehículo antes que el de la caneca → 200", async () => {
+      const lista = await request(app.getHttpServer())
+        .get(`/api/v1/despachos?cliente_id=${clienteMultiId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(lista.status).toBe(200);
+      const ids = (lista.body.data as { id: string }[]).map((d) => d.id);
+      expect(ids).toHaveLength(1);
+
+      puppeteerMock.__limpiarPaginas();
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/despachos/vales/pdf?ids=${ids[0]}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .buffer()
+        .parse((r, cb) => {
+          const trozos: Buffer[] = [];
+          r.on("data", (c: Buffer) => trozos.push(c));
+          r.on("end", () => cb(null, Buffer.concat(trozos)));
+        });
+      expect(res.status).toBe(200);
+      const html = puppeteerMock.__paginas[0]?.html ?? "";
+      const vehiculo = html.indexOf("<td>DIESEL</td>");
+      const caneca = html.indexOf("CANECAS · GASOLINA SUPER");
+      expect(vehiculo).toBeGreaterThan(-1);
+      expect(caneca).toBeGreaterThan(vehiculo);
+    });
+
     it("el vale mixto dejó UN solo débito por la suma → 200", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/saldos/cliente/${clienteMultiId}`)
@@ -2696,11 +2722,9 @@ describe("GasFuel OS — Suite E2E Completa", () => {
           expect(res.headers["content-disposition"]).toBe(
             'attachment; filename="vales-todos-inicio-a-hoy.pdf"',
           );
-          // Por cliente y, dentro de cada uno, por N° cliente.
-          expect([
-            [1, 2, 3, 4, 5, 1],
-            [1, 1, 2, 3, 4, 5],
-          ]).toContainEqual(correlativosEnviados());
+          // Por nombre de cliente (A antes que B, aunque B venga primero en
+          // los UUID) y, dentro de cada uno, por N° cliente.
+          expect(correlativosEnviados()).toEqual([1, 2, 3, 4, 5, 1]);
         });
 
         it("un cliente sin empresa → 403 como en reportes", async () => {
