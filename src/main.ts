@@ -40,6 +40,9 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.FRONTEND_URL || "http://localhost:3001",
     credentials: true,
+    // Entre orígenes el navegador sólo deja leer a JS los headers "seguros";
+    // sin esto el frontend no ve el nombre del PDF (vale-A-000123.pdf).
+    exposedHeaders: ["Content-Disposition"],
   });
 
   app.setGlobalPrefix("api/v1");
