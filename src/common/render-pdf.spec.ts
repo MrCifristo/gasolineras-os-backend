@@ -81,4 +81,107 @@ describe("renderizarPdf", () => {
       expect(r.continue).not.toHaveBeenCalled();
     }
   });
+
+  describe("de a dos a la vez", () => {
+    type Diferido = { resolver: () => void; rechazar: (e: Error) => void };
+    let enVuelo: number;
+    let maximo: number;
+    let pdfs: Diferido[];
+
+    // Cada render queda colgado en page.pdf hasta que la prueba lo suelte.
+    function chromeLento() {
+      enVuelo = 0;
+      maximo = 0;
+      pdfs = [];
+      return jest.spyOn(puppeteer, "launch").mockImplementation(() => {
+        enVuelo++;
+        maximo = Math.max(maximo, enVuelo);
+        const pagina = {
+          setJavaScriptEnabled: () => Promise.resolve(),
+          setRequestInterception: () => Promise.resolve(),
+          on: () => undefined,
+          setContent: () => Promise.resolve(),
+          pdf: () =>
+            new Promise<Uint8Array>((resolve, reject) => {
+              pdfs.push({
+                resolver: () => resolve(Buffer.from("%PDF-")),
+                rechazar: reject,
+              });
+            }),
+        };
+        const navegador = {
+          newPage: () => Promise.resolve(pagina),
+          close: () => {
+            enVuelo--;
+            return Promise.resolve();
+          },
+        };
+        return Promise.resolve(
+          navegador as unknown as Awaited<ReturnType<typeof puppeteer.launch>>,
+        );
+      });
+    }
+    const vaciarCola = async () => {
+      for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+    };
+
+    // launch ya es un jest.fn del mock: spyOn devuelve ese mismo fn, así que
+    // se limpian sus llamadas y se repone su implementación al terminar.
+    const launchMock = jest.spyOn(puppeteer, "launch");
+    const implementacionOriginal = launchMock.getMockImplementation();
+    beforeEach(() => launchMock.mockClear());
+    afterEach(() => {
+      if (implementacionOriginal) {
+        launchMock.mockImplementation(implementacionOriginal);
+      }
+    });
+
+    it("con 3 a la vez, el tercero espera a que termine uno", async () => {
+      const launch = chromeLento();
+      const renders = [1, 2, 3].map(() => renderizarPdf("<p></p>", "A4"));
+      await vaciarCola();
+      expect(launch).toHaveBeenCalledTimes(2);
+
+      pdfs[0].resolver();
+      await renders[0];
+      await vaciarCola();
+      expect(launch).toHaveBeenCalledTimes(3);
+
+      pdfs[1].resolver();
+      pdfs[2].resolver();
+      await Promise.all(renders);
+      expect(maximo).toBe(2);
+      expect(enVuelo).toBe(0);
+    });
+
+    it("un render que falla libera su lugar", async () => {
+      const launch = chromeLento();
+      const renders = [1, 2, 3].map(() =>
+        renderizarPdf("<p></p>", "Letter").catch((e: Error) => e.message),
+      );
+      await vaciarCola();
+      expect(launch).toHaveBeenCalledTimes(2);
+
+      pdfs[0].rechazar(new Error("Chrome se cayó"));
+      await expect(renders[0]).resolves.toBe("Chrome se cayó");
+      await vaciarCola();
+      expect(launch).toHaveBeenCalledTimes(3);
+
+      pdfs[1].resolver();
+      pdfs[2].resolver();
+      await Promise.all(renders);
+      expect(maximo).toBe(2);
+    });
+
+    it("si Chrome no arranca, también libera su lugar", async () => {
+      const launch = jest
+        .spyOn(puppeteer, "launch")
+        .mockRejectedValue(new Error("sin memoria"));
+      const resultados = await Promise.allSettled(
+        [1, 2, 3, 4].map(() => renderizarPdf("<p></p>", "A4")),
+      );
+      expect(resultados.every((r) => r.status === "rejected")).toBe(true);
+      expect(launch).toHaveBeenCalledTimes(4);
+    });
+  });
 });
